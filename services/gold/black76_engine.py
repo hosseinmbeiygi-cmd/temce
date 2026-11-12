@@ -54,7 +54,7 @@ def _require_non_negative(name: str, value: float) -> None:
         raise ValueError(f"{name} must be a finite non-negative number, got {value!r}")
 
 
-def _validate_inputs(F: float, K: float, T: float, r: float, sigma: float) -> None:
+def _validate_inputs(F: float, K: float, T: float, r: float, sigma: float) -> None:  # noqa: N803
     _require_positive("F", F)
     _require_positive("K", K)
     _require_non_negative("T", T)
@@ -62,13 +62,13 @@ def _validate_inputs(F: float, K: float, T: float, r: float, sigma: float) -> No
     _require_positive("sigma", sigma)
 
 
-def _d1_d2(F: float, K: float, T: float, sigma: float) -> tuple[float, float, float]:
+def _d1_d2(F: float, K: float, T: float, sigma: float) -> tuple[float, float, float]:  # noqa: N803
     sqrt_t = math.sqrt(T)
     d1 = (math.log(F / K) + 0.5 * sigma * sigma * T) / (sigma * sqrt_t)
     return d1, d1 - sigma * sqrt_t, sqrt_t
 
 
-def _intrinsic(F: float, K: float, T: float, r: float, option_type: str) -> float:
+def _intrinsic(F: float, K: float, T: float, r: float, option_type: str) -> float:  # noqa: N803
     discount = math.exp(-r * T)
     if option_type == "call":
         return max(0.0, F - K) * discount
@@ -76,7 +76,7 @@ def _intrinsic(F: float, K: float, T: float, r: float, option_type: str) -> floa
 
 
 def black76_price(
-    F: float, K: float, T: float, r: float, sigma: float, option_type: str
+    F: float, K: float, T: float, r: float, sigma: float, option_type: str  # noqa: N803
 ) -> float:
     """قیمت اختیار معاملهٔ اروپایی روی F با مدل Black-76.
 
@@ -98,7 +98,7 @@ def black76_price(
 
 
 def calculate_greeks(
-    F: float, K: float, T: float, r: float, sigma: float, option_type: str
+    F: float, K: float, T: float, r: float, sigma: float, option_type: str  # noqa: N803
 ) -> dict[str, float]:
     """یونانی‌های تحلیلی Black-76.
 
@@ -184,7 +184,7 @@ def _bisection(
 
 
 def implied_volatility(
-    market_price: float, F: float, K: float, T: float, r: float, option_type: str
+    market_price: float, F: float, K: float, T: float, r: float, option_type: str  # noqa: N803
 ) -> float:
     """استخراج نوسان ضمنی با brentq روی بازهٔ ``[1e-4, 5.0]``.
 

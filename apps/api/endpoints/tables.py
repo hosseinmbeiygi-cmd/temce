@@ -67,7 +67,7 @@ async def list_tables(
     # Planner statistics give row estimates in ONE query; a physical COUNT(*)
     # per table meant a full scan of ~43M rows on every page load. Exact counts
     # are only worth their cost on small tables.
-    _EXACT_COUNT_THRESHOLD = 100_000
+    _EXACT_COUNT_THRESHOLD = 100_000  # noqa: N806
     estimates: dict[str, int] = {}
     try:
         stats = await session.execute(

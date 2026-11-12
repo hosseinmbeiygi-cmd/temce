@@ -213,17 +213,17 @@ def ml_run(rows):
     ds = ml_dataset(rows)
     if not ds:
         return None
-    X, y = ds
-    X, keep = drop_const_cols(X)
+    X, y = ds  # noqa: N806
+    X, keep = drop_const_cols(X)  # noqa: N806
     n = len(X)
     if n < 60:
         return None
-    FEATURE_NAMES = ['بازده ۱روزه', 'بازده ۵روزه', 'بازده ۱۰روزه', 'بازده ۲۰روزه', 'RSI(14)', 'MACD Histogram',
+    FEATURE_NAMES = ['بازده ۱روزه', 'بازده ۵روزه', 'بازده ۱۰روزه', 'بازده ۲۰روزه', 'RSI(14)', 'MACD Histogram',  # noqa: N806
                      'فاصله% از SMA20', 'فاصله% از SMA50', 'ATR(14)', 'نسبت حجم به میانگین ۲۰روزه', '%B']
     names = [FEATURE_NAMES[j] for j in keep]
     n_train = int(n * 0.70)
     n_val = int(n * 0.15)
-    Xtr, Xva, Xte = X[:n_train], X[n_train:n_train + n_val], X[n_train + n_val:]
+    Xtr, Xva, Xte = X[:n_train], X[n_train:n_train + n_val], X[n_train + n_val:]  # noqa: N806
     ytr, yva, yte = y[:n_train], y[n_train:n_train + n_val], y[n_train + n_val:]
     if len(set(ytr)) < 2 or len(set(yte)) < 2:
         return None
@@ -233,7 +233,7 @@ def ml_run(rows):
     sd = [st.pstdev(c) or 1.0 for c in cols]
     def std(part):
         return [[(v - m) / s for v, m, s in zip(row, mu, sd, strict=False)] for row in part]
-    Xtr, Xva, Xte = std(Xtr), std(Xva), std(Xte)
+    Xtr, Xva, Xte = std(Xtr), std(Xva), std(Xte)  # noqa: N806
     res = {'n': n, 'train': len(Xtr), 'val': len(Xva), 'test': len(Xte),
            'balance': sum(y) / len(y) * 100, 'models': {}, 'names': names}
     baseline = max(set(yte), key=yte.count)
@@ -254,18 +254,18 @@ def ml_run(rows):
             res['models'][name] = None
     return res
 
-def nfeatures_const(X):
+def nfeatures_const(X):  # noqa: N803
     # drop constant columns instead of rejecting the whole dataset (volume absent in price history)
     cols = list(zip(*X, strict=False))
     return any(st.pstdev(c) == 0 for c in cols)
 
-def drop_const_cols(X):
+def drop_const_cols(X):  # noqa: N803
     cols = list(zip(*X, strict=False))
     keep = [j for j, c in enumerate(cols) if st.pstdev(c) > 0]
     return [[row[j] for j in keep] for row in X], keep
 
 # --- logistic regression (batch GD, L2) ---
-def logreg(Xtr, ytr, Xva, yva, Xte):
+def logreg(Xtr, ytr, Xva, yva, Xte):  # noqa: N803
     import random
     random.seed(42)
     d = len(Xtr[0])
@@ -292,12 +292,12 @@ def logreg(Xtr, ytr, Xva, yva, Xte):
     return pred, [prob(r) for r in Xte], None
 
 # --- gradient boosting on stumps (depth-1 trees, subsample features) ---
-def gb_stump(Xtr, ytr, Xva, yva, Xte, rounds=30, lr=0.1):
+def gb_stump(Xtr, ytr, Xva, yva, Xte, rounds=30, lr=0.1):  # noqa: N803
     import random
     random.seed(7)
     n, d = len(Xtr), len(Xtr[0])
     f0 = st.mean(ytr)
-    F = [f0] * n
+    F = [f0] * n  # noqa: N806
     stumps = []
     for _ in range(rounds):
         resid = [yi - 1 / (1 + math.exp(-max(-30, min(30, fi)))) for yi, fi in zip(ytr, F, strict=False)]
@@ -318,7 +318,7 @@ def gb_stump(Xtr, ytr, Xva, yva, Xte, rounds=30, lr=0.1):
             break
         _, j, v, gl, gr = best
         stumps.append((j, v, gl, gr))
-        F = [fi + lr * (gl if row[j] <= v else gr) for row, fi in zip(Xtr, F, strict=False)]
+        F = [fi + lr * (gl if row[j] <= v else gr) for row, fi in zip(Xtr, F, strict=False)]  # noqa: N806
     def prob(row):
         f = f0
         for j, v, gl, gr in stumps:

@@ -10,11 +10,11 @@ class ShallowEnsemble:
     def add_model(self, model: Any) -> None:
         self._models.append(model)
 
-    def fit(self, X: Any, y: Any) -> None:
+    def fit(self, X: Any, y: Any) -> None:  # noqa: N803
         for model in self._models:
             model.fit(X, y)
 
-    def predict(self, X: Any) -> Any:
+    def predict(self, X: Any) -> Any:  # noqa: N803
         import numpy as np
 
         predictions = np.array([m.predict(X) for m in self._models])

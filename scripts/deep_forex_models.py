@@ -64,7 +64,7 @@ class MinMaxScaler:
 
 
 def make_sequences(features: np.ndarray, target: np.ndarray, seq_len: int) -> tuple[np.ndarray, np.ndarray]:
-    X, y = [], []
+    X, y = [], []  # noqa: N806
     for i in range(len(features) - seq_len):
         X.append(features[i : i + seq_len])
         y.append(target[i + seq_len])
@@ -83,16 +83,16 @@ def prepare_data(
     clean = df[cols].dropna().reset_index(drop=True)
 
     feat_cols = [c for c in feature_cols if c in clean.columns]
-    X_raw = clean[feat_cols].values
+    X_raw = clean[feat_cols].values  # noqa: N806
     y_raw = clean[target_col].values
 
     f_scaler = MinMaxScaler()
     t_scaler = MinMaxScaler()
 
-    X_scaled = f_scaler.fit_transform(X_raw)
+    X_scaled = f_scaler.fit_transform(X_raw)  # noqa: N806
     y_scaled = t_scaler.fit_transform(y_raw.reshape(-1, 1)).flatten()
 
-    X, y = make_sequences(X_scaled, y_scaled, seq_len)
+    X, y = make_sequences(X_scaled, y_scaled, seq_len)  # noqa: N806
 
     split = int(len(X) * train_ratio)
 
@@ -176,7 +176,7 @@ class LSTMNet:
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
-    def train_step(self, X: np.ndarray, y: np.ndarray) -> float:
+    def train_step(self, X: np.ndarray, y: np.ndarray) -> float:  # noqa: N803
         import torch
 
         self.model.train()
@@ -189,7 +189,7 @@ class LSTMNet:
         self.optimizer.step()
         return loss.item()
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
         import torch
 
         self.model.eval()
@@ -228,7 +228,7 @@ class GRUNet:
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
-    def train_step(self, X: np.ndarray, y: np.ndarray) -> float:
+    def train_step(self, X: np.ndarray, y: np.ndarray) -> float:  # noqa: N803
         import torch
 
         self.model.train()
@@ -241,7 +241,7 @@ class GRUNet:
         self.optimizer.step()
         return loss.item()
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
         import torch
 
         self.model.eval()
@@ -299,7 +299,7 @@ class TransformerNet:
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4)
 
-    def train_step(self, X: np.ndarray, y: np.ndarray) -> float:
+    def train_step(self, X: np.ndarray, y: np.ndarray) -> float:  # noqa: N803
         import torch
 
         self.model.train()
@@ -312,7 +312,7 @@ class TransformerNet:
         self.optimizer.step()
         return loss.item()
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
         import torch
 
         self.model.eval()
@@ -337,7 +337,7 @@ class Trainer:
         self.train_losses: list[float] = []
         self.val_losses: list[float] = []
 
-    def fit(self, X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_val: np.ndarray) -> dict:
+    def fit(self, X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_val: np.ndarray) -> dict:  # noqa: N803
         import torch
 
         best_val = float("inf")
@@ -345,7 +345,7 @@ class Trainer:
         counter = 0
         best_epoch = 0
 
-        X_val_t = torch.FloatTensor(X_val).to(self.model.device)
+        X_val_t = torch.FloatTensor(X_val).to(self.model.device)  # noqa: N806
         y_val_t = torch.FloatTensor(y_val).to(self.model.device)
 
         n = len(X_train)
@@ -405,7 +405,7 @@ class Trainer:
 
         return {"best_epoch": best_epoch, "best_val_loss": best_val, "epochs": len(self.train_losses)}
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
         return self.model.predict(X)
 
 
@@ -426,7 +426,7 @@ class EnsemblePredictor:
         """
         self.models = models
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
         total_weight = sum(w for _, _, w in self.models)
         result = np.zeros(len(X))
         for _name, model, weight in self.models:
@@ -449,12 +449,12 @@ def compare_models(
     """آموزش و مقایسه تمام مدل‌ها."""
 
     n_feat = data["n_features"]
-    X_tr, y_tr = data["X_train"], data["y_train"]
-    X_te, y_te = data["X_test"], data["y_test"]
+    X_tr, y_tr = data["X_train"], data["y_train"]  # noqa: N806
+    X_te, y_te = data["X_test"], data["y_test"]  # noqa: N806
 
     split = int(len(X_tr) * 0.85)
-    X_val, y_val = X_tr[split:], y_tr[split:]
-    X_tr_final, y_tr_final = X_tr[:split], y_tr[:split]
+    X_val, y_val = X_tr[split:], y_tr[split:]  # noqa: N806
+    X_tr_final, y_tr_final = X_tr[:split], y_tr[:split]  # noqa: N806
 
     model_configs = [
         ("LSTM", lambda: LSTMNet(n_feat, hidden=64, layers=2, dropout=0.2)),

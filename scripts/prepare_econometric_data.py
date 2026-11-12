@@ -269,7 +269,7 @@ def run_regression(df: pd.DataFrame, dependent: str, independents: list[str]) ->
             return {"error": "insufficient data"}
 
         y = subset[dependent]
-        X = sm.add_constant(subset[available])
+        X = sm.add_constant(subset[available])  # noqa: N806
 
         model = sm.OLS(y, X).fit()
 

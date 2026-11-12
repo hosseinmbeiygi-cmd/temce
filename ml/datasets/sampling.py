@@ -14,7 +14,7 @@ class DataSampler:
             from imblearn.over_sampling import RandomOverSampler
 
             ros = RandomOverSampler(random_state=random_state)
-            X_res, y_res = ros.fit_resample(features.data, targets.data)
+            X_res, y_res = ros.fit_resample(features.data, targets.data)  # noqa: N806
             return FeatureMatrix(data=X_res, feature_names=features.feature_names), TargetVector(
                 data=pd.Series(y_res, name=targets.name)
             )

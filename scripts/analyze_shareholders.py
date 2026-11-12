@@ -47,8 +47,8 @@ async def run() -> None:
                 SELECT MAX(REPLACE(date, '-', '')::int) - 30 AS cutoff
                 FROM brsapi_shareholder_records
             )
-        """
-        DATE_FILTER = "REPLACE(brsapi_shareholder_records.date, '-', '')::int >= (SELECT cutoff FROM _max_dt)"
+        """  # noqa: N806
+        DATE_FILTER = "REPLACE(brsapi_shareholder_records.date, '-', '')::int >= (SELECT cutoff FROM _max_dt)"  # noqa: N806
 
         # Date range
         r = await session.execute(

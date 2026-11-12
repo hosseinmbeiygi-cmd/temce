@@ -172,7 +172,7 @@ def create_sequences(
     X: (samples, seq_length, n_features)
     y: (samples,)
     """
-    X, y = [], []
+    X, y = [], []  # noqa: N806
     for i in range(len(features) - seq_length):
         X.append(features[i : i + seq_length])
         y.append(target[i + seq_length])
@@ -207,11 +207,11 @@ def prepare_lstm_data(
     target_scaled = target_scaler.fit_transform(target.reshape(-1, 1)).flatten()
 
     # ساخت دنباله‌ها
-    X, y = create_sequences(features_scaled, target_scaled, seq_length)
+    X, y = create_sequences(features_scaled, target_scaled, seq_length)  # noqa: N806
 
     # تقسیم آموزش/تست (بدون درهم‌ریختن ترتیب زمانی)
     split_idx = int(len(X) * train_ratio)
-    X_train, X_test = X[:split_idx], X[split_idx:]
+    X_train, X_test = X[:split_idx], X[split_idx:]  # noqa: N806
     y_train, y_test = y[:split_idx], y[split_idx:]
 
     n_features = features_scaled.shape[1]
@@ -302,9 +302,9 @@ class LSTMForexPredictor:
 
     def train(
         self,
-        X_train: np.ndarray,
+        X_train: np.ndarray,  # noqa: N803
         y_train: np.ndarray,
-        X_val: np.ndarray,
+        X_val: np.ndarray,  # noqa: N803
         y_val: np.ndarray,
         epochs: int = 100,
         batch_size: int = 32,
@@ -316,9 +316,9 @@ class LSTMForexPredictor:
         """
         import torch
 
-        X_train_t = torch.FloatTensor(X_train).to(self.device)
+        X_train_t = torch.FloatTensor(X_train).to(self.device)  # noqa: N806
         y_train_t = torch.FloatTensor(y_train).to(self.device)
-        X_val_t = torch.FloatTensor(X_val).to(self.device)
+        X_val_t = torch.FloatTensor(X_val).to(self.device)  # noqa: N806
         y_val_t = torch.FloatTensor(y_val).to(self.device)
 
         train_dataset = torch.utils.data.TensorDataset(X_train_t, y_train_t)
@@ -339,7 +339,7 @@ class LSTMForexPredictor:
             # ── آموزش ──
             self.model.train()
             epoch_loss = 0.0
-            for batch_X, batch_y in train_loader:
+            for batch_X, batch_y in train_loader:  # noqa: N806
                 self.optimizer.zero_grad()
                 pred = self.model(batch_X)
                 loss = self.criterion(pred, batch_y)
@@ -396,12 +396,12 @@ class LSTMForexPredictor:
             "epochs_trained": len(self.train_losses),
         }
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray) -> np.ndarray:  # noqa: N803
         """پیش‌بینی روی داده جدید."""
         import torch
 
         self.model.eval()
-        X_t = torch.FloatTensor(X).to(self.device)
+        X_t = torch.FloatTensor(X).to(self.device)  # noqa: N806
         with torch.no_grad():
             pred = self.model(X_t)
         return pred.cpu().numpy()
@@ -596,7 +596,7 @@ def walk_forward_backtest(
         features_scaled = f_scaler.fit_transform(features)
         target_scaled = t_scaler.fit_transform(target.reshape(-1, 1)).flatten()
 
-        X_train, y_train = create_sequences(features_scaled, target_scaled, seq_length)
+        X_train, y_train = create_sequences(features_scaled, target_scaled, seq_length)  # noqa: N806
 
         if len(X_train) < 20:
             start_idx += retrain_every
@@ -627,7 +627,7 @@ def walk_forward_backtest(
         test_target = test_data[target_col].values
 
         test_features_scaled = f_scaler.transform(test_features)
-        X_test, y_test_actual = create_sequences(
+        X_test, y_test_actual = create_sequences(  # noqa: N806
             test_features_scaled, t_scaler.transform(test_target.reshape(-1, 1)).flatten(), seq_length
         )
 

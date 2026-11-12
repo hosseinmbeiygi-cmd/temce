@@ -243,8 +243,8 @@ async def run_backtest_on_all_symbols(
         end = datetime.fromisoformat(end).date()
 
     # ── Parallel execution with concurrency control ──
-    MAX_CONCURRENT = 10  # Max parallel backtests at once
-    MAX_TIMEOUT = 600  # 10 minutes max for all backtests combined
+    MAX_CONCURRENT = 10  # Max parallel backtests at once  # noqa: N806
+    MAX_TIMEOUT = 600  # 10 minutes max for all backtests combined  # noqa: N806
     semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
     async def _run_one(symbol: str) -> dict[str, Any]:

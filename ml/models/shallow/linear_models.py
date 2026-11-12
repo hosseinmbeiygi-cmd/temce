@@ -18,11 +18,11 @@ class LinearRegressionModel(BaseModel):
 
         self._model = SkLinearRegression(**self.params)
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         self._model.fit(X.values, y.values)
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         preds = self._model.predict(X.values)
         return PredictionResult(predictions=preds, model_id=self.name)
 
@@ -47,11 +47,11 @@ class LogisticRegressionModel(BaseModel):
 
         self._model = SkLogisticRegression(**self.params)
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         self._model.fit(X.values, y.values)
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         preds = self._model.predict(X.values)
         probs = self._model.predict_proba(X.values) if hasattr(self._model, "predict_proba") else None
         return PredictionResult(predictions=preds, probabilities=probs, model_id=self.name)

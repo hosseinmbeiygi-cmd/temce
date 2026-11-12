@@ -410,7 +410,7 @@ def fetch_producthunt(limit=5, keyword=None):
             link_tag = entry.find('link')
             url = link_tag.get('href') or link_tag.get_text(strip=True) if link_tag else ""
 
-            pubBox = entry.find('pubDate') or entry.find('published')
+            pubBox = entry.find('pubDate') or entry.find('published')  # noqa: N806
             pub = pubBox.get_text(strip=True) if pubBox else ""
 
             items.append({
@@ -968,7 +968,7 @@ def main():
     results = run_fetchers(to_run, args.limit, args.keyword)
 
     # Smart Fill Logic (Only if keyword is used and results are sparse)
-    MIN_ITEMS = 5
+    MIN_ITEMS = 5  # noqa: N806
     if args.keyword and len(results) < MIN_ITEMS:
         sys.stderr.write(f"Smart Fill triggered: Found {len(results)} items, filling gaps...\n")
 

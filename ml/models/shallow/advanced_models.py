@@ -52,14 +52,14 @@ class HistGradientBoostingModel(BaseModel):
         else:
             self._model = HistGradientBoostingRegressor(**default_params)
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
-        X_np = _to_numpy(X)
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         y_np = _to_numpy(y)
         self._model.fit(X_np, y_np)
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
-        X_np = _to_numpy(X)
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         preds = self._model.predict(X_np)
         probs = None
         if hasattr(self._model, "predict_proba"):
@@ -110,14 +110,14 @@ class ExtraTreesModel(BaseModel):
         else:
             self._model = ExtraTreesRegressor(**default_params)
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
-        X_np = _to_numpy(X)
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         y_np = _to_numpy(y)
         self._model.fit(X_np, y_np)
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
-        X_np = _to_numpy(X)
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         preds = self._model.predict(X_np)
         probs = None
         if hasattr(self._model, "predict_proba"):
@@ -155,14 +155,14 @@ class HuberRegressorModel(BaseModel):
         default_params.update(self.params)
         self._model = HuberRegressor(**default_params)
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
-        X_np = _to_numpy(X)
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         y_np = _to_numpy(y)
         self._model.fit(X_np, y_np)
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
-        X_np = _to_numpy(X)
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         preds = self._model.predict(X_np)
         return PredictionResult(predictions=preds, model_id=self.name)
 
@@ -192,14 +192,14 @@ class BayesianRidgeModel(BaseModel):
 
         self._model = BayesianRidge()
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
-        X_np = _to_numpy(X)
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         y_np = _to_numpy(y)
         self._model.fit(X_np, y_np)
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
-        X_np = _to_numpy(X)
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         preds, std = self._model.predict(X_np, return_std=True)
         return PredictionResult(
             predictions=preds,

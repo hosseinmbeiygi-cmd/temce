@@ -590,13 +590,13 @@ def ml_train(df: pd.DataFrame) -> dict:
     n = len(f)
     if n < 150:
         return {"status": "داده ناکافی", "n": n, "vol_ok": vol_ok}
-    X = f[feature_cols].values.astype(float)
+    X = f[feature_cols].values.astype(float)  # noqa: N806
     y = f["target"].values.astype(int)
     n_tr = int(n * 0.7)
     n_val = int(n * 0.15)
-    Xtr, ytr = X[:n_tr], y[:n_tr]
-    Xval, _ = X[n_tr:n_tr + n_val], y[n_tr:n_tr + n_val]
-    Xte, yte = X[n_tr + n_val:], y[n_tr + n_val:]
+    Xtr, ytr = X[:n_tr], y[:n_tr]  # noqa: N806
+    Xval, _ = X[n_tr:n_tr + n_val], y[n_tr:n_tr + n_val]  # noqa: N806
+    Xte, yte = X[n_tr + n_val:], y[n_tr + n_val:]  # noqa: N806
     if len(Xte) < 20:
         return {"status": "داده ناکافی", "n": n, "n_total": n_total, "vol_ok": vol_ok}
     if len(set(ytr)) < 2 or len(set(yte)) < 2:
@@ -604,9 +604,9 @@ def ml_train(df: pd.DataFrame) -> dict:
                 "note": "کلاس هدف در بازه آموزش یا آزمون تک‌مقداری است"}
     mu, sd = Xtr.mean(axis=0), Xtr.std(axis=0)
     sd[sd == 0] = 1.0
-    Xtr_s, _, Xte_s = (Xtr - mu) / sd, (Xval - mu) / sd, (Xte - mu) / sd
+    Xtr_s, _, Xte_s = (Xtr - mu) / sd, (Xval - mu) / sd, (Xte - mu) / sd  # noqa: N806
 
-    def met(model, Xt, yt):
+    def met(model, Xt, yt):  # noqa: N803
         pred = model.predict(Xt)
         out = {"accuracy": float(accuracy_score(yt, pred)),
                "precision": float(precision_score(yt, pred, zero_division=0)),
@@ -1724,7 +1724,7 @@ def main():
             for r in detection_rows:
                 w.writerow(r)
         print(f"[detect] {len(detection_rows)} تصمیم تشخیص در detection_log.csv ثبت شد", flush=True)
-    DET_SHORT = {
+    DET_SHORT = {  # noqa: N806
         "candlesticks": "candlesticks (نوع ۳ - تعدیل‌شده)",
         "quotes": "quotes",
         "real_legal": "brsapi_historical_real_legal",

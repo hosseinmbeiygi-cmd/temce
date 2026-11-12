@@ -115,15 +115,15 @@ def build_features(df):
     pf = PriceFeatures(window_sizes=[5, 10, 20])
     tf = TechnicalFeatures()
 
-    X_price = pf.compute(df)
-    X_tech = tf.compute(df)
+    X_price = pf.compute(df)  # noqa: N806
+    X_tech = tf.compute(df)  # noqa: N806
 
     if hasattr(X_price, "data"):
-        X_price = X_price.data
+        X_price = X_price.data  # noqa: N806
     if hasattr(X_tech, "data"):
-        X_tech = X_tech.data
+        X_tech = X_tech.data  # noqa: N806
 
-    X = pd.concat([X_price, X_tech], axis=1)
+    X = pd.concat([X_price, X_tech], axis=1)  # noqa: N806
 
     y = df["close"].pct_change().shift(-1)
 
@@ -133,10 +133,10 @@ def build_features(df):
     y = y.clip(lower, upper)
 
     valid_idx = y.index[~y.isna()]
-    X = X.loc[valid_idx]
+    X = X.loc[valid_idx]  # noqa: N806
     y = y.loc[valid_idx]
 
-    X = X.iloc[30:]
+    X = X.iloc[30:]  # noqa: N806
     y = y.iloc[30:]
 
     return X, y
@@ -171,7 +171,7 @@ async def main():
             return
 
         all_models = model_registry.list_models()
-        MODELS = [m for m in all_models if "logistic" not in m.lower()]
+        MODELS = [m for m in all_models if "logistic" not in m.lower()]  # noqa: N806
 
         # ========== پیدا کردن نقطه شروع ==========
         start_symbol_index = 0
@@ -190,7 +190,7 @@ async def main():
         import ml.models.shallow.boosting_models as boosting_models
 
         # پچ کردن مستقیم کلاس CatBoostModel
-        def patched_catboost_fit(self, X, y):
+        def patched_catboost_fit(self, X, y):  # noqa: N803
             # مقداردهی اولیه مدل اگر وجود نداشت
             if not hasattr(self, 'model') or self.model is None:
                 self.model = cb.CatBoostRegressor(
@@ -213,17 +213,17 @@ async def main():
                 print(f"  SKIP - only {len(df)} rows")
                 continue
 
-            X, y = build_features(df)
+            X, y = build_features(df)  # noqa: N806
             if len(X) < 30:
                 print(f"  SKIP - only {len(X)} samples")
                 continue
 
             split = int(len(X) * 0.8)
-            X_train, X_val = X.iloc[:split], X.iloc[split:]
+            X_train, X_val = X.iloc[:split], X.iloc[split:]  # noqa: N806
             y_train, y_val = y.iloc[:split], y.iloc[split:]
 
-            X_train = pd.DataFrame(X_train, columns=X.columns)
-            X_val = pd.DataFrame(X_val, columns=X.columns)
+            X_train = pd.DataFrame(X_train, columns=X.columns)  # noqa: N806
+            X_val = pd.DataFrame(X_val, columns=X.columns)  # noqa: N806
 
             for model_type in MODELS:
                 result_key = f"{symbol}_{model_type}"

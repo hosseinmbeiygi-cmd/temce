@@ -59,11 +59,11 @@ def main() -> int:
 
     rng = np.random.default_rng(7)
     n, feats = 200, ["a", "b", "c"]
-    Xn = rng.normal(size=(n, len(feats)))
+    Xn = rng.normal(size=(n, len(feats)))  # noqa: N806
     y = 3.0 * Xn[:, 0] - 2.0 * Xn[:, 1] + 0.5 * Xn[:, 2] + rng.normal(scale=0.01, size=n)
     # Real feature frames, exactly like the artifacts being reproduced: named
     # columns, with a missing value so the imputer step is genuinely exercised.
-    X = pd.DataFrame(Xn, columns=feats)
+    X = pd.DataFrame(Xn, columns=feats)  # noqa: N806
     X.iloc[0, 0] = np.nan
 
     pipeline = build_pipeline()

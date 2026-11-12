@@ -34,7 +34,7 @@ class BlendingEnsemble(BaseEnsembleModel):
         self._meta_model = model
 
     def _split_data(
-        self, X: FeatureMatrix, y: TargetVector
+        self, X: FeatureMatrix, y: TargetVector  # noqa: N803
     ) -> tuple[FeatureMatrix, FeatureMatrix, TargetVector, TargetVector]:
         holdout_frac = self.params.get("holdout_fraction", 0.2)
         random_state = self.params.get("random_state", 42)
@@ -45,25 +45,25 @@ class BlendingEnsemble(BaseEnsembleModel):
         holdout_idx = indices[:n_holdout]
         train_idx = indices[n_holdout:]
 
-        X_train = FeatureMatrix(data=X.data.iloc[train_idx].reset_index(drop=True))
-        X_holdout = FeatureMatrix(data=X.data.iloc[holdout_idx].reset_index(drop=True))
+        X_train = FeatureMatrix(data=X.data.iloc[train_idx].reset_index(drop=True))  # noqa: N806
+        X_holdout = FeatureMatrix(data=X.data.iloc[holdout_idx].reset_index(drop=True))  # noqa: N806
         y_train = TargetVector(data=y.data.iloc[train_idx].reset_index(drop=True))
         y_holdout = TargetVector(data=y.data.iloc[holdout_idx].reset_index(drop=True))
         return X_train, X_holdout, y_train, y_holdout
 
-    def _build_meta_features(self, X: FeatureMatrix, base_predictions: list[np.ndarray]) -> np.ndarray:
+    def _build_meta_features(self, X: FeatureMatrix, base_predictions: list[np.ndarray]) -> np.ndarray:  # noqa: N803
         meta_features = np.column_stack(base_predictions)
         if self.params.get("use_original_features", True):
             meta_features = np.hstack([X.values, meta_features])
         return meta_features
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         if not self._base_models:
             raise ValueError("No base models added to blending ensemble")
         if self._meta_model is None:
             raise ValueError("Meta model not set. Assign meta_model before fitting.")
 
-        X_train, X_holdout, y_train, y_holdout = self._split_data(X, y)
+        X_train, X_holdout, y_train, y_holdout = self._split_data(X, y)  # noqa: N806
         logger.info(
             "Blending split: train=%d, holdout=%d",
             X_train.shape[0],
@@ -80,7 +80,7 @@ class BlendingEnsemble(BaseEnsembleModel):
             base_predictions_holdout.append(result.predictions)
 
         meta_features = self._build_meta_features(X_holdout, base_predictions_holdout)
-        meta_X = FeatureMatrix(data=__import__("pandas").DataFrame(meta_features))
+        meta_X = FeatureMatrix(data=__import__("pandas").DataFrame(meta_features))  # noqa: N806
         meta_y = y_holdout
 
         logger.info("Fitting meta model on holdout: %s", self._meta_model.name)
@@ -94,14 +94,14 @@ class BlendingEnsemble(BaseEnsembleModel):
             self._meta_model.name,
         )
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         if self._meta_model is None or not self._meta_model.is_fitted:
             raise RuntimeError("Meta model not fitted")
         base_predictions = self._collect_base_predictions(X)
         if not base_predictions:
             raise RuntimeError("No base model predictions available")
         meta_features = self._build_meta_features(X, base_predictions)
-        meta_X = FeatureMatrix(data=__import__("pandas").DataFrame(meta_features))
+        meta_X = FeatureMatrix(data=__import__("pandas").DataFrame(meta_features))  # noqa: N806
         result = self._meta_model.predict(meta_X)
         return PredictionResult(predictions=result.predictions, model_id=self.name)
 

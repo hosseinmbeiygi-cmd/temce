@@ -79,7 +79,7 @@ class PurgedWeightValidator:
         self.min_train_rows = min_train_rows
         self.min_test_rows = min_test_rows
 
-    def validate(self, X: pd.DataFrame, y: pd.Series, dates: pd.Series) -> dict[str, Any]:
+    def validate(self, X: pd.DataFrame, y: pd.Series, dates: pd.Series) -> dict[str, Any]:  # noqa: N803
         """Run purged walk-forward validation on a regime's rows.
 
         ``X``, ``y`` and ``dates`` must be aligned (same length/order). Rows

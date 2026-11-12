@@ -113,8 +113,8 @@ def binomial_tree_price(params: TreeOptionParams, *, _compute_theta: bool = True
 
     Supports American and Bermudan exercise styles.
     """
-    S, K, T, r, sigma, q = params.S, params.K, params.T, params.r, params.sigma, params.q
-    N = params.N
+    S, K, T, r, sigma, q = params.S, params.K, params.T, params.r, params.sigma, params.q  # noqa: N806
+    N = params.N  # noqa: N806
     is_call = params.option_type == "call"
     # P0-4: degenerate inputs (expired, non-positive spot, no steps, or
     # non-finite values) would make dt=0 → u==d → ZeroDivisionError in
@@ -244,8 +244,8 @@ def trinomial_tree_price(params: TreeOptionParams) -> OptionPrice:
 
     Generally converges faster than binomial for the same N.
     """
-    S, K, T, r, sigma, q = params.S, params.K, params.T, params.r, params.sigma, params.q
-    N = params.N
+    S, K, T, r, sigma, q = params.S, params.K, params.T, params.r, params.sigma, params.q  # noqa: N806
+    N = params.N  # noqa: N806
     is_call = params.option_type == "call"
     # P0-4: same degenerate-input guard as binomial (dt=0 → dx=0 →
     # division by zero in _trinomial_params).
@@ -365,8 +365,8 @@ def price_tree_option(params: TreeOptionParams) -> OptionPrice:
 
 
 def american_early_exercise_boundary(
-    S: float, K: float, T: float, r: float, sigma: float,
-    q: float = 0.0, option_type: str = "put", N: int = 200,
+    S: float, K: float, T: float, r: float, sigma: float,  # noqa: N803
+    q: float = 0.0, option_type: str = "put", N: int = 200,  # noqa: N803
 ) -> list[tuple[float, float]]:
     """Calculate the early exercise boundary S*(t) over time.
 

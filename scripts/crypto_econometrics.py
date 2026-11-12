@@ -396,7 +396,7 @@ def run_ols(df: pd.DataFrame, dependent: str, independents: list[str], name: str
     print(f"\n  [OLS] {name}: {dependent} ~ {' + '.join(independents)}")
 
     avail_y = dependent in df.columns
-    avail_X = [v for v in independents if v in df.columns]
+    avail_X = [v for v in independents if v in df.columns]  # noqa: N806
 
     if not avail_y or not avail_X:
         print("    ⚠ متغیرهای کافی موجود نیست")
@@ -408,7 +408,7 @@ def run_ols(df: pd.DataFrame, dependent: str, independents: list[str], name: str
         return {"status": "insufficient_data"}
 
     y = subset[dependent]
-    X = sm.add_constant(subset[avail_X])
+    X = sm.add_constant(subset[avail_X])  # noqa: N806
 
     model = sm.OLS(y, X).fit()
 

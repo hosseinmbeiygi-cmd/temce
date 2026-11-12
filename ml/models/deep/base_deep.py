@@ -44,22 +44,22 @@ class BaseDeepModel(BaseModel):
             "verbose": self.params.get("verbose", False),
         }
 
-    def _prepare_tensors(self, X: FeatureMatrix, y: TargetVector | None = None) -> Any:
+    def _prepare_tensors(self, X: FeatureMatrix, y: TargetVector | None = None) -> Any:  # noqa: N803
         torch = self._get_torch()
         device = self._get_device()
-        X_tensor = torch.tensor(X.values, dtype=torch.float32).to(device)
+        X_tensor = torch.tensor(X.values, dtype=torch.float32).to(device)  # noqa: N806
         if y is not None:
             y_values = y.values.astype(np.float32).reshape(-1, 1)
             y_tensor = torch.tensor(y_values, dtype=torch.float32).to(device)
             return X_tensor, y_tensor
         return X_tensor
 
-    def _create_dataloader(self, X_tensor: Any, y_tensor: Any, batch_size: int) -> Any:
+    def _create_dataloader(self, X_tensor: Any, y_tensor: Any, batch_size: int) -> Any:  # noqa: N803
         torch = self._get_torch()
         dataset = torch.utils.data.TensorDataset(X_tensor, y_tensor)
         return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         torch = self._get_torch()
         device = self._get_device()
         training_params = self._get_training_params()
@@ -69,7 +69,7 @@ class BaseDeepModel(BaseModel):
         patience = kwargs.get("patience", training_params["patience"])
         verbose = kwargs.get("verbose", training_params["verbose"])
 
-        X_tensor, y_tensor = self._prepare_tensors(X, y)
+        X_tensor, y_tensor = self._prepare_tensors(X, y)  # noqa: N806
         dataloader = self._create_dataloader(X_tensor, y_tensor, batch_size)
 
         if self._nn_module is None:
@@ -88,7 +88,7 @@ class BaseDeepModel(BaseModel):
         for epoch in range(epochs):
             epoch_loss = 0.0
             batch_count = 0
-            for X_batch, y_batch in dataloader:
+            for X_batch, y_batch in dataloader:  # noqa: N806
                 self._optimizer.zero_grad()
                 output = self._nn_module(X_batch)
                 loss = self._loss_fn(output, y_batch)
@@ -120,13 +120,13 @@ class BaseDeepModel(BaseModel):
         self._is_fitted = True
         logger.info("Training completed. Best loss: %.6f", best_loss)
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         torch = self._get_torch()
         self._get_device()
         if self._nn_module is None:
             raise RuntimeError("Model not initialized. Call fit() or load() before predict().")
         self._nn_module.eval()
-        X_tensor = self._prepare_tensors(X)
+        X_tensor = self._prepare_tensors(X)  # noqa: N806
         with torch.no_grad():
             output = self._nn_module(X_tensor)
             predictions = output.cpu().numpy().flatten()

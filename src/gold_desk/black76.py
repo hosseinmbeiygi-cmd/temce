@@ -282,7 +282,7 @@ def protective_collar(
     # Black-76 is defined on the forward price, not spot.  F = spot * e^(r*t).
     # With Iran's ~30% risk-free rate, F/spot ≈ 1.16 at T=0.5 → ~16% mispricing
     # if spot were passed directly (confirmed in GS-B76 audit).
-    F = spot * math.exp(rate * t)
+    F = spot * math.exp(rate * t)  # noqa: N806
     # black76_price returns (call, put, d1, d2) — unpack accordingly
     _, put_price, _, _ = black76_price(F, put_strike, t, iv, rate)
     call_price, _, _, _ = black76_price(F, call_strike, t, iv, rate)

@@ -13,7 +13,7 @@ class ModelInterpreter:
             return dict(enumerate(np.abs(model.coef_[0])))
         return None
 
-    def permutation_importance(self, model: Any, X: Any, y: Any) -> dict[str, float]:
+    def permutation_importance(self, model: Any, X: Any, y: Any) -> dict[str, float]:  # noqa: N803
         from sklearn.inspection import permutation_importance
 
         result = permutation_importance(model, X, y, n_repeats=10)

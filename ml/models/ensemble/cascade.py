@@ -10,7 +10,7 @@ class CascadeEnsemble:
     def add_stage(self, model: Any) -> None:
         self._stages.append(model)
 
-    def predict(self, X: Any) -> Any:
+    def predict(self, X: Any) -> Any:  # noqa: N803
         result = X
         for stage in self._stages:
             result = stage.predict(result)

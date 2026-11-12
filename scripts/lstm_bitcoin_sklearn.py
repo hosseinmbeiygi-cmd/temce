@@ -134,7 +134,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def create_sequences(data: np.ndarray, target: np.ndarray, seq_len: int):
-    X, y = [], []
+    X, y = [], []  # noqa: N806
     for i in range(len(data) - seq_len):
         X.append(data[i : i + seq_len].flatten())  # Flatten for MLP
         y.append(target[i + seq_len])
@@ -146,16 +146,16 @@ def prepare(df, target, features, seq_len=30, train_ratio=0.8):
     clean = df[cols].dropna().reset_index(drop=True)
     feat_cols = [c for c in features if c in clean.columns]
 
-    X_raw = clean[feat_cols].values
+    X_raw = clean[feat_cols].values  # noqa: N806
     y_raw = clean[target].values
 
     f_sc = MinMaxScaler()
     t_sc = MinMaxScaler()
 
-    X_scaled = f_sc.fit_transform(X_raw)
+    X_scaled = f_sc.fit_transform(X_raw)  # noqa: N806
     y_scaled = t_sc.fit_transform(y_raw.reshape(-1, 1)).flatten()
 
-    X, y = create_sequences(X_scaled, y_scaled, seq_len)
+    X, y = create_sequences(X_scaled, y_scaled, seq_len)  # noqa: N806
 
     split = int(len(X) * train_ratio)
     return {
@@ -220,7 +220,7 @@ def build_models(n_features: int, seq_len: int):
     }
 
 
-def train_and_evaluate(name, model, X_train, y_train, X_test, y_test, t_scaler):
+def train_and_evaluate(name, model, X_train, y_train, X_test, y_test, t_scaler):  # noqa: N803
     """آموزش و ارزیابی."""
     print(f"\n  ── {name} ──")
     t0 = time.time()

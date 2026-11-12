@@ -19,9 +19,9 @@ class Trainer:
     async def train(
         self,
         model: BaseModel,
-        X_train: FeatureMatrix,
+        X_train: FeatureMatrix,  # noqa: N803
         y_train: TargetVector,
-        X_val: FeatureMatrix | None = None,
+        X_val: FeatureMatrix | None = None,  # noqa: N803
         y_val: TargetVector | None = None,
         seed: int | None = None,
         **kwargs: Any,
@@ -63,7 +63,7 @@ class Trainer:
             return 42
 
     async def train_from_registry(
-        self, model_name: str, X_train: FeatureMatrix, y_train: TargetVector, **kwargs: Any
+        self, model_name: str, X_train: FeatureMatrix, y_train: TargetVector, **kwargs: Any  # noqa: N803
     ) -> Result[ModelArtifactMeta]:
         model = model_registry.create(model_name)
         return await self.train(model, X_train, y_train, **kwargs)

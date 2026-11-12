@@ -406,7 +406,7 @@ async def main() -> None:
     diagram_names = sorted(hub_names | rel_tables, key=lambda t: (_domain(t), t))
 
     # ── domain color map ────────────────────────────────────────────────
-    DOMAIN_COLORS = {
+    DOMAIN_COLORS = {  # noqa: N806
         "هسته / کاربران":          "#4A90D9",
         "کدال و صورت‌های مالی":      "#27AE60",
         "بازار سهام (سری زمانی)":   "#E67E22",
@@ -447,7 +447,7 @@ async def main() -> None:
     lines.append("")
 
     # English class names for mermaid (Persian not supported)
-    DOMAIN_CLASS = {
+    DOMAIN_CLASS = {  # noqa: N806
         "هسته / کاربران":          "Core",
         "کدال و صورت‌های مالی":      "Codal",
         "بازار سهام (سری زمانی)":   "Market",

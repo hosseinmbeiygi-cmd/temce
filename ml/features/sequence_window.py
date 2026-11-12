@@ -17,7 +17,7 @@ class SequenceWindower:
 
     def create_sequences(
         self,
-        X: np.ndarray | pd.DataFrame,
+        X: np.ndarray | pd.DataFrame,  # noqa: N803
         y: np.ndarray | pd.Series,
         window_size: int = 20,
     ) -> tuple[np.ndarray, np.ndarray]:
@@ -32,7 +32,7 @@ class SequenceWindower:
             X_seq: Array of shape (N - window_size, window_size, F).
             y_seq: Array of shape (N - window_size,).
         """
-        X_arr = X.values.astype(np.float64) if isinstance(X, pd.DataFrame) else np.asarray(X, dtype=np.float64)
+        X_arr = X.values.astype(np.float64) if isinstance(X, pd.DataFrame) else np.asarray(X, dtype=np.float64)  # noqa: N806
 
         y_arr = y.values.astype(np.float64) if isinstance(y, pd.Series) else np.asarray(y, dtype=np.float64).ravel()
 
@@ -46,7 +46,7 @@ class SequenceWindower:
             return np.empty((0, window_size, n_features)), np.empty((0,))
 
         n_seq = n_samples - window_size
-        X_seq = np.empty((n_seq, window_size, n_features), dtype=np.float64)
+        X_seq = np.empty((n_seq, window_size, n_features), dtype=np.float64)  # noqa: N806
         y_seq = np.empty(n_seq, dtype=np.float64)
 
         for i in range(n_seq):

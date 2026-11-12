@@ -27,7 +27,7 @@ class TestPIT(unittest.TestCase):
 
 class TestRules(unittest.TestCase):
     def test_overlap_is_per_scope_and_missing_raises(self):
-        R = rules.Rule
+        R = rules.Rule  # noqa: N806
         ok = rules.RuleRegistry([R("k", "market:M", 1, date(2020, 1, 1), date(2021, 1, 1)),
                                  R("k", "symbol:S", 2, date(2020, 6, 1), date(2021, 6, 1))])   # different scopes: fine
         self.assertEqual(ok.rule_at("k", ["symbol:S", "market:M"], date(2020, 7, 1)).value, 2)

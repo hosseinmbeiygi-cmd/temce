@@ -63,7 +63,7 @@ class CommodityParser:
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
         # Category mapping from API keys to our classify values
-        CATEGORY_MAP = {
+        CATEGORY_MAP = {  # noqa: N806
             "metal_precious": "precious_metal",
             "metal_base": "base_metal",
             "energy": "energy",

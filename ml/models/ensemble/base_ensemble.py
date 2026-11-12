@@ -30,7 +30,7 @@ class BaseEnsembleModel(BaseModel):
     def add_model(self, model: BaseModel) -> None:
         self._base_models.append(model)
 
-    def _collect_base_predictions(self, X: FeatureMatrix) -> list[np.ndarray]:
+    def _collect_base_predictions(self, X: FeatureMatrix) -> list[np.ndarray]:  # noqa: N803
         all_predictions: list[np.ndarray] = []
         for model in self._base_models:
             if not model.is_fitted:
@@ -43,14 +43,14 @@ class BaseEnsembleModel(BaseModel):
     @abstractmethod
     def aggregate_predictions(self, base_predictions: list[np.ndarray], **kwargs: Any) -> np.ndarray: ...
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         for model in self._base_models:
             logger.info("Fitting base model: %s", model.name)
             model.fit(X, y, **kwargs)
         self._is_fitted = True
         logger.info("Ensemble %s fitted with %d base models", self.name, len(self._base_models))
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         base_predictions = self._collect_base_predictions(X)
         if not base_predictions:
             raise RuntimeError("No base model predictions available")

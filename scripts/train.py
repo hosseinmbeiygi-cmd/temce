@@ -163,22 +163,22 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
 
     pf = PriceFeatures(window_sizes=[5, 10, 20])
     tf = TechnicalFeatures()
-    X_price = pf.compute(df)
-    X_tech = tf.compute(df)
+    X_price = pf.compute(df)  # noqa: N806
+    X_tech = tf.compute(df)  # noqa: N806
 
     if hasattr(X_price, "data"):
-        X_price = X_price.data
+        X_price = X_price.data  # noqa: N806
     if hasattr(X_tech, "data"):
-        X_tech = X_tech.data
+        X_tech = X_tech.data  # noqa: N806
 
-    X = pd.concat([X_price, X_tech], axis=1).fillna(0)
+    X = pd.concat([X_price, X_tech], axis=1).fillna(0)  # noqa: N806
     y = df["close"].pct_change().shift(-1).fillna(0)
 
     common = X.index.intersection(y.index)
-    X = X.loc[common]
+    X = X.loc[common]  # noqa: N806
     y = y.loc[common]
 
-    X = X.iloc[MIN_SAMPLES:]
+    X = X.iloc[MIN_SAMPLES:]  # noqa: N806
     y = y.iloc[MIN_SAMPLES:]
     return X, y
 
@@ -187,7 +187,7 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
 
 def _train_job(args: tuple) -> dict:
     """Picklable top-level function for multiprocessing."""
-    model_type, X_train_list, y_train_list, X_val_list, y_val_list, symbol = args
+    model_type, X_train_list, y_train_list, X_val_list, y_val_list, symbol = args  # noqa: N806
 
     import numpy as np
     import pandas as pd
@@ -200,9 +200,9 @@ def _train_job(args: tuple) -> dict:
     from ml.evaluation.metrics import MetricsCalculator
     from ml.types import ModelArtifactMeta
 
-    X_train = pd.DataFrame(X_train_list)
+    X_train = pd.DataFrame(X_train_list)  # noqa: N806
     y_train = pd.Series(y_train_list)
-    X_val = pd.DataFrame(X_val_list)
+    X_val = pd.DataFrame(X_val_list)  # noqa: N806
     y_val = pd.Series(y_val_list)
 
     t0 = time.time()
@@ -351,12 +351,12 @@ async def run_quick_mode(args: argparse.Namespace, engine) -> None:
         df = all_data.get(symbol)
         if df is None or df.empty or len(df) < MIN_ROWS:
             continue
-        X, y = build_features(df)
+        X, y = build_features(df)  # noqa: N806
         if len(X) < MIN_SAMPLES:
             continue
 
         split = int(len(X) * 0.8)
-        X_train, X_val = X.iloc[:split], X.iloc[split:]
+        X_train, X_val = X.iloc[:split], X.iloc[split:]  # noqa: N806
         y_train, y_val = y.iloc[:split], y.iloc[split:]
 
         for mt in model_types:
@@ -430,12 +430,12 @@ async def run_legacy_mode(args: argparse.Namespace, engine) -> None:
         df = all_data.get(symbol)
         if df is None or df.empty or len(df) < MIN_ROWS:
             continue
-        X, y = build_features(df)
+        X, y = build_features(df)  # noqa: N806
         if len(X) < MIN_SAMPLES:
             continue
 
         split = int(len(X) * 0.8)
-        X_train, X_val = X.iloc[:split], X.iloc[split:]
+        X_train, X_val = X.iloc[:split], X.iloc[split:]  # noqa: N806
         y_train, y_val = y.iloc[:split], y.iloc[split:]
 
         for mt in model_types:
@@ -527,7 +527,7 @@ async def run_full_mode(args: argparse.Namespace, engine) -> None:
         if df.empty or len(df) < MIN_ROWS:
             skipped.append(symbol)
             continue
-        X, y = build_features(df)
+        X, y = build_features(df)  # noqa: N806
         if len(X) < MIN_SAMPLES:
             skipped.append(symbol)
             continue
@@ -537,9 +537,9 @@ async def run_full_mode(args: argparse.Namespace, engine) -> None:
 
     # Prepare jobs
     jobs = []
-    for symbol, (X, y) in symbol_features.items():
+    for symbol, (X, y) in symbol_features.items():  # noqa: N806
         split = int(len(X) * 0.8)
-        X_train, X_val = X.iloc[:split], X.iloc[split:]
+        X_train, X_val = X.iloc[:split], X.iloc[split:]  # noqa: N806
         y_train, y_val = y.iloc[:split], y.iloc[split:]
         for mt in model_types:
             jobs.append((

@@ -8,7 +8,7 @@ class BatchPredictor:
         self.model = model
         self.batch_size = batch_size
 
-    def predict(self, X: Any) -> Any:
+    def predict(self, X: Any) -> Any:  # noqa: N803
         import numpy as np
 
         n = len(X)

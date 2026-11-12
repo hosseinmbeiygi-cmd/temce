@@ -273,7 +273,7 @@ async def train_intraday(
                     return {"symbol": sym, "success": False, "error": f"Only {len(combined)} valid rows"}
 
                 # Run best model selection using a mini TrainingService
-                X = FeatureMatrix(data=combined[feature_cols], feature_names=feature_cols)
+                X = FeatureMatrix(data=combined[feature_cols], feature_names=feature_cols)  # noqa: N806
                 y = TargetVector(data=target.values, name="next_return", task_type="regression")
 
                 # Quick model comparison
@@ -290,7 +290,7 @@ async def train_intraday(
                         wrapper = trainer._get_model(model_type, "regression")
                         sklearn_model = wrapper._model
 
-                        X_np = _to_numpy(X)
+                        X_np = _to_numpy(X)  # noqa: N806
                         y_np = _to_numpy(y)
 
                         from sklearn.model_selection import cross_val_score

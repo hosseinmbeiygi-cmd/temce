@@ -101,7 +101,7 @@ class ArbitrageDetector:
                 strike = call.get("strike", 0)
                 matching_put = next((p for p in puts if p.get("strike") == strike), None)
                 if matching_put and call.get("price", 0) > 0 and matching_put.get("price", 0) > 0:
-                    T = call.get("time_to_expiry", 0.25)
+                    T = call.get("time_to_expiry", 0.25)  # noqa: N806
                     result = self.check_put_call_parity(
                         call["price"], matching_put["price"],
                         stock_price, strike, T
@@ -158,7 +158,7 @@ class VolatilityAnalyzer:
 
         for opt in options_chain:
             if opt.get("price", 0) > 0 and opt.get("strike", 0) > 0:
-                T = opt.get("time_to_expiry", 0.25)
+                T = opt.get("time_to_expiry", 0.25)  # noqa: N806
                 iv = implied_volatility(
                     opt["price"], stock_price, opt["strike"],
                     T, 0.15, opt.get("type", "call")
@@ -233,7 +233,7 @@ class OptionsPortfolioAnalyzer:
             qty = pos.get("quantity", 1)
             strike = pos.get("strike", stock_price)
             premium = pos.get("premium", 0)
-            T = pos.get("time_to_expiry", 0.25)
+            T = pos.get("time_to_expiry", 0.25)  # noqa: N806
 
             result = black_scholes_price(stock_price, strike, T, 0.15, 0.35, opt_type)
             multiplier = qty if side == "buy" else -qty

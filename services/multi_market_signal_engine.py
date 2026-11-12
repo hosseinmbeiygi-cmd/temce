@@ -24,6 +24,7 @@ from brsapi.models.crypto import CryptoDailyHistoryModel, CryptoPriceModel
 from brsapi.models.ime import ImeFutureModel
 from brsapi.models.tsetmc import HistoricalDailyModel, OptionSnapshotModel, SymbolSnapshotModel
 from core.database import func, select
+from core.indicators import compute_atr, compute_rsi
 from core.logging import get_logger
 from core.time import utc_now_naive
 from models.codal import CodalAuditSummaryModel
@@ -117,28 +118,10 @@ class SignalGenerationReport:
 
 
 def _compute_rsi(closes: list[float], period: int = 14) -> float | None:
-    """Compute RSI from list of closing prices.
-
-    Only the last ``period`` deltas are averaged, so the tail is all that is
-    needed. Callers pass whole price histories (thousands of bars) for every
-    timeframe; slicing here keeps the result bit-identical while removing the
-    rest of the loop.
-    """
+    """Delegate to core.indicators.compute_rsi; return None on insufficient data."""
     if len(closes) < period + 1:
         return None
-    tail = closes[-(period + 1):]
-    gains = []
-    losses = []
-    for i in range(1, len(tail)):
-        delta = tail[i] - tail[i - 1]
-        gains.append(max(delta, 0))
-        losses.append(max(-delta, 0))
-    avg_gain = sum(gains[-period:]) / period
-    avg_loss = sum(losses[-period:]) / period
-    if avg_loss < 1e-10:
-        return 100.0
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
+    return compute_rsi(closes, period)
 
 
 def _compute_sma(values: list[float], period: int) -> float | None:
@@ -158,26 +141,8 @@ def _compute_ema(values: list[float], period: int) -> float | None:
 
 
 def _compute_atr(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> float | None:
-    """Average true range over the last ``period`` bars.
-
-    Same tail-slicing rationale as :func:`_compute_rsi`: the previous version
-    walked the entire history and then kept only ``trs[-period:]``, which cost
-    seconds per call on long series.
-    """
-    if len(closes) < period + 1:
-        return None
-    tail_highs = highs[-(period + 1):]
-    tail_lows = lows[-(period + 1):]
-    tail_closes = closes[-(period + 1):]
-    trs = []
-    for i in range(1, len(tail_closes)):
-        tr = max(
-            tail_highs[i] - tail_lows[i],
-            abs(tail_highs[i] - tail_closes[i - 1]),
-            abs(tail_lows[i] - tail_closes[i - 1]),
-        )
-        trs.append(tr)
-    return sum(trs[-period:]) / period
+    """Delegate to core.indicators.compute_atr (Wilder's smoothing)."""
+    return compute_atr(highs, lows, closes, period)
 
 
 def _momentum_score(closes: list[float], period: int) -> float:

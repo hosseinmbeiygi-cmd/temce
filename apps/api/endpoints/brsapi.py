@@ -3120,13 +3120,13 @@ async def import_json_history(
     total_skipped = 0
     files_count = 0
 
-    CRYPTO_DIR = Path("crypto_history")
-    HISTORY_DIR = Path("history_data")
-    CRYPTO_TABLE = "brsapi_crypto_daily_history"
-    GOLD_TABLE = "brsapi_gold_coin_history"
-    CURRENCY_TABLE = "brsapi_gold_currency_pro_daily_history"
+    CRYPTO_DIR = Path("crypto_history")  # noqa: N806
+    HISTORY_DIR = Path("history_data")  # noqa: N806
+    CRYPTO_TABLE = "brsapi_crypto_daily_history"  # noqa: N806
+    GOLD_TABLE = "brsapi_gold_coin_history"  # noqa: N806
+    CURRENCY_TABLE = "brsapi_gold_currency_pro_daily_history"  # noqa: N806
 
-    GOLD_SYMBOLS = {
+    GOLD_SYMBOLS = {  # noqa: N806
         "IR_GOLD_18K",
         "IR_GOLD_24K",
         "IR_GOLD_MELTED",

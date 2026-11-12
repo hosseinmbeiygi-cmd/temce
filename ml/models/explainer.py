@@ -4,7 +4,7 @@ from typing import Any
 
 
 class Explainer:
-    def shap_values(self, model: Any, X: Any) -> Any:
+    def shap_values(self, model: Any, X: Any) -> Any:  # noqa: N803
         try:
             import shap
 
@@ -13,7 +13,7 @@ class Explainer:
         except ImportError:
             return None
 
-    def lime_explain(self, model: Any, X: Any, instance: Any) -> dict[str, float] | None:
+    def lime_explain(self, model: Any, X: Any, instance: Any) -> dict[str, float] | None:  # noqa: N803
         try:
             from lime.lime_tabular import LimeTabularExplainer
 

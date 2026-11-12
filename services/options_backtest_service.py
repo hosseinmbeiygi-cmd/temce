@@ -13,10 +13,11 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from domain.options.pricing import black_scholes_call
 from domain.trading import iran_costs as _costs
 
-TRADING_DAYS_PER_YEAR = 252
+TRADING_DAYS_PER_YEAR = TRADING_DAYS_PER_YEAR_GLOBAL
 
 
 @dataclass(frozen=True)

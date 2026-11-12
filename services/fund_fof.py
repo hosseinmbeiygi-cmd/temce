@@ -62,7 +62,7 @@ def expand_fof_lookthrough(
 
 def detect_cycles(graph: dict[str, list[str]]) -> list[list[str]]:
     """کشف حلقه‌های جهت‌دار با DFS سه‌رنگ — بازگشت مسیر حلقه‌ها."""
-    WHITE, GRAY, BLACK = 0, 1, 2
+    WHITE, GRAY, BLACK = 0, 1, 2  # noqa: N806
     color: dict[str, int] = dict.fromkeys(graph, WHITE)
     cycles: list[list[str]] = []
     path: list[str] = []

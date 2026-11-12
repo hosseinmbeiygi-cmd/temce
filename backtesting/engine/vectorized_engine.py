@@ -24,6 +24,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -37,7 +39,7 @@ except ImportError:  # pragma: no cover
 # ── Required OHLCV columns ─────────────────────────────────────────────────
 REQUIRED_COLUMNS = ("price_close", "price_open", "price_high", "price_low", "trade_volume")
 
-ANNUAL_TRADING_DAYS = 250
+ANNUAL_TRADING_DAYS = TRADING_DAYS_PER_YEAR_TSE
 RISK_FREE_RATE = 0.0
 
 

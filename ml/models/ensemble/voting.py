@@ -61,7 +61,7 @@ class VotingEnsemble(BaseEnsembleModel):
         logger.warning("Unknown voting strategy '%s', falling back to average", strategy)
         return np.mean(predictions_array, axis=0)
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         if not self._base_models:
             raise ValueError("No base models added to voting ensemble")
         super().fit(X, y, **kwargs)
@@ -74,5 +74,5 @@ class VotingEnsemble(BaseEnsembleModel):
             self._weights.tolist(),
         )
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         return super().predict(X)

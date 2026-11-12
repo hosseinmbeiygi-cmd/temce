@@ -115,7 +115,7 @@ async def probe(eng) -> None:  # noqa: ANN001 - SQLAlchemy engine
     from models.user import UserModel
     from services.pre_buy_service import PreBuySheetService, parse_answers
 
-    Session = async_sessionmaker(eng, expire_on_commit=False)
+    Session = async_sessionmaker(eng, expire_on_commit=False)  # noqa: N806
 
     async with Session() as s:
         s.add(UserModel(id=UID, username="shadow", email="s@example.com", hashed_password="x", roles="user"))
@@ -271,7 +271,7 @@ async def multi_instrument(eng) -> None:  # noqa: ANN001
     """
     from services.pre_buy_service import PreBuySheetService, evaluation_to_json
 
-    Session = async_sessionmaker(eng, expire_on_commit=False)
+    Session = async_sessionmaker(eng, expire_on_commit=False)  # noqa: N806
     for symbol in ("اهرم", "ضخود1234", "طلا"):
         async with Session() as s:
             svc = PreBuySheetService(session=s)

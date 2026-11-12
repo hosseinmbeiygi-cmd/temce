@@ -17,17 +17,17 @@ import math
 from scipy import stats
 
 
-def _bs_d1(S: float, K: float, T: float, r: float, sigma: float) -> float:
+def _bs_d1(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
         return 0.0
     return (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
 
 
-def _bs_d2(d1: float, sigma: float, T: float) -> float:
+def _bs_d2(d1: float, sigma: float, T: float) -> float:  # noqa: N803
     return d1 - sigma * math.sqrt(T)
 
 
-def speed(S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> float:
+def speed(S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> float:  # noqa: N803
     """Speed: third-order Greek. dGamma/dS = -gamma / S * (d1/(sigma*sqrt(T)) + 1).
 
     Measures the rate of change of gamma with respect to changes in the underlying price.
@@ -46,7 +46,7 @@ def speed(S: float, K: float, T: float, r: float, sigma: float, option_type: str
     return out if _m.isfinite(out) else 0.0
 
 
-def charm(S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> float:
+def charm(S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> float:  # noqa: N803
     """Charm: dDelta/dT (delta decay per unit time).
 
     Also called "delta bleed" or "delta decay". Implemented for the
@@ -60,7 +60,7 @@ def charm(S: float, K: float, T: float, r: float, sigma: float, option_type: str
     d1 = _bs_d1(S, K, T, r, sigma)
     d2 = d1 - sigma * math.sqrt(T)
     npdf_d1 = stats.norm.pdf(d1)
-    sqrt_T = math.sqrt(T)
+    sqrt_T = math.sqrt(T)  # noqa: N806
 
     if option_type == "call":
         return float(-(npdf_d1 * (r / (sigma * sqrt_T) - d2 / (2 * T))))
@@ -68,7 +68,7 @@ def charm(S: float, K: float, T: float, r: float, sigma: float, option_type: str
         return float(npdf_d1 * (r / (sigma * sqrt_T) - d2 / (2 * T)))
 
 
-def vanna(S: float, K: float, T: float, r: float, sigma: float) -> float:
+def vanna(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     """Vanna: dDelta/dSigma = dVega/dS.
 
     Measures sensitivity of delta to changes in implied volatility.
@@ -82,7 +82,7 @@ def vanna(S: float, K: float, T: float, r: float, sigma: float) -> float:
     return float(-stats.norm.pdf(d1) * d2 / sigma)
 
 
-def vomma(S: float, K: float, T: float, r: float, sigma: float) -> float:
+def vomma(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     """Vomma: dVega/dSigma = d2V/dSigma2.
 
     Also called "volga" or "volconv". Measures sensitivity of vega to changes in volatility.
@@ -97,7 +97,7 @@ def vomma(S: float, K: float, T: float, r: float, sigma: float) -> float:
     return float(vega_val * d1 * d2 / sigma)
 
 
-def color(S: float, K: float, T: float, r: float, sigma: float) -> float:
+def color(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     """Color: dGamma/dT (gamma decay per unit time).
 
     Measures how gamma changes as time passes.
@@ -120,7 +120,7 @@ def color(S: float, K: float, T: float, r: float, sigma: float) -> float:
     return out if _m.isfinite(out) else 0.0
 
 
-def ultima(S: float, K: float, T: float, r: float, sigma: float) -> float:
+def ultima(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     """Ultima: dVomma/dSigma.
 
     Third-order sensitivity of vega to volatility.
@@ -135,7 +135,7 @@ def ultima(S: float, K: float, T: float, r: float, sigma: float) -> float:
 
 
 def compute_all_higher_order_greeks(
-    S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call"
+    S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call"  # noqa: N803
 ) -> dict[str, float]:
     """Compute all higher-order Greeks for given parameters.
 

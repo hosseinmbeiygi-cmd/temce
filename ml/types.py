@@ -107,7 +107,7 @@ class SplitMeta:
     ) -> tuple[FeatureMatrix, FeatureMatrix, TargetVector, TargetVector, FeatureMatrix | None, TargetVector | None]:
         import pandas as pd
 
-        X_train = (
+        X_train = (  # noqa: N806
             FeatureMatrix(data=features.data.iloc[self.train_idx])
             if isinstance(features.data, pd.DataFrame)
             else FeatureMatrix()
@@ -117,7 +117,7 @@ class SplitMeta:
             if isinstance(targets.data, pd.Series)
             else TargetVector()
         )
-        X_val = (
+        X_val = (  # noqa: N806
             FeatureMatrix(data=features.data.iloc[self.val_idx])
             if isinstance(features.data, pd.DataFrame)
             else FeatureMatrix()
@@ -127,10 +127,10 @@ class SplitMeta:
             if isinstance(targets.data, pd.Series)
             else TargetVector()
         )
-        X_test = None
+        X_test = None  # noqa: N806
         y_test = None
         if self.test_idx is not None:
-            X_test = (
+            X_test = (  # noqa: N806
                 FeatureMatrix(data=features.data.iloc[self.test_idx])
                 if isinstance(features.data, pd.DataFrame)
                 else None

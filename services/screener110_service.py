@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.database import AsyncSession, text
+from core.indicators import compute_atr
 from core.logging import get_logger
 from models.screener import ScreenerSignal, ScreenerSnapshot
 
@@ -216,17 +217,11 @@ class VectorCalculator:
 
     @staticmethod
     def _compute_atr(rows: list[dict[str, Any]], price: float) -> float:
-        """True Range over up to 14 periods."""
-        n = min(14, len(rows) - 1)
-        if n < 1:
-            return price * 0.02
-        total = 0.0
-        for i in range(n):
-            h = float(rows[i].get("price_max", 0) or 0)
-            l_ = float(rows[i].get("price_min", 0) or 0)
-            pc = float(rows[i + 1].get("price_close", 0) or 0)
-            total += max(h - l_, abs(h - pc), abs(l_ - pc))
-        return total / n
+        """Delegate to core.indicators.compute_atr after extracting OHLC lists."""
+        highs = [float(r.get("price_max", 0) or 0) for r in rows]
+        lows = [float(r.get("price_min", 0) or 0) for r in rows]
+        closes = [float(r.get("price_close", 0) or 0) for r in rows]
+        return compute_atr(highs, lows, closes) or price * 0.02
 
     # ── Column-level calculators (columns 9–85) ──────────────────────────
 

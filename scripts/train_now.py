@@ -52,25 +52,25 @@ async def fetch_ohlcv(session, symbol: str) -> pd.DataFrame:
 def build_features(df: pd.DataFrame):
     pf = PriceFeatures(window_sizes=[5, 10, 20])
     tf = TechnicalFeatures()
-    X_price = pf.compute(df)
-    X_tech = tf.compute(df)
+    X_price = pf.compute(df)  # noqa: N806
+    X_tech = tf.compute(df)  # noqa: N806
     if hasattr(X_price, "data"):
-        X_price = X_price.data
+        X_price = X_price.data  # noqa: N806
     if hasattr(X_tech, "data"):
-        X_tech = X_tech.data
-    X = pd.concat([X_price, X_tech], axis=1).fillna(0)
+        X_tech = X_tech.data  # noqa: N806
+    X = pd.concat([X_price, X_tech], axis=1).fillna(0)  # noqa: N806
     y = df["close"].pct_change().shift(-1).fillna(0)
     # Align by common index
     common_idx = X.index.intersection(y.index)
-    X = X.loc[common_idx]
+    X = X.loc[common_idx]  # noqa: N806
     y = y.loc[common_idx]
     # Drop first 30 rows (NaN from rolling)
-    X = X.iloc[30:]
+    X = X.iloc[30:]  # noqa: N806
     y = y.iloc[30:]
     return X, y
 
 
-def train_model(model_type: str, X_train, y_train, X_val, y_val):
+def train_model(model_type: str, X_train, y_train, X_val, y_val):  # noqa: N803
     model = model_registry.create(model_type)
     model.fit(X_train, y_train)
     train_pred = model.predict(X_train)
@@ -117,7 +117,7 @@ async def main():
                         results.append({"symbol": symbol, "model": model_type, "ok": False, "error": f"only {len(df)} rows"})
                         continue
 
-                    X, y = build_features(df)
+                    X, y = build_features(df)  # noqa: N806
                     if len(X) < 30:
                         print(f"SKIP  only {len(X)} samples after features")
                         failed += 1
@@ -125,7 +125,7 @@ async def main():
                         continue
 
                     split = int(len(X) * 0.8)
-                    X_train, X_val = X.iloc[:split], X.iloc[split:]
+                    X_train, X_val = X.iloc[:split], X.iloc[split:]  # noqa: N806
                     y_train, y_val = y.iloc[:split], y.iloc[split:]
 
                     model = model_registry.create(model_type)

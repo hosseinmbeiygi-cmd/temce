@@ -9,7 +9,7 @@ from scipy.optimize import brentq
 
 
 # ── Tier 1: Black-76 (سند §4.1) ──
-def black76_price(F: float, K: float, T: float, r: float, sigma: float, is_call: bool = True) -> float:
+def black76_price(F: float, K: float, T: float, r: float, sigma: float, is_call: bool = True) -> float:  # noqa: N803
     """Black-76: C = e^-rT [F N(d1) - K N(d2)], d1=[ln(F/K)+0.5σ²T]/(σ√T), d2=d1-σ√T."""
     if T <= 0 or sigma <= 0 or F <= 0 or K <= 0:
         return max(0.0, F - K) if is_call else max(0.0, K - F)
@@ -21,7 +21,7 @@ def black76_price(F: float, K: float, T: float, r: float, sigma: float, is_call:
     return df * (K * stats.norm.cdf(-d2) - F * stats.norm.cdf(-d1))
 
 
-def black76_greeks(F: float, K: float, T: float, r: float, sigma: float, is_call: bool = True) -> dict[str, float]:
+def black76_greeks(F: float, K: float, T: float, r: float, sigma: float, is_call: bool = True) -> dict[str, float]:  # noqa: N803
     d1 = (math.log(F / K) + 0.5 * sigma * sigma * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
     df = math.exp(-r * T)
@@ -35,11 +35,11 @@ def black76_greeks(F: float, K: float, T: float, r: float, sigma: float, is_call
 
 # ── Tier 2: Displaced Diffusion (سند §4.1) ──
 def displaced_diffusion_price(
-    F: float, K: float, T: float, r: float, sigma: float, alpha: float, is_call: bool = True
+    F: float, K: float, T: float, r: float, sigma: float, alpha: float, is_call: bool = True  # noqa: N803
 ) -> float:
     """Displaced Diffusion: dS = r S dt + σ(S+α) dW, C = e^-rT [(F+α)N(d1)-(K+α)N(d2)]."""
-    Fa = F + alpha
-    Ka = K + alpha
+    Fa = F + alpha  # noqa: N806
+    Ka = K + alpha  # noqa: N806
     if Fa <= 0 or Ka <= 0:
         return black76_price(F, K, T, r, sigma, is_call)
     d1 = (math.log(Fa / Ka) + 0.5 * sigma * sigma * T) / (sigma * math.sqrt(T))
@@ -53,9 +53,9 @@ def displaced_diffusion_price(
 # ── IV: Newton-Raphson + Brent fallback (سند §4.2) ──
 def implied_volatility(
     market_price: float,
-    F: float,
-    K: float,
-    T: float,
+    F: float,  # noqa: N803
+    K: float,  # noqa: N803
+    T: float,  # noqa: N803
     r: float,
     is_call: bool = True,
     tol: float = 1e-6,
@@ -83,7 +83,7 @@ def implied_volatility(
 
 
 # ── Cost-of-Carry Tier 1 & Tier 2 (سند §4.4) ──
-def cost_of_carry_fair_price(S: float, r: float, c: float, y: float, T: float) -> float:
+def cost_of_carry_fair_price(S: float, r: float, c: float, y: float, T: float) -> float:  # noqa: N803
     """Tier1: F* = S e^((r+c-y)T). c=هزینه نگهداری، y=بازده رفاهی."""
     return S * math.exp((r + c - y) * T)
 

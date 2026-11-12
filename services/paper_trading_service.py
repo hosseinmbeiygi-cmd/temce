@@ -37,6 +37,8 @@ logger = get_logger(__name__)
 
 DEFAULT_INITIAL_CAPITAL = 1_000_000_000.0  # 1B Rial simulated account
 MAX_HOLDING_DAYS = 30  # force-close open positions after this many days
+_FALLBACK_STOP_PCT = 0.05   # 5% stop loss when signal parsing fails
+_FALLBACK_TARGET_PCT = 0.08  # 8% target when signal parsing fails
 
 
 class PaperTradingService:
@@ -160,22 +162,25 @@ class PaperTradingService:
         # Derive target/stop prices from the signal strings when possible.
         stop = self._parse_price(snap.stop_loss)
         if stop is None or stop <= 0:
-            stop = price * 0.95
+            stop = price * (1 - _FALLBACK_STOP_PCT)
             logger.warning(
-                "stop_loss unparseable for %s/%s snap=%s — falling back to 5%% hardcoded",
+                "stop_loss unparseable for %s/%s snap=%s — falling back to %.0f%% hardcoded",
                 snap.symbol if hasattr(snap, "symbol") else "?",
                 snap.market if hasattr(snap, "market") else "?",
                 snap.id,
+                _FALLBACK_STOP_PCT * 100,
             )
 
         target1, target2 = self._parse_targets(snap.targets, price)
         if target1 is None or target1 <= 0:
-            target1 = price * 1.08
+            target1 = price * (1 + _FALLBACK_TARGET_PCT)
             logger.warning(
-                "target1 unparseable for snap=%s — falling back to 8%% hardcoded", snap.id,
+                "target1 unparseable for snap=%s — falling back to %.0f%% hardcoded",
+                snap.id,
+                _FALLBACK_TARGET_PCT * 100,
             )
         if target2 is None or target2 <= 0:
-            target2 = target1 * 1.08
+            target2 = target1 * (1 + _FALLBACK_TARGET_PCT)
 
         if capital_allocated <= 0:
             capital_allocated = min(price * 100, DEFAULT_INITIAL_CAPITAL * 0.1)

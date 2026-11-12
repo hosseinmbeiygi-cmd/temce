@@ -285,8 +285,8 @@ def main():
         ud = s.get("user_daily") or {}
         final = num(us.get("final_score"))
         score_total = num(ud.get("score_total"))
-        tabA_positive = s["_verdict"] == "عبور کرد"
-        tabB_positive = (final is not None and final > 0) or (score_total is not None and score_total > 0)
+        tabA_positive = s["_verdict"] == "عبور کرد"  # noqa: N806
+        tabB_positive = (final is not None and final > 0) or (score_total is not None and score_total > 0)  # noqa: N806
         if s["_verdict"] == "داده ناکافی":
             direction = "داده ناکافی"
         elif tabA_positive and tabB_positive:

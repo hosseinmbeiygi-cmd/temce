@@ -11,7 +11,7 @@ class ModelEnsembler:
     def add(self, model: Any) -> None:
         self._models.append(model)
 
-    def predict(self, X: Any) -> Any:
+    def predict(self, X: Any) -> Any:  # noqa: N803
         import numpy as np
 
         if not self._models:

@@ -62,14 +62,14 @@ class LightGBMModel(BaseModel):
         except ImportError:
             raise ImportError("lightgbm not installed. Install with: pip install lightgbm")
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
-        X_np = _to_numpy(X)
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         y_np = _to_numpy(y)
 
         # Use last 20% as eval set for early stopping
         n = len(X_np)
         eval_size = max(10, int(n * 0.2))
-        X_train, X_val = X_np[:-eval_size], X_np[-eval_size:]
+        X_train, X_val = X_np[:-eval_size], X_np[-eval_size:]  # noqa: N806
         y_train, y_val = y_np[:-eval_size], y_np[-eval_size:]
 
         self._model.fit(
@@ -82,8 +82,8 @@ class LightGBMModel(BaseModel):
         )
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
-        X_np = _to_numpy(X)
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         preds = self._model.predict(X_np)
         probs = None
         if hasattr(self._model, "predict_proba"):
@@ -139,14 +139,14 @@ class CatBoostModel(BaseModel):
         except ImportError:
             raise ImportError("catboost not installed. Install with: pip install catboost")
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
-        X_np = _to_numpy(X)
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         y_np = _to_numpy(y)
 
         # Use last 20% as eval set for early stopping
         n = len(X_np)
         eval_size = max(10, int(n * 0.2))
-        X_train, X_val = X_np[:-eval_size], X_np[-eval_size:]
+        X_train, X_val = X_np[:-eval_size], X_np[-eval_size:]  # noqa: N806
         y_train, y_val = y_np[:-eval_size], y_np[-eval_size:]
 
         self._model.fit(
@@ -156,8 +156,8 @@ class CatBoostModel(BaseModel):
         )
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
-        X_np = _to_numpy(X)
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         preds = self._model.predict(X_np)
         probs = None
         if hasattr(self._model, "predict_proba"):
@@ -240,11 +240,11 @@ class StackingEnsembleModel(BaseModel):
 
         return models
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         from sklearn.linear_model import Ridge
         from sklearn.model_selection import TimeSeriesSplit
 
-        X_np = _to_numpy(X)
+        X_np = _to_numpy(X)  # noqa: N806
         y_np = _to_numpy(y)
         task = self.params.get("task", "regression")
         gap = int(self.params.get("gap", 0))
@@ -263,7 +263,7 @@ class StackingEnsembleModel(BaseModel):
         covered = np.zeros(n, dtype=bool)
 
         for _fold_idx, (train_idx, val_idx) in enumerate(tss.split(X_np)):
-            X_train, X_val = X_np[train_idx], X_np[val_idx]
+            X_train, X_val = X_np[train_idx], X_np[val_idx]  # noqa: N806
             y_train, y_val = y_np[train_idx], y_np[val_idx]
 
             for model_idx, (name, model) in enumerate(base_models):
@@ -306,8 +306,8 @@ class StackingEnsembleModel(BaseModel):
 
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
-        X_np = _to_numpy(X)
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
+        X_np = _to_numpy(X)  # noqa: N806
         n_base = len(self._base_models)
         base_preds = np.zeros((len(X_np), n_base))
 

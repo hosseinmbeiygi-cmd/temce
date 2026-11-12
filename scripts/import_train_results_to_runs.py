@@ -88,7 +88,7 @@ async def main(path: Path) -> None:
     rows = [_row(r, run_time) for r in results]
     # asyncpg caps a single statement at 32767 bound params — 13 cols/row means
     # ~500 rows per batch is safe.
-    BATCH = 500
+    BATCH = 500  # noqa: N806
     async with factory() as session:
         for i in range(0, len(rows), BATCH):
             chunk = rows[i : i + BATCH]

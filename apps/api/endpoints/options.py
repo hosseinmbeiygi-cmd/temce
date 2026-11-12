@@ -134,7 +134,7 @@ async def recommend_strategies(body: RecommendRequest) -> ApiResponse[list[dict[
     return ApiResponse(success=True, data=results)
 
 
-def _missing_inputs(S: float, K: float, T: float, r: float | None, sigma: float | None) -> list[str]:
+def _missing_inputs(S: float, K: float, T: float, r: float | None, sigma: float | None) -> list[str]:  # noqa: N803
     """Which Black-Scholes inputs the caller did not supply.
 
     ``r`` and ``sigma`` used to default to ۱۵٪ and ۳۵٪, so a price came back for anybody who
@@ -162,7 +162,7 @@ def _need_inputs(missing: list[str]) -> str:
 
 @router.get("/greeks", summary="Calculate Greeks for an option")
 async def calculate_greeks(
-    S: float, K: float, T: float, r: float | None = None, sigma: float | None = None,
+    S: float, K: float, T: float, r: float | None = None, sigma: float | None = None,  # noqa: N803
     option_type: str = "call"
 ) -> ApiResponse[dict[str, Any]]:
     missing = _missing_inputs(S, K, T, r, sigma)
@@ -194,7 +194,7 @@ async def calculate_greeks(
 
 @router.get("/pricing", summary="Black-Scholes pricing for call and put")
 async def pricing(
-    S: float, K: float, T: float, r: float | None = None, sigma: float | None = None
+    S: float, K: float, T: float, r: float | None = None, sigma: float | None = None  # noqa: N803
 ) -> ApiResponse[dict[str, Any]]:
     missing = _missing_inputs(S, K, T, r, sigma)
     if missing:

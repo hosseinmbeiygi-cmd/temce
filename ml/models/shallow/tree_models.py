@@ -22,11 +22,11 @@ class RandomForestModel(BaseModel):
         else:
             self._model = RandomForestRegressor(**self.params)
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         self._model.fit(X.values, y.values)
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         preds = self._model.predict(X.values)
         probs = None
         if hasattr(self._model, "predict_proba"):
@@ -63,11 +63,11 @@ class XGBoostModel(BaseModel):
         except ImportError:
             raise ImportError("xgboost not installed. Install with: pip install xgboost")
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         self._model.fit(X.values, y.values, **kwargs)
         self._is_fitted = True
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         preds = self._model.predict(X.values)
         probs = None
         if hasattr(self._model, "predict_proba"):

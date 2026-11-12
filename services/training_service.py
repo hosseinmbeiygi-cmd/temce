@@ -154,15 +154,15 @@ class TrainingService:
         target_series = target_series[mask].reset_index(drop=True)
 
         feature_names = [c for c in combined_df.columns if c not in ("date", "time", "symbol")]
-        X = FeatureMatrix(data=combined_df[feature_names], feature_names=feature_names)
+        X = FeatureMatrix(data=combined_df[feature_names], feature_names=feature_names)  # noqa: N806
         y = TargetVector(data=target_series.values, name="next_return", task_type="regression")
         return X, y
 
-    def _split_time_series(self, X: FeatureMatrix, y: TargetVector, train_ratio: float = 0.8):
+    def _split_time_series(self, X: FeatureMatrix, y: TargetVector, train_ratio: float = 0.8):  # noqa: N803
         """Time-series split (no shuffle) to avoid look-ahead bias."""
         n = X.shape[0]
         split_idx = int(n * train_ratio)
-        X_train = FeatureMatrix(
+        X_train = FeatureMatrix(  # noqa: N806
             data=X.data.iloc[:split_idx] if hasattr(X.data, "iloc") else X.data[:split_idx],
             feature_names=X.feature_names,
         )
@@ -171,7 +171,7 @@ class TrainingService:
             name=y.name,
             task_type=y.task_type,
         )
-        X_val = FeatureMatrix(
+        X_val = FeatureMatrix(  # noqa: N806
             data=X.data.iloc[split_idx:] if hasattr(X.data, "iloc") else X.data[split_idx:],
             feature_names=X.feature_names,
         )
@@ -202,12 +202,12 @@ class TrainingService:
             return Result.fail(f"Not enough data for {symbol}: got {len(df)} rows (need ≥ 30)")
 
         # 2. Build features
-        X, y = self._build_features(df)
+        X, y = self._build_features(df)  # noqa: N806
         if X.shape[0] < 20:
             return Result.fail(f"Not enough valid samples after feature engineering: {X.shape[0]}")
 
         # 3. Split (time-series)
-        X_train, X_val, y_train, y_val = self._split_time_series(X, y)
+        X_train, X_val, y_train, y_val = self._split_time_series(X, y)  # noqa: N806
 
         # 4. Create model
         try:

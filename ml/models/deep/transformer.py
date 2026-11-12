@@ -90,8 +90,8 @@ class TransformerModel(BaseDeepModel):
         torch = self._get_torch()
         return torch.nn.MSELoss()
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         super().fit(X, y, **kwargs)
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         return super().predict(X)

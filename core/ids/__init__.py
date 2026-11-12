@@ -20,7 +20,7 @@ def new_short_id(length: int = 12) -> str:
 def new_snowflake_id(worker_id: int = 1) -> int:
     import time
 
-    EPOCH = 1700000000000
+    EPOCH = 1700000000000  # noqa: N806
     now = int(time.time() * 1000)
     seq = 0
     return ((now - EPOCH) << 12) | ((worker_id & 0x3FF) << 2) | (seq & 0x03)

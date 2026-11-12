@@ -32,7 +32,7 @@ def check_hard_blocks(
 
 
 # ── NetEdge (سند §5.3) — Almgren-Chriss simplified ──
-def market_impact(Q: float, V: float, sigma: float, eta: float = 0.1, gamma: float = 0.05) -> float:
+def market_impact(Q: float, V: float, sigma: float, eta: float = 0.1, gamma: float = 0.05) -> float:  # noqa: N803
     """Impact = η σ √(Q/V) + γ (Q/V) — Q حجم سفارش، V حجم بازار."""
     if V <= 0 or Q <= 0:
         return 0.0
@@ -44,8 +44,8 @@ def compute_net_edge(
     gross_edge: float,
     commission: float,
     slippage: float,
-    Q: float,
-    V: float,
+    Q: float,  # noqa: N803
+    V: float,  # noqa: N803
     sigma: float,
     latency_buffer: float = 0.0,
 ) -> float:

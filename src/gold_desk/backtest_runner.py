@@ -24,6 +24,8 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE
+
 from . import indicators
 from .black76 import IRAN_RISK_FREE_RATE
 from .constants import COIN_WEIGHTS, SMA_BUBBLE_WINDOW, VEHICLE_FEES
@@ -44,7 +46,7 @@ MIN_SIMULATION_DAYS: int = 10
 OOS_FRACTION: float = 0.30
 # تعداد روز معاملاتی در سال برای سالانه‌سازی شارپ.
 # بورس تهران (TSE) ~۲۵۰ روز معاملاتی دارد (نه ۲۵۲ NYSE).
-TRADING_DAYS_PER_YEAR: int = 250
+TRADING_DAYS_PER_YEAR = TRADING_DAYS_PER_YEAR_TSE
 
 
 @dataclass(frozen=True)

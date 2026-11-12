@@ -91,8 +91,8 @@ class UniversalMarginEngine:
     def _naked_short_margin(self, leg: OptionLeg) -> float:
         """Margin for a single naked short option."""
         coef = self._get_coef(leg.underlying_group)
-        S = leg.underlying_price
-        K = leg.strike
+        S = leg.underlying_price  # noqa: N806
+        K = leg.strike  # noqa: N806
 
         base_margin = coef * S
 

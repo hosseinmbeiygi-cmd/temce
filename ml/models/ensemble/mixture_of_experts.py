@@ -11,7 +11,7 @@ class MixtureOfExperts:
     def add_expert(self, expert: Any) -> None:
         self._experts.append(expert)
 
-    def fit(self, X: Any, y: Any) -> None:
+    def fit(self, X: Any, y: Any) -> None:  # noqa: N803
         from sklearn.linear_model import LogisticRegression
 
         self._gating = LogisticRegression()
@@ -19,7 +19,7 @@ class MixtureOfExperts:
         for expert in self._experts:
             expert.fit(X, y)
 
-    def predict(self, X: Any) -> Any:
+    def predict(self, X: Any) -> Any:  # noqa: N803
         if self._gating is None:
             raise RuntimeError("Not fitted")
         import numpy as np

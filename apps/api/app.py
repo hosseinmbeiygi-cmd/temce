@@ -735,8 +735,8 @@ async def _fetch_news_on_startup() -> None:
     """
     if not await _with_startup_lock("news_ingest", "news-ingest"):
         return
-    MAX_RETRIES = 3
-    BASE_DELAY = 15  # seconds
+    MAX_RETRIES = 3  # noqa: N806
+    BASE_DELAY = 15  # seconds  # noqa: N806
 
     try:
         for attempt in range(1, MAX_RETRIES + 1):
@@ -793,8 +793,8 @@ async def _brsapi_startup_sync() -> None:
     """
     if not await _with_startup_lock("brsapi_sync", "brsapi-sync"):
         return
-    MAX_RETRIES = 3
-    BASE_DELAY = 30  # seconds
+    MAX_RETRIES = 3  # noqa: N806
+    BASE_DELAY = 30  # seconds  # noqa: N806
 
     try:
         for attempt in range(1, MAX_RETRIES + 1):

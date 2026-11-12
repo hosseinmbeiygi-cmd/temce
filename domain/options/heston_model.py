@@ -53,7 +53,7 @@ def _characteristic_function_heston(u: complex, tau: float, params: HestonParams
 
     phi(u, tau) = exp(C(u,tau) + D(u,tau)*v0 + i*u*ln(S))
     """
-    S, r, q = params.S, params.r, params.q
+    S, r, q = params.S, params.r, params.q  # noqa: N806
     v0, theta, kappa, sigma_v, rho = params.v0, params.theta, params.kappa, params.sigma_v, params.rho
 
     alpha = -u * u / 2 - u * 1j / 2
@@ -67,10 +67,10 @@ def _characteristic_function_heston(u: complex, tau: float, params: HestonParams
     g = (beta - d) / (beta + d)
 
     exp_d_tau = np.exp(-d * tau)
-    C = (r - q) * u * 1j * tau + (kappa * theta / (sigma_v * sigma_v)) * (
+    C = (r - q) * u * 1j * tau + (kappa * theta / (sigma_v * sigma_v)) * (  # noqa: N806
         (beta - d) * tau - 2.0 * np.log((1 - g * exp_d_tau) / (1 - g))
     )
-    D = ((beta - d) / (sigma_v * sigma_v)) * (1 - exp_d_tau) / (1 - g * exp_d_tau)
+    D = ((beta - d) / (sigma_v * sigma_v)) * (1 - exp_d_tau) / (1 - g * exp_d_tau)  # noqa: N806
 
     return complex(np.exp(C + D * v0 + 1j * u * np.log(S)))
 
@@ -80,8 +80,8 @@ def _heston_call_price_semi_closed(params: HestonParams) -> float:
 
     Uses the Gil-Pelaez inversion formula.
     """
-    S, K, T, r, q = params.S, params.K, params.T, params.r, params.q
-    ln_S_K = math.log(S / K)
+    S, K, T, r, q = params.S, params.K, params.T, params.r, params.q  # noqa: N806
+    ln_S_K = math.log(S / K)  # noqa: N806
 
     def integrand_real(u: float) -> float:
         phi = _characteristic_function_heston(complex(u, -1), T, params)
@@ -91,8 +91,8 @@ def _heston_call_price_semi_closed(params: HestonParams) -> float:
         phi = _characteristic_function_heston(complex(u, -1), T, params)
         return float((phi * np.exp(-1j * u * ln_S_K) / (1j * u)).imag)
 
-    I1, _ = integrate.quad(integrand_real, 1e-8, 200, limit=200)
-    I2, _ = integrate.quad(integrand_imag, 1e-8, 200, limit=200)
+    I1, _ = integrate.quad(integrand_real, 1e-8, 200, limit=200)  # noqa: N806
+    I2, _ = integrate.quad(integrand_imag, 1e-8, 200, limit=200)  # noqa: N806
 
     call = S * math.exp(-q * T) * 0.5 - K * math.exp(-r * T) * 0.5
     call += K * math.exp(-r * T) / math.pi * I1
@@ -175,7 +175,7 @@ def heston_monte_carlo(params: HestonParams, seed: int = 42) -> OptionPrice:
     Returns price with standard error.
     """
     rng = np.random.default_rng(seed)
-    S, K, T, r, q = params.S, params.K, params.T, params.r, params.q
+    S, K, T, r, q = params.S, params.K, params.T, params.r, params.q  # noqa: N806
     v0, theta_v, kappa, sigma_v, rho = params.v0, params.theta, params.kappa, params.sigma_v, params.rho
 
     n = params.n_steps
@@ -183,12 +183,12 @@ def heston_monte_carlo(params: HestonParams, seed: int = 42) -> OptionPrice:
     dt = T / n
 
     # Initialize
-    S_t = np.full(m, S, dtype=np.float64)
+    S_t = np.full(m, S, dtype=np.float64)  # noqa: N806
     v_t = np.full(m, v0, dtype=np.float64)
 
     # Cholesky decomposition for correlated Brownian motions
-    Z1 = rng.standard_normal((n, m))
-    Z2 = rho * Z1 + np.sqrt(1 - rho**2) * rng.standard_normal((n, m))
+    Z1 = rng.standard_normal((n, m))  # noqa: N806
+    Z2 = rho * Z1 + np.sqrt(1 - rho**2) * rng.standard_normal((n, m))  # noqa: N806
 
     for i in range(n):
         sqrt_v = np.sqrt(np.maximum(v_t, 1e-10))
@@ -203,7 +203,7 @@ def heston_monte_carlo(params: HestonParams, seed: int = 42) -> OptionPrice:
         v_t = np.maximum(v_t, 0.0)  # Ensure non-negative
 
         # Stock price process
-        S_t = S_t * np.exp((r - q - 0.5 * v_t) * dt + sqrt_v * np.sqrt(dt) * Z1[i])
+        S_t = S_t * np.exp((r - q - 0.5 * v_t) * dt + sqrt_v * np.sqrt(dt) * Z1[i])  # noqa: N806
 
     # Payoff
     payoffs = np.maximum(S_t - K, 0.0) if params.option_type == "call" else np.maximum(K - S_t, 0.0)
@@ -236,7 +236,7 @@ def heston_monte_carlo(params: HestonParams, seed: int = 42) -> OptionPrice:
 
 def calibrate_heston(
     market_prices: list[tuple[float, float, float]],  # [(K, T, market_price), ...]
-    S: float,
+    S: float,  # noqa: N803
     r: float,
     q: float = 0.0,
     initial_guess: tuple[float, float, float, float, float] = (0.04, 0.04, 2.0, 0.3, -0.7),
@@ -254,7 +254,7 @@ def calibrate_heston(
             return 1e10
 
         total_error = 0.0
-        for K, T, mkt_price in market_prices:
+        for K, T, mkt_price in market_prices:  # noqa: N806
             try:
                 params = HestonParams(
                     S=S,

@@ -101,7 +101,7 @@ class PersianSentimentService:
             analyzer="char_wb",
             min_df=1,
         )
-        X = self._vectorizer.fit_transform(cleaned)
+        X = self._vectorizer.fit_transform(cleaned)  # noqa: N806
 
         self._model = LogisticRegression(
             max_iter=1000,
@@ -177,7 +177,7 @@ class PersianSentimentService:
             return None
 
         cleaned = self._clean_text(text)
-        X = self._vectorizer.transform([cleaned])
+        X = self._vectorizer.transform([cleaned])  # noqa: N806
         proba = self._model.predict_proba(X)[0]
         classes = self._model.classes_
 

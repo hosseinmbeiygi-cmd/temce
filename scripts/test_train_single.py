@@ -47,18 +47,18 @@ def parse_symbol() -> str:
 def build_features(df: pd.DataFrame):
     pf = PriceFeatures(window_sizes=[5, 10, 20])
     tf = TechnicalFeatures()
-    X_price = pf.compute(df)
-    X_tech = tf.compute(df)
+    X_price = pf.compute(df)  # noqa: N806
+    X_tech = tf.compute(df)  # noqa: N806
     if hasattr(X_price, "data"):
-        X_price = X_price.data
+        X_price = X_price.data  # noqa: N806
     if hasattr(X_tech, "data"):
-        X_tech = X_tech.data
-    X = pd.concat([X_price, X_tech], axis=1).fillna(0)
+        X_tech = X_tech.data  # noqa: N806
+    X = pd.concat([X_price, X_tech], axis=1).fillna(0)  # noqa: N806
     y = df["close"].pct_change().shift(-1).fillna(0)
     common_idx = X.index.intersection(y.index)
-    X = X.loc[common_idx]
+    X = X.loc[common_idx]  # noqa: N806
     y = y.loc[common_idx]
-    X = X.iloc[30:]
+    X = X.iloc[30:]  # noqa: N806
     y = y.iloc[30:]
     return X, y
 
@@ -98,7 +98,7 @@ async def main():
         return
 
     # 2. Build features
-    X, y = build_features(df)
+    X, y = build_features(df)  # noqa: N806
     print(f"  Feature samples: {len(X)}")
     print(f"  Feature count: {len(X.columns)}")
 
@@ -109,7 +109,7 @@ async def main():
 
     # 3. Split
     split = int(len(X) * 0.8)
-    X_train, X_val = X.iloc[:split], X.iloc[split:]
+    X_train, X_val = X.iloc[:split], X.iloc[split:]  # noqa: N806
     y_train, y_val = y.iloc[:split], y.iloc[split:]
     print(f"  Train: {len(X_train)}  |  Val: {len(X_val)}")
 

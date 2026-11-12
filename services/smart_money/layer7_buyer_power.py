@@ -43,8 +43,8 @@ class BuyerPowerLayer:
 
             # ── Vectorized derived series (legacy `or` semantics preserved;
             #    one stacked where instead of per-array calls) ──
-            Z = np.vstack([ab_h, as_h, rbv_h, rsv_h, rbc_h, rsc_h, val_h])
-            Z = np.where(Z != 0.0, Z, 1.0)
+            Z = np.vstack([ab_h, as_h, rbv_h, rsv_h, rbc_h, rsc_h, val_h])  # noqa: N806
+            Z = np.where(Z != 0.0, Z, 1.0)  # noqa: N806
             ab1, as1, rbv1, rsv1, rbc1, rsc1, val1 = Z
             hvr = ab1 / as1
             hvar = rbv1 / rsv1
@@ -58,7 +58,7 @@ class BuyerPowerLayer:
             if n >= 2:
                 # Stacked stats: all five series in one (5, n) matrix →
                 # two NumPy reductions total instead of ten.
-                S = np.vstack([hist_rbp, hvar, hist_pc, hist_nrmf, hist_amihud])
+                S = np.vstack([hist_rbp, hvar, hist_pc, hist_nrmf, hist_amihud])  # noqa: N806
                 mus = S.mean(axis=1)
                 stds = S.std(axis=1, ddof=1)
                 stds = np.where(stds != 0.0, stds, 1.0)

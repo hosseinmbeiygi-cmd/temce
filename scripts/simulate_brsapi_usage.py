@@ -226,7 +226,7 @@ def _sliding_window_max(timestamps: list[float], window: float) -> int:
     ``limit + 1`` for a limiter whose window never held more than ``limit``
     entries (starvation scenario: 1001 reported, 1000 max deque length).
     """
-    _EPS = 1e-9
+    _EPS = 1e-9  # noqa: N806
     ts = sorted(timestamps)
     max_count = 0
     j = 0

@@ -91,16 +91,16 @@ def main() -> None:
                          "volume": b.get("volume") or 0} for b in bars])
     feat = TechnicalFeatures().compute(df).data
     feature_cols = [c for c in feat.columns if c not in ("date", "time", "symbol")]
-    X_all = feat[feature_cols].to_numpy(dtype=float)
+    X_all = feat[feature_cols].to_numpy(dtype=float)  # noqa: N806
     closes = [b["close"] for b in bars]
     raw_y = DatasetBuilder().make_target(closes, horizon=a.horizon)
     valid = [i for i, y in enumerate(raw_y) if y is not None]
-    X, y = X_all[valid], _np.array([raw_y[i] for i in valid])
+    X, y = X_all[valid], _np.array([raw_y[i] for i in valid])  # noqa: N806
 
     gap = a.horizon
     tss = TimeSeriesSplit(n_splits=a.n_splits, gap=gap)
     folds = []
-    MIN_TEST = 30
+    MIN_TEST = 30  # noqa: N806
     for k, (tr, te) in enumerate(tss.split(X)):
         if len(tr) < 30 or len(te) < 5:
             continue

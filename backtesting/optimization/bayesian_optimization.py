@@ -35,7 +35,7 @@ class BayesianOptimization:
 
     def _propose(self, bounds: dict[str, tuple[float, float]]) -> dict[str, float]:
         n_params = len(bounds)
-        X = np.array([[v[n] for n in bounds] for v in self._X])
+        X = np.array([[v[n] for n in bounds] for v in self._X])  # noqa: N806
         y = np.array(self._y)
         y.max()
         n_candidates = 1000

@@ -7,7 +7,7 @@ class BenchmarkRunner:
     def __init__(self, n_runs: int = 5) -> None:
         self.n_runs = n_runs
 
-    def benchmark(self, model: Any, X: Any, y: Any) -> dict[str, float]:
+    def benchmark(self, model: Any, X: Any, y: Any) -> dict[str, float]:  # noqa: N803
         import time
 
         import numpy as np

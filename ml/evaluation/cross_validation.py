@@ -31,13 +31,13 @@ class PurgedTimeSeriesCV:
         # TimeSeriesSplit.split needs 2D X; use dummy
         import numpy as _np
 
-        X = _np.zeros((n, 1))
+        X = _np.zeros((n, 1))  # noqa: N806
         yield from tss.split(X)
 
     def validate(
         self,
         model: Any,
-        X: Any,
+        X: Any,  # noqa: N803
         y: Any,
         metric_fn: Callable[[Any, Any, Any], float] | None = None,
     ) -> Result[dict[str, Any]]:
@@ -45,7 +45,7 @@ class PurgedTimeSeriesCV:
             import numpy as _np
             from sklearn.base import clone
 
-            Xa = _np.asarray(X)
+            Xa = _np.asarray(X)  # noqa: N806
             ya = _np.asarray(y)
             n = len(Xa)
             # Fail with an actionable message instead of letting TimeSeriesSplit

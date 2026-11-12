@@ -9,7 +9,7 @@ class CVTrainer:
         self.horizon = horizon
         self.gap_extra = gap_extra
 
-    def cross_validate(self, model: Any, X: Any, y: Any) -> dict[str, list[float]]:
+    def cross_validate(self, model: Any, X: Any, y: Any) -> dict[str, list[float]]:  # noqa: N803
         from ml.evaluation.cross_validation import CrossValidator
 
         result = CrossValidator(

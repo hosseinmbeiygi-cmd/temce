@@ -13,10 +13,10 @@ class BaseModel(ABC):
         self._is_fitted = False
 
     @abstractmethod
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None: ...
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None: ...  # noqa: N803
 
     @abstractmethod
-    def predict(self, X: FeatureMatrix) -> PredictionResult: ...
+    def predict(self, X: FeatureMatrix) -> PredictionResult: ...  # noqa: N803
 
     @abstractmethod
     def save(self, path: str) -> None: ...

@@ -20,11 +20,11 @@ from backtesting.metrics.trade_metrics import profit_factor
 from core.db_utils import safe_row_str
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from domain.trading.iran_costs import (
     OPTION_BUY_PCT,
     OPTION_SELL_PCT,
 )
-from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from services.signal_accuracy_tracker import SignalAccuracyTracker
 
 logger = get_logger(__name__)

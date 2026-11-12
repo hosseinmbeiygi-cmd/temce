@@ -9,7 +9,7 @@ class BoostingEnsemble:
         self.learning_rate = learning_rate
         self._model = None
 
-    def fit(self, X: Any, y: Any) -> None:
+    def fit(self, X: Any, y: Any) -> None:  # noqa: N803
         from sklearn.ensemble import GradientBoostingClassifier
 
         self._model = GradientBoostingClassifier(
@@ -18,7 +18,7 @@ class BoostingEnsemble:
         )
         self._model.fit(X, y)
 
-    def predict(self, X: Any) -> Any:
+    def predict(self, X: Any) -> Any:  # noqa: N803
         if self._model is None:
             raise RuntimeError("Model not fitted")
         return self._model.predict(X)

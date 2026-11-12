@@ -32,13 +32,13 @@ class StackingEnsemble(BaseEnsembleModel):
     def meta_model(self, model: BaseModel) -> None:
         self._meta_model = model
 
-    def _build_meta_features(self, X: FeatureMatrix, base_predictions: list[np.ndarray]) -> np.ndarray:
+    def _build_meta_features(self, X: FeatureMatrix, base_predictions: list[np.ndarray]) -> np.ndarray:  # noqa: N803
         meta_features = np.column_stack(base_predictions)
         if self.params.get("use_original_features", True):
             meta_features = np.hstack([X.values, meta_features])
         return meta_features
 
-    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
+    def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:  # noqa: N803
         if not self._base_models:
             raise ValueError("No base models added to stacking ensemble")
         if self._meta_model is None:
@@ -53,7 +53,7 @@ class StackingEnsemble(BaseEnsembleModel):
         meta_target = y.values
 
         logger.info("Fitting meta model: %s", self._meta_model.name)
-        meta_X = FeatureMatrix(data=__import__("pandas").DataFrame(meta_features))
+        meta_X = FeatureMatrix(data=__import__("pandas").DataFrame(meta_features))  # noqa: N806
         meta_y = TargetVector(data=__import__("pandas").Series(meta_target))
         self._meta_model.fit(meta_X, meta_y, **kwargs)
 
@@ -65,14 +65,14 @@ class StackingEnsemble(BaseEnsembleModel):
             self._meta_model.name,
         )
 
-    def predict(self, X: FeatureMatrix) -> PredictionResult:
+    def predict(self, X: FeatureMatrix) -> PredictionResult:  # noqa: N803
         if self._meta_model is None or not self._meta_model.is_fitted:
             raise RuntimeError("Meta model not fitted")
         base_predictions = self._collect_base_predictions(X)
         if not base_predictions:
             raise RuntimeError("No base model predictions available")
         meta_features = self._build_meta_features(X, base_predictions)
-        meta_X = FeatureMatrix(data=__import__("pandas").DataFrame(meta_features))
+        meta_X = FeatureMatrix(data=__import__("pandas").DataFrame(meta_features))  # noqa: N806
         result = self._meta_model.predict(meta_X)
         return PredictionResult(predictions=result.predictions, model_id=self.name)
 

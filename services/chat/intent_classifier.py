@@ -296,7 +296,7 @@ class IntentClassifier:
 
         try:
             self._vectorizer = self._TfidfVectorizer(max_features=5000, ngram_range=(1, 3))
-            X = self._vectorizer.fit_transform(texts)
+            X = self._vectorizer.fit_transform(texts)  # noqa: N806
             self._model = self._LogisticRegression(max_iter=1000, multi_class="multinomial")
             self._model.fit(X, intents)
             logger.info("Intent classifier trained on %d samples", len(texts))
@@ -331,7 +331,7 @@ class IntentClassifier:
         if not self._model or not self._vectorizer:
             return None, 0.0
         try:
-            X = self._vectorizer.transform([text])
+            X = self._vectorizer.transform([text])  # noqa: N806
             pred = self._model.predict(X)[0]
             proba = self._model.predict_proba(X).max()
             return pred, float(proba)

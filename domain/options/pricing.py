@@ -27,7 +27,7 @@ class OptionPrice:
     parameters: dict[str, Any] = field(default_factory=dict)
 
 
-def _d1(S: float, K: float, T: float, r: float, sigma: float) -> float:
+def _d1(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     """Calculate d1 in Black-Scholes formula.
 
     d1 = (ln(S/K) + (r + sigma^2/2) * T) / (sigma * sqrt(T))
@@ -35,7 +35,7 @@ def _d1(S: float, K: float, T: float, r: float, sigma: float) -> float:
     return (math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
 
 
-def _vol_sqrt_t(sigma: float, T: float) -> float:
+def _vol_sqrt_t(sigma: float, T: float) -> float:  # noqa: N803
     """``sigma * sqrt(T)``, the Black-Scholes time-vol scale.
 
     Returns 0.0 when the product underflows to zero. Guarding only
@@ -49,7 +49,7 @@ def _vol_sqrt_t(sigma: float, T: float) -> float:
     return value if math.isfinite(value) else 0.0
 
 
-def _d2(d1: float, sigma: float, T: float) -> float:
+def _d2(d1: float, sigma: float, T: float) -> float:  # noqa: N803
     """Calculate d2 in Black-Scholes formula.
 
     d2 = d1 - sigma * sqrt(T)
@@ -57,7 +57,7 @@ def _d2(d1: float, sigma: float, T: float) -> float:
     return d1 - sigma * math.sqrt(T)
 
 
-def black_scholes_call(S: float, K: float, T: float, r: float, sigma: float) -> float:
+def black_scholes_call(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     """Black-Scholes call option price.
 
     Args:
@@ -79,7 +79,7 @@ def black_scholes_call(S: float, K: float, T: float, r: float, sigma: float) -> 
     return S * stats.norm.cdf(d1) - K * math.exp(-r * T) * stats.norm.cdf(d2)
 
 
-def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> float:
+def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     """Black-Scholes put option price.
 
     Args:
@@ -101,7 +101,7 @@ def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> f
     return K * math.exp(-r * T) * stats.norm.cdf(-d2) - S * stats.norm.cdf(-d1)
 
 
-def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> OptionPrice:
+def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> OptionPrice:  # noqa: N803
     """Full Black-Scholes pricing with all Greeks.
 
     Args:
@@ -195,9 +195,9 @@ IV_MAX = 5.0
 
 def implied_volatility(
     market_price: float,
-    S: float,
-    K: float,
-    T: float,
+    S: float,  # noqa: N803
+    K: float,  # noqa: N803
+    T: float,  # noqa: N803
     r: float,
     option_type: str = "call",
     initial_guess: float = 0.3,

@@ -762,9 +762,9 @@ def _extract_screener_filters(text: str) -> list[dict[str, Any]]:
             filters.append(dict(criterion))
 
     # 2. Numeric patterns like RSI<30, MACD>0, P/E<8, حجم>1000
-    _OP = r"([<>]=?|=)"
-    _NUM = r"(\d+(?:\.\d+)?)"
-    _NUM_NEG = r"(-?\d+(?:\.\d+)?)"
+    _OP = r"([<>]=?|=)"  # noqa: N806
+    _NUM = r"(\d+(?:\.\d+)?)"  # noqa: N806
+    _NUM_NEG = r"(-?\d+(?:\.\d+)?)"  # noqa: N806
     numeric_patterns = [
         # ── Core oscillators ──
         (rf"rsi\s*{_OP}\s*{_NUM}", "rsi"),

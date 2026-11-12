@@ -283,7 +283,7 @@ class VaRCalculator:
                 "spot_move_pct/vol_move_pct look like percentages; pass "
                 "decimal fractions (0.02 for 2%, audit FIN-11)"
             )
-        dS = spot_price * spot_move_pct
+        dS = spot_price * spot_move_pct  # noqa: N806
 
         # Squaring a huge dS raises OverflowError (not inf), so the finiteness
         # check below would never run; convert it into a domain error.

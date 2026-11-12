@@ -213,7 +213,7 @@ def perron_test_manual(
 
     if model == 1:
         # y_t = μ + β·DU_t + φ·y_{t-1} + Σ ψ_i · Δy_{t-i} + ε_t
-        X = np.column_stack(
+        X = np.column_stack(  # noqa: N806
             [
                 np.ones(n - 1),
                 du[1:],
@@ -222,7 +222,7 @@ def perron_test_manual(
         )
     elif model == 2:
         # y_t = μ + β·DT_t + φ·y_{t-1} + Σ ψ_i · Δy_{t-i} + ε_t
-        X = np.column_stack(
+        X = np.column_stack(  # noqa: N806
             [
                 np.ones(n - 1),
                 dt[1:],
@@ -231,7 +231,7 @@ def perron_test_manual(
         )
     else:  # model == 3
         # y_t = μ + β·DU_t + γ·DT_t + φ·y_{t-1} + Σ ψ_i · Δy_{t-i} + ε_t
-        X = np.column_stack(
+        X = np.column_stack(  # noqa: N806
             [
                 np.ones(n - 1),
                 du[1:],
@@ -251,7 +251,7 @@ def perron_test_manual(
         sigma2 = np.sum(residuals_ols**2) / (n - 1 - n_params)
 
         # آماره t برای φ
-        XtX_inv = np.linalg.inv(X.T @ X)
+        XtX_inv = np.linalg.inv(X.T @ X)  # noqa: N806
         se_phi = np.sqrt(sigma2 * XtX_inv[-1, -1])  # last param is φ
         phi_hat = beta[-1]
         t_stat = phi_hat / se_phi if se_phi > 0 else 0
@@ -322,7 +322,7 @@ def run_perron_battery(df: pd.DataFrame, variables: list[str]) -> pd.DataFrame:
 
 def engle_granger_test(
     y: pd.Series,
-    X: pd.DataFrame,
+    X: pd.DataFrame,  # noqa: N803
     y_name: str = "Y",
     regression: str = "c",
 ) -> dict:
@@ -346,13 +346,13 @@ def engle_granger_test(
     # حذف NaN مشترک
     combined = pd.concat([y, X], axis=1).dropna()
     y_clean = combined.iloc[:, 0]
-    X_clean = combined.iloc[:, 1:]
+    X_clean = combined.iloc[:, 1:]  # noqa: N806
 
     if len(X_clean) < len(X.columns) + 5:
         return {"status": "insufficient_data"}
 
     # مرحله ۱: رگرسیون
-    X_const = sm.add_constant(X_clean)
+    X_const = sm.add_constant(X_clean)  # noqa: N806
     model = sm.OLS(y_clean, X_const).fit()
     residuals = model.resid
 
@@ -392,7 +392,7 @@ def run_engle_granger_battery(
     print(f"    مدل: {dependent} ~ {' + '.join(independents)}")
 
     avail_y = dependent in df.columns
-    avail_X = [v for v in independents if v in df.columns]
+    avail_X = [v for v in independents if v in df.columns]  # noqa: N806
 
     if not avail_y or not avail_X:
         print("    ⚠ متغیرهای کافی موجود نیست")
@@ -424,7 +424,7 @@ def run_engle_granger_battery(
 
 def crdw_test(
     y: pd.Series,
-    X: pd.DataFrame,
+    X: pd.DataFrame,  # noqa: N803
     y_name: str = "Y",
 ) -> dict:
     """
@@ -445,13 +445,13 @@ def crdw_test(
     # حذف NaN مشترک
     combined = pd.concat([y, X], axis=1).dropna()
     y_clean = combined.iloc[:, 0]
-    X_clean = combined.iloc[:, 1:]
+    X_clean = combined.iloc[:, 1:]  # noqa: N806
 
     if len(X_clean) < len(X.columns) + 5:
         return {"status": "insufficient_data"}
 
     # رگرسیون
-    X_const = sm.add_constant(X_clean)
+    X_const = sm.add_constant(X_clean)  # noqa: N806
     model = sm.OLS(y_clean, X_const).fit()
     residuals = model.resid.values
 
@@ -494,7 +494,7 @@ def run_crdw_battery(
     print(f"    مدل: {dependent} ~ {' + '.join(independents)}")
 
     avail_y = dependent in df.columns
-    avail_X = [v for v in independents if v in df.columns]
+    avail_X = [v for v in independents if v in df.columns]  # noqa: N806
 
     if not avail_y or not avail_X:
         return {"status": "missing_variables"}

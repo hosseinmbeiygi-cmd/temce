@@ -692,7 +692,7 @@ class ProbabilityCalibrator:
             hi = ProbabilityCalibrator.DEFAULT_BUCKETS[i + 1]
             if lo <= score < hi or (hi == 1.0 and score == 1.0):
                 return f"{lo:.2f}-{hi:.2f}"
-        return "0.00-0.50"
+        return "0.00-0.05"
 
     @staticmethod
     def fix_probability(prob: float) -> float:

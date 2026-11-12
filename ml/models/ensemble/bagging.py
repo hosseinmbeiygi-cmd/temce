@@ -8,7 +8,7 @@ class BaggingEnsemble:
         self.n_estimators = n_estimators
         self._models: list[Any] = []
 
-    def fit(self, X: Any, y: Any) -> None:
+    def fit(self, X: Any, y: Any) -> None:  # noqa: N803
         from sklearn.ensemble import BaggingClassifier
         from sklearn.tree import DecisionTreeClassifier
 
@@ -18,7 +18,7 @@ class BaggingEnsemble:
         )
         self._model.fit(X, y)
 
-    def predict(self, X: Any) -> Any:
+    def predict(self, X: Any) -> Any:  # noqa: N803
         if not hasattr(self, "_model") or self._model is None:
             raise RuntimeError("Model not fitted")
         return self._model.predict(X)

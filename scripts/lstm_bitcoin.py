@@ -209,19 +209,19 @@ def prepare_data(
     clean = df[cols].dropna().reset_index(drop=True)
     feat_cols = [c for c in features if c in clean.columns]
 
-    X_raw = clean[feat_cols].values
+    X_raw = clean[feat_cols].values  # noqa: N806
     y_raw = clean[target].values
 
     f_scaler, t_scaler = Scaler(), Scaler()
-    X_scaled = f_scaler.fit_transform(X_raw)
+    X_scaled = f_scaler.fit_transform(X_raw)  # noqa: N806
     y_scaled = t_scaler.fit_transform(y_raw.reshape(-1, 1)).flatten()
 
     # ساخت دنباله‌ها
-    X, y = [], []
+    X, y = [], []  # noqa: N806
     for i in range(len(X_scaled) - seq_len):
         X.append(X_scaled[i : i + seq_len])
         y.append(y_scaled[i + seq_len])
-    X, y = np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
+    X, y = np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)  # noqa: N806
 
     split = int(len(X) * train_ratio)
     return {
@@ -265,7 +265,7 @@ class LSTMModel:
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
-    def train_step(self, X, y):
+    def train_step(self, X, y):  # noqa: N803
         import torch
 
         self.model.train()
@@ -277,7 +277,7 @@ class LSTMModel:
         self.optimizer.step()
         return loss.item()
 
-    def predict(self, X):
+    def predict(self, X):  # noqa: N803
         import torch
 
         self.model.eval()
@@ -309,7 +309,7 @@ class GRUModel:
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
-    def train_step(self, X, y):
+    def train_step(self, X, y):  # noqa: N803
         import torch
 
         self.model.train()
@@ -321,7 +321,7 @@ class GRUModel:
         self.optimizer.step()
         return loss.item()
 
-    def predict(self, X):
+    def predict(self, X):  # noqa: N803
         import torch
 
         self.model.eval()
@@ -372,7 +372,7 @@ class TransformerModel:
         self.criterion = torch.nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4)
 
-    def train_step(self, X, y):
+    def train_step(self, X, y):  # noqa: N803
         import torch
 
         self.model.train()
@@ -384,7 +384,7 @@ class TransformerModel:
         self.optimizer.step()
         return loss.item()
 
-    def predict(self, X):
+    def predict(self, X):  # noqa: N803
         import torch
 
         self.model.eval()
@@ -397,7 +397,7 @@ class TransformerModel:
 # ═══════════════════════════════════════════════════════════════
 
 
-def train_model(model, X_tr, y_tr, X_val, y_val, epochs=100, batch=32, patience=15, verbose=True):
+def train_model(model, X_tr, y_tr, X_val, y_val, epochs=100, batch=32, patience=15, verbose=True):  # noqa: N803
     """آموزش با Early Stopping."""
     import torch
 
@@ -406,7 +406,7 @@ def train_model(model, X_tr, y_tr, X_val, y_val, epochs=100, batch=32, patience=
     counter = 0
     best_epoch = 0
 
-    X_val_t = torch.FloatTensor(X_val).to(model.device)
+    X_val_t = torch.FloatTensor(X_val).to(model.device)  # noqa: N806
     y_val_t = torch.FloatTensor(y_val).to(model.device)
     n = len(X_tr)
 
@@ -484,12 +484,12 @@ def print_eval(m):
 def compare_models(data, hidden=64, layers=2, epochs=100, batch=32):
     """مقایسه LSTM، GRU، Transformer."""
     n = data["n_features"]
-    X_tr, y_tr = data["X_train"], data["y_train"]
-    X_te, y_te = data["X_test"], data["y_test"]
+    X_tr, y_tr = data["X_train"], data["y_train"]  # noqa: N806
+    X_te, y_te = data["X_test"], data["y_test"]  # noqa: N806
 
     split = int(len(X_tr) * 0.85)
-    X_val, y_val = X_tr[split:], y_tr[split:]
-    X_tr_f, y_tr_f = X_tr[:split], y_tr[:split]
+    X_val, y_val = X_tr[split:], y_tr[split:]  # noqa: N806
+    X_tr_f, y_tr_f = X_tr[:split], y_tr[:split]  # noqa: N806
 
     configs = [
         ("LSTM", LSTMModel(n, hidden, layers)),

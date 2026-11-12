@@ -20,9 +20,9 @@ from scipy import stats
 
 
 def probability_of_touch_brownian(
-    S: float,
+    S: float,  # noqa: N803
     target: float,
-    T: float,
+    T: float,  # noqa: N803
     r: float,
     sigma: float,
     q: float = 0.0,
@@ -46,7 +46,7 @@ def probability_of_touch_brownian(
         return 0.0
 
     mu = r - q - 0.5 * sigma**2
-    sigma_sqrt_T = sigma * math.sqrt(T)
+    sigma_sqrt_T = sigma * math.sqrt(T)  # noqa: N806
 
     if abs(target - S) < 1e-10:
         return 1.0
@@ -67,9 +67,9 @@ def probability_of_touch_brownian(
 
 
 def probability_of_touch_monte_carlo(
-    S: float,
+    S: float,  # noqa: N803
     target: float,
-    T: float,
+    T: float,  # noqa: N803
     r: float,
     sigma: float,
     q: float = 0.0,
@@ -88,7 +88,7 @@ def probability_of_touch_monte_carlo(
     dt = T / n_steps
 
     # Simulate paths
-    Z = rng.standard_normal((n_paths, n_steps))
+    Z = rng.standard_normal((n_paths, n_steps))  # noqa: N806
     drift = (r - q - 0.5 * sigma**2) * dt
     diffusion = sigma * np.sqrt(dt)
 
@@ -107,9 +107,9 @@ def probability_of_touch_monte_carlo(
 
 
 def probability_itm_at_expiry(
-    S: float,
-    K: float,
-    T: float,
+    S: float,  # noqa: N803
+    K: float,  # noqa: N803
+    T: float,  # noqa: N803
     r: float,
     sigma: float,
     q: float = 0.0,
@@ -136,9 +136,9 @@ def probability_itm_at_expiry(
 
 
 def probability_otm_at_expiry(
-    S: float,
-    K: float,
-    T: float,
+    S: float,  # noqa: N803
+    K: float,  # noqa: N803
+    T: float,  # noqa: N803
     r: float,
     sigma: float,
     q: float = 0.0,
@@ -149,9 +149,9 @@ def probability_otm_at_expiry(
 
 
 def expected_move(
-    S: float,
+    S: float,  # noqa: N803
     sigma: float,
-    T: float,
+    T: float,  # noqa: N803
     confidence: float = 0.68,
 ) -> tuple[float, float]:
     """Expected price range (move) for the underlying.

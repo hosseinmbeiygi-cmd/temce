@@ -338,7 +338,7 @@ class WeightOptimizer:
 
             # F6: temporal ordering is required for honest walk-forward windows.
             sub_sorted = sub.sort_values("trade_date").reset_index(drop=True)
-            X = sub_sorted[feature_cols].fillna(0.0).astype(float)
+            X = sub_sorted[feature_cols].fillna(0.0).astype(float)  # noqa: N806
             y = sub_sorted["fwd_return"].astype(float)
 
             model = Ridge(alpha=self.alpha)

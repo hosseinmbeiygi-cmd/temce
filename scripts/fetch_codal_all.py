@@ -193,9 +193,9 @@ def main():
     try:
         import jdatetime
         today = jdatetime.date.today()
-        DATE_END = today.strftime("%Y-%m-%d")
+        DATE_END = today.strftime("%Y-%m-%d")  # noqa: N806
     except ImportError:
-        DATE_END = "1405-05-01"
+        DATE_END = "1405-05-01"  # noqa: N806
 
     print("=" * 70)
     print("Fetching CODAL announcements + downloading files")

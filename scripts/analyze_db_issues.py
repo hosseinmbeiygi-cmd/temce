@@ -94,7 +94,7 @@ def main() -> None:
 
     # ══ 2. date-like columns stored as VARCHAR/TEXT ═══════════════════════
     # (the intentional dual-date columns are excluded: they are VARCHAR by design)
-    INTENTIONAL_TEXT_DATES = {"shamsi_date", "gregorian_date", "jalali_date", "date_id", "report_date_jalali"}
+    INTENTIONAL_TEXT_DATES = {"shamsi_date", "gregorian_date", "jalali_date", "date_id", "report_date_jalali"}  # noqa: N806
     rows = run(cur, """
         SELECT table_name, column_name, data_type FROM information_schema.columns
         WHERE table_schema = 'public'
@@ -163,7 +163,7 @@ def main() -> None:
         GROUP BY table_name
     """))
     # cross-market tables legitimately hold non-TSE symbols (BTC, XAUUSD, ...)
-    CROSS_MARKET = {
+    CROSS_MARKET = {  # noqa: N806
         "gold_currency_prices", "commodity_prices", "commodity_certificates", "commodity_funds",
         "commodity_futures", "commodity_options", "commodity_trades", "funds", "etf_nav",
     }

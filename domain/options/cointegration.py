@@ -76,35 +76,35 @@ def johansen_trace_test(
     if np.any(np.isnan(x)) or np.any(np.isnan(y)):
         return None
     # Lagged levels
-    Z = np.column_stack([x[:-1], y[:-1]])
+    Z = np.column_stack([x[:-1], y[:-1]])  # noqa: N806
     # Differenced (one-step)
-    dX = np.diff(x)[:, None]
-    dY = np.diff(y)[:, None]
-    dZ = np.column_stack([dX, dY])
+    dX = np.diff(x)[:, None]  # noqa: N806
+    dY = np.diff(y)[:, None]  # noqa: N806
+    dZ = np.column_stack([dX, dY])  # noqa: N806
     # OLS: regress ΔX,ΔY on lagged levels (intercept excluded for speed)
-    M00 = Z.T @ Z
-    M01 = Z.T @ dZ
-    M11 = dZ.T @ dZ
+    M00 = Z.T @ Z  # noqa: N806
+    M01 = Z.T @ dZ  # noqa: N806
+    M11 = dZ.T @ dZ  # noqa: N806
     try:
-        Beta = np.linalg.solve(M00, M01)
+        Beta = np.linalg.solve(M00, M01)  # noqa: N806
     except np.linalg.LinAlgError:
         return None
     dZ - Z @ Beta
-    S00 = M00 / len(Z)
+    S00 = M00 / len(Z)  # noqa: N806
     M11 / len(Z)
     # Product matrix for eigenvalue problem
     try:
-        S00_inv = np.linalg.inv(S00)
+        S00_inv = np.linalg.inv(S00)  # noqa: N806
     except np.linalg.LinAlgError:
         return None
-    M = S00_inv @ S01 if (S01 := (M01 @ M01.T) / len(Z)) is not None else None
+    M = S00_inv @ S01 if (S01 := (M01 @ M01.T) / len(Z)) is not None else None  # noqa: N806
     if M is None:
         return None
     # Simpler & equivalent: solve generalized eigenvalue problem
-    A = M01.T @ np.linalg.pinv(M00) @ M01
-    B = M11
+    A = M01.T @ np.linalg.pinv(M00) @ M01  # noqa: N806
+    B = M11  # noqa: N806
     try:
-        B_inv = np.linalg.inv(B)
+        B_inv = np.linalg.inv(B)  # noqa: N806
     except np.linalg.LinAlgError:
         return None
     eigvals = np.linalg.eigvals(B_inv @ A)

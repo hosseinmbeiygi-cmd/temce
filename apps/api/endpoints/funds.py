@@ -827,7 +827,7 @@ async def _build_fund_overview(session: AsyncSession) -> dict[str, Any]:
 
     # Normalize legacy fund_type labels into the rich taxonomy so a fund never
     # lands in two buckets (e.g. "سهامی" vs "سهامی عادی").
-    _TYPE_FIXES = {
+    _TYPE_FIXES = {  # noqa: N806
         "سهامی": "سهامی عادی",
         "اختصاصی": "خصوصی",
         "صندوق سهامی": "سهامی عادی",

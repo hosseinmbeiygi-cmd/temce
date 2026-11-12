@@ -432,8 +432,8 @@ class AutoRetrainPipeline:
 
             # Multi-timeframe return weights for composite target
             # 5d: 50%, 10d: 30%, 20d: 20% → captures short/medium term
-            TIMEFRAME_WEIGHTS = [(5, 0.5), (10, 0.3), (20, 0.2)]
-            MIN_DATA = 30  # minimum price points needed
+            TIMEFRAME_WEIGHTS = [(5, 0.5), (10, 0.3), (20, 0.2)]  # noqa: N806
+            MIN_DATA = 30  # minimum price points needed  # noqa: N806
 
             for sym, data in by_symbol.items():
                 closes = [d["close"] for d in data if d["close"] > 0]

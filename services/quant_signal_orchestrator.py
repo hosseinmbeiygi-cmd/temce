@@ -1446,7 +1446,7 @@ class QuantSignalOrchestrator:
         """Parse risk/reward string like '2.5', '1:2.5', '۱ به ۱.۳' to float."""
         if not rr_str:
             return 0.0
-        _PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
+        _PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")  # noqa: N806
         normalized = rr_str.translate(_PERSIAN_DIGITS)
         # Try direct parse
         try:
@@ -1665,7 +1665,7 @@ class QuantSignalOrchestrator:
             accuracy_snapshot = await self._get_accuracy_snapshot()
 
             # 3. Check each market's accuracy against threshold
-            ACCURACY_THRESHOLD = 55.0  # percent
+            ACCURACY_THRESHOLD = 55.0  # percent  # noqa: N806
             low_accuracy_markets: list[str] = []
 
             for market, acc in accuracy_snapshot.items():
@@ -1832,6 +1832,17 @@ class QuantSignalOrchestrator:
 
         return inserted
 
+    @staticmethod
+    def _horizon_days(timeframe: str) -> int:
+        """Calendar days to wait before evaluating a signal for a given timeframe."""
+        return {
+            "daily": 2, "1d": 2,
+            "2day": 3, "3day": 5,
+            "weekly": 8, "1w": 8,
+            "monthly": 23, "1m": 23,
+            "quarterly": 65, "3m": 65,
+        }.get(timeframe, 5)
+
     async def _evaluate_past_signals(self) -> int:
         """Evaluate signals whose prediction window has ended.
 
@@ -1861,7 +1872,7 @@ class QuantSignalOrchestrator:
                     SELECT sa.id, sa.signal_id, sa.symbol, sa.market,
                            sa.source, sa.direction, sa.timeframe,
                            sa.signal_price, sa.signal_strength, sa.signal_confidence,
-                           sa.ml_score, sa.rule_score
+                           sa.ml_score, sa.rule_score, sa.generated_at
                     FROM signal_accuracy sa
                     WHERE sa.outcome_set_at IS NULL
                       AND sa.generated_at >= :cutoff_start
@@ -1896,41 +1907,66 @@ class QuantSignalOrchestrator:
                         symbol = row[2]
                         market = row[3]
                         direction = row[5]
+                        timeframe = row[6] or "daily"
                         signal_price = float(row[7] or 0)
+                        generated_at = row[12]
 
                         if signal_price <= 0:
                             continue
 
-                        # Fetch current price as exit price (market-specific table,
-                        # price column, and lookup column). commodity/ime live in
-                        # their own tables (not brsapi_symbol_snapshots) and ime
-                        # keys on contract_code rather than symbol.
-                        table_map = {
-                            "stock": ("brsapi_symbol_snapshots", "price_last", "symbol"),
-                            "gold": ("brsapi_gold_coin_prices", "price", "symbol"),
-                            "currency": ("brsapi_currency_prices", "price", "symbol"),
-                            "crypto": ("brsapi_crypto_prices", "price_usd", "symbol"),
-                            "option": ("brsapi_symbol_snapshots", "price_last", "symbol"),
-                            "commodity": ("brsapi_commodity_prices", "price", "symbol"),
-                            "ime": ("brsapi_ime_futures", "price_last", "contract_code"),
-                        }
-                        table, price_col, lookup_col = table_map.get(
-                            market, ("brsapi_symbol_snapshots", "price_last", "symbol")
-                        )
+                        # Compute due_date: the Gregorian date at which the signal
+                        # horizon has elapsed (generated_at + horizon_days).
+                        from datetime import timedelta as _td
+                        if isinstance(generated_at, datetime):
+                            due_date = (generated_at + _td(days=self._horizon_days(timeframe))).date()
+                        else:
+                            due_date = None
 
-                        r2 = await session.execute(text(f"""
-                            SELECT {price_col}
-                            FROM {table}
-                            WHERE {lookup_col} = :symbol
-                            ORDER BY id DESC  -- latest snapshot wins (deterministic)
-                            LIMIT 1
-                        """), {"symbol": symbol})
-                        price_row = r2.fetchone()
+                        # For stock/option signals fetch the closing price from
+                        # brsapi_historical_daily at or just after due_date.
+                        # For other markets we fall back to current snapshot price
+                        # (historical tables lack a reliable Gregorian date index).
+                        exit_price: float | None = None
+                        if market in ("stock", "option") and due_date is not None:
+                            r2 = await session.execute(text("""
+                                SELECT price_close
+                                FROM brsapi_historical_daily
+                                WHERE symbol = :symbol
+                                  AND gregorian_date >= :due_date
+                                ORDER BY gregorian_date ASC
+                                LIMIT 1
+                            """), {"symbol": symbol, "due_date": due_date})
+                            pr = r2.fetchone()
+                            if pr and pr[0] and float(pr[0]) > 0:
+                                exit_price = float(pr[0])
 
-                        if not price_row or not price_row[0] or float(price_row[0]) <= 0:
-                            continue
+                        if exit_price is None:
+                            # Fallback: use latest snapshot (non-stock markets or
+                            # no historical row found near the horizon date).
+                            snap_table_map = {
+                                "stock": ("brsapi_symbol_snapshots", "price_last", "symbol"),
+                                "gold": ("brsapi_gold_coin_prices", "price", "symbol"),
+                                "currency": ("brsapi_currency_prices", "price", "symbol"),
+                                "crypto": ("brsapi_crypto_prices", "price_usd", "symbol"),
+                                "option": ("brsapi_symbol_snapshots", "price_last", "symbol"),
+                                "commodity": ("brsapi_commodity_prices", "price", "symbol"),
+                                "ime": ("brsapi_ime_futures", "price_last", "contract_code"),
+                            }
+                            table, price_col, lookup_col = snap_table_map.get(
+                                market, ("brsapi_symbol_snapshots", "price_last", "symbol")
+                            )
+                            r2 = await session.execute(text(f"""
+                                SELECT {price_col}
+                                FROM {table}
+                                WHERE {lookup_col} = :symbol
+                                ORDER BY id DESC
+                                LIMIT 1
+                            """), {"symbol": symbol})
+                            price_row = r2.fetchone()
+                            if not price_row or not price_row[0] or float(price_row[0]) <= 0:
+                                continue
+                            exit_price = float(price_row[0])
 
-                        exit_price = float(price_row[0])
                         entry_price = signal_price
 
                         # Use SignalAccuracyTracker for evaluation

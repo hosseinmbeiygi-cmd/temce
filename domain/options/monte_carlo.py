@@ -29,16 +29,16 @@ class MCResult:
     model: str = "european_mc"
 
 
-def _european_payoff(S_terminal: np.ndarray, K: float, option_type: str) -> np.ndarray:
+def _european_payoff(S_terminal: np.ndarray, K: float, option_type: str) -> np.ndarray:  # noqa: N803
     if option_type == "call":
         return np.maximum(S_terminal - K, 0.0)
     return np.maximum(K - S_terminal, 0.0)
 
 
 def monte_carlo_european(
-    S: float,
-    K: float,
-    T: float,
+    S: float,  # noqa: N803
+    K: float,  # noqa: N803
+    T: float,  # noqa: N803
     r: float,
     sigma: float,
     q: float = 0.0,
@@ -63,13 +63,13 @@ def monte_carlo_european(
     drift = (r - q - 0.5 * sigma**2) * dt
     diffusion = sigma * math.sqrt(dt)
 
-    Z = rng.standard_normal(size=(n_steps, actual_paths))
+    Z = rng.standard_normal(size=(n_steps, actual_paths))  # noqa: N806
     if antithetic:
-        Z = np.concatenate([Z, -Z], axis=1)
+        Z = np.concatenate([Z, -Z], axis=1)  # noqa: N806
 
     log_increments = drift + diffusion * Z
-    log_S = math.log(S) + np.cumsum(log_increments, axis=0)
-    S_terminal = np.exp(log_S[-1])
+    log_S = math.log(S) + np.cumsum(log_increments, axis=0)  # noqa: N806
+    S_terminal = np.exp(log_S[-1])  # noqa: N806
     payoffs = _european_payoff(S_terminal, K, option_type)
     discount = math.exp(-r * T)
     discounted = discount * payoffs
@@ -85,15 +85,15 @@ def monte_carlo_european(
 # ── American / Bermudan (Longstaff-Schwartz, regression on polynomial basis) ─
 
 
-def _longstaff_swartz_basis(S: np.ndarray) -> np.ndarray:
+def _longstaff_swartz_basis(S: np.ndarray) -> np.ndarray:  # noqa: N803
     """Degree-3 polynomial basis (1, S, S², S³) — sufficient for vanilla payoffs."""
     return np.column_stack([np.ones_like(S), S, S**2, S**3])
 
 
 def monte_carlo_american_lsm(
-    S: float,
-    K: float,
-    T: float,
+    S: float,  # noqa: N803
+    K: float,  # noqa: N803
+    T: float,  # noqa: N803
     r: float,
     sigma: float,
     q: float = 0.0,
@@ -128,12 +128,12 @@ def monte_carlo_american_lsm(
     diffusion = sigma * math.sqrt(dt)
     discount_step = math.exp(-r * dt)
 
-    Z = rng.standard_normal(size=(n_steps, actual_paths))
+    Z = rng.standard_normal(size=(n_steps, actual_paths))  # noqa: N806
     if antithetic:
-        Z = np.concatenate([Z, -Z], axis=1)
+        Z = np.concatenate([Z, -Z], axis=1)  # noqa: N806
 
     log_increments = drift + diffusion * Z
-    log_S = math.log(S) + np.cumsum(log_increments, axis=0)
+    log_S = math.log(S) + np.cumsum(log_increments, axis=0)  # noqa: N806
     paths = np.exp(log_S)
     # Insert initial S at time 0
     paths = np.vstack([np.full((1, paths.shape[1]), S), paths])  # shape (n_steps+1, n_paths)
@@ -154,8 +154,8 @@ def monte_carlo_american_lsm(
             continue
         # Discount future cashflows to t
         future = cashflow * (discount_step ** (exercise_time - t))
-        X = paths[t, itm]
-        Y = future[itm]
+        X = paths[t, itm]  # noqa: N806
+        Y = future[itm]  # noqa: N806
         basis = _longstaff_swartz_basis(X)
         # Stable fit: least squares
         coeffs, *_ = np.linalg.lstsq(basis, Y, rcond=None)
@@ -187,7 +187,7 @@ def monte_carlo_american_lsm(
 
 
 def black_scholes_european(
-    S: float, K: float, T: float, r: float, sigma: float, q: float = 0.0, option_type: str = "call"
+    S: float, K: float, T: float, r: float, sigma: float, q: float = 0.0, option_type: str = "call"  # noqa: N803
 ) -> float:
     """BSM with continuous carry — for tests only; the canonical pricing engine
     remains domain.options.pricing.black_scholes_price.

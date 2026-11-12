@@ -507,7 +507,7 @@ def build() -> None:
         rest.append(item)
 
     # Keep the catalog diverse: a single lint rule must not fill the whole list.
-    CODE_CAP = {
+    CODE_CAP = {  # noqa: N806
         "PLC0415": 90, "PY_NOQA": 40, "PY_TYPE_IGNORE": 40, "PY_GLOBAL": 40,
         "PY_PRINT": 40, "RUF100": 25, "E701": 25, "E702": 25, "PLR0911": 20,
         "RET505": 20, "UP042": 15, "RUF022": 15, "PLW0603": 25,

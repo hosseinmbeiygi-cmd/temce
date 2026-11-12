@@ -76,7 +76,7 @@ async def run_sync(sections: list[str], max_symbols: int = 10) -> None:
     _p("BrsApi HTTP client started [OK]")
 
     # Section definitions
-    SECTION_MAP: dict[str, dict] = {
+    SECTION_MAP: dict[str, dict] = {  # noqa: N806
         "all-symbols": {
             "endpoint": BrsApiEndpoints.ALL_SYMBOLS,
             "model": SymbolSnapshotModel,

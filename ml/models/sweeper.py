@@ -4,7 +4,7 @@ from typing import Any
 
 
 class HyperparamSweeper:
-    def grid_search(self, model_cls: type, param_grid: dict[str, list[Any]], X: Any, y: Any) -> dict[str, Any]:
+    def grid_search(self, model_cls: type, param_grid: dict[str, list[Any]], X: Any, y: Any) -> dict[str, Any]:  # noqa: N803
         from sklearn.base import BaseEstimator
         from sklearn.model_selection import GridSearchCV
 
@@ -14,7 +14,7 @@ class HyperparamSweeper:
         return {"best_params": search.best_params_, "best_score": search.best_score_}
 
     def random_search(
-        self, model_cls: type, param_dist: dict[str, Any], X: Any, y: Any, n_iter: int = 20
+        self, model_cls: type, param_dist: dict[str, Any], X: Any, y: Any, n_iter: int = 20  # noqa: N803
     ) -> dict[str, Any]:
         from sklearn.base import BaseEstimator
         from sklearn.model_selection import RandomizedSearchCV

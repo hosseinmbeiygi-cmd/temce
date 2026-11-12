@@ -91,7 +91,7 @@ def direction(x, up_label, down_label, neutral='خنثی'):
 def build_page(sym, info, ctx):
     """ctx: dict with category, subcat, symbol-source, tech, backtest, ml, risk, extras."""
     cat, sub = ctx['category']
-    L = []
+    L = []  # noqa: N806
     L.append(f'# صفحه اختصاصی نماد {sym}')
     L.append(f'> دسته: {cat} — {sub} | منبع داده: {ctx.get("source", UNK)} | واحد ارقام: {info.get("unit", UNK)} (شمسی)')
     L.append('')

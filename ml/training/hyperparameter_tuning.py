@@ -11,7 +11,7 @@ class HyperparameterTuner:
         self.gap_extra = gap_extra
         self.seed = seed
 
-    def optimize(self, model_cls: type, param_space: dict[str, Any], X: Any, y: Any) -> dict[str, Any]:
+    def optimize(self, model_cls: type, param_space: dict[str, Any], X: Any, y: Any) -> dict[str, Any]:  # noqa: N803
         import random
 
         from core.seed import set_global_seed

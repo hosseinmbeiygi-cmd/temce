@@ -86,7 +86,7 @@ class CommodityOptionParams:
     futures_price: float | None = None  # For Black-76 model
 
 
-def implied_cost_of_carry(spot_price: float, futures_price: float, T: float) -> float:
+def implied_cost_of_carry(spot_price: float, futures_price: float, T: float) -> float:  # noqa: N803
     """Calculate implied cost of carry from spot and futures prices.
 
     F = S * exp(b * T)  =>  b = ln(F/S) / T
@@ -102,7 +102,7 @@ def commodity_bs_d1(d1_val: float) -> float:
     return d1_val
 
 
-def commodity_bs_call(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:
+def commodity_bs_call(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:  # noqa: N803
     """Black-Scholes call with continuous dividend yield q.
 
     C = S * exp(-q*T) * N(d1) - K * exp(-r*T) * N(d2)
@@ -118,7 +118,7 @@ def commodity_bs_call(S: float, K: float, T: float, r: float, q: float, sigma: f
     return float(S * math.exp(-q * T) * stats.norm.cdf(d1) - K * math.exp(-r * T) * stats.norm.cdf(d2))
 
 
-def commodity_bs_put(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:
+def commodity_bs_put(S: float, K: float, T: float, r: float, q: float, sigma: float) -> float:  # noqa: N803
     """Black-Scholes put with continuous dividend yield q."""
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
         return max(0.0, K - S)
@@ -127,7 +127,7 @@ def commodity_bs_put(S: float, K: float, T: float, r: float, q: float, sigma: fl
     return float(K * math.exp(-r * T) * stats.norm.cdf(-d2) - S * math.exp(-q * T) * stats.norm.cdf(-d1))
 
 
-def black76_call(F: float, K: float, T: float, r: float, sigma: float) -> float:
+def black76_call(F: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     """Black-76 model for futures options.
 
     C = exp(-r*T) * [F * N(d1) - K * N(d2)]
@@ -141,7 +141,7 @@ def black76_call(F: float, K: float, T: float, r: float, sigma: float) -> float:
     return float(math.exp(-r * T) * (F * stats.norm.cdf(d1) - K * stats.norm.cdf(d2)))
 
 
-def black76_put(F: float, K: float, T: float, r: float, sigma: float) -> float:
+def black76_put(F: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     """Black-76 model for futures options."""
     if T <= 0 or sigma <= 0 or F <= 0 or K <= 0:
         return max(0.0, K - F)
@@ -156,7 +156,7 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
     Automatically selects Black-Scholes-Merton (with q) or Black-76 (with futures_price).
     Returns OptionPrice with price, Greeks, and metadata.
     """
-    S, K, T, r, q, sigma = params.S, params.K, params.T, params.r, params.q, params.sigma
+    S, K, T, r, q, sigma = params.S, params.K, params.T, params.r, params.q, params.sigma  # noqa: N806
 
     # Guard invalid / degenerate inputs before any log()/sqrt() so Greeks never hit
     # inf/nan and JSON serializers downstream stay healthy.
@@ -204,7 +204,7 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
         # Black-76 model
         price_fn = black76_call if params.option_type == "call" else black76_put
         price = price_fn(params.futures_price, K, T, r, sigma)
-        F = params.futures_price
+        F = params.futures_price  # noqa: N806
         d1 = (math.log(F / K) + 0.5 * sigma**2 * T) / (sigma * math.sqrt(T))
         d2 = d1 - sigma * math.sqrt(T)
         exp_rt = math.exp(-r * T)
@@ -234,8 +234,8 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
         d2 = d1 - sigma * math.sqrt(T)
         pdf_d1 = stats.norm.pdf(d1)
         nd1 = stats.norm.cdf(d1)
-        eqT = math.exp(-q * T)
-        erT = math.exp(-r * T)
+        eqT = math.exp(-q * T)  # noqa: N806
+        erT = math.exp(-r * T)  # noqa: N806
 
         if params.option_type == "call":
             delta = eqT * nd1
@@ -297,9 +297,9 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
 
 def implied_vol_commodity_option(
     market_price: float,
-    S: float,
-    K: float,
-    T: float,
+    S: float,  # noqa: N803
+    K: float,  # noqa: N803
+    T: float,  # noqa: N803
     r: float,
     q: float = 0.0,
     option_type: str = "call",
@@ -336,7 +336,7 @@ def implied_vol_commodity_option(
 # =============================================================================
 
 
-def displaced_diffusion_call(F: float, K: float, T: float, r: float, sigma: float, alpha: float) -> float:
+def displaced_diffusion_call(F: float, K: float, T: float, r: float, sigma: float, alpha: float) -> float:  # noqa: N803
     """Displaced Diffusion call on a futures (Tier 2, conditional on verified α floor).
 
     C = e^(−rT) · [(F+α)·N(d₁) − (K+α)·N(d₂)]
@@ -349,19 +349,19 @@ def displaced_diffusion_call(F: float, K: float, T: float, r: float, sigma: floa
         return max(0.0, F - K)
     if alpha == 0.0:
         return black76_call(F, K, T, r, sigma)
-    Fs, Ks = F + alpha, K + alpha
+    Fs, Ks = F + alpha, K + alpha  # noqa: N806
     d1 = (math.log(Fs / Ks) + 0.5 * sigma**2 * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
     return float(math.exp(-r * T) * (Fs * stats.norm.cdf(d1) - Ks * stats.norm.cdf(d2)))
 
 
-def displaced_diffusion_put(F: float, K: float, T: float, r: float, sigma: float, alpha: float) -> float:
+def displaced_diffusion_put(F: float, K: float, T: float, r: float, sigma: float, alpha: float) -> float:  # noqa: N803
     """Displaced Diffusion put on a futures (Tier 2). Reduces to Black-76 at α = 0."""
     if T <= 0 or sigma <= 0 or (F + alpha) <= 0 or (K + alpha) <= 0:
         return max(0.0, K - F)
     if alpha == 0.0:
         return black76_put(F, K, T, r, sigma)
-    Fs, Ks = F + alpha, K + alpha
+    Fs, Ks = F + alpha, K + alpha  # noqa: N806
     d1 = (math.log(Fs / Ks) + 0.5 * sigma**2 * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
     return float(math.exp(-r * T) * (Ks * stats.norm.cdf(-d2) - Fs * stats.norm.cdf(-d1)))
@@ -382,9 +382,9 @@ def displaced_diffusion_allowed(alpha: float, source: str | None, has_timestamp:
 
 
 def price_displaced_diffusion(
-    F: float,
-    K: float,
-    T: float,
+    F: float,  # noqa: N803
+    K: float,  # noqa: N803
+    T: float,  # noqa: N803
     r: float,
     sigma: float,
     alpha: float,
@@ -407,10 +407,10 @@ def price_displaced_diffusion(
             parameters={"model_version": model_version},
         )
 
-    Fs, Ks = F + alpha, K + alpha
+    Fs, Ks = F + alpha, K + alpha  # noqa: N806
     d1 = (math.log(Fs / Ks) + 0.5 * sigma**2 * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
-    erT = math.exp(-r * T)
+    erT = math.exp(-r * T)  # noqa: N806
     pdf = stats.norm.pdf(d1)
     nd1, nd2 = stats.norm.cdf(d1), stats.norm.cdf(d2)
 
@@ -457,7 +457,7 @@ def price_displaced_diffusion(
 
 
 def put_call_parity_violation(
-    call_price: float, put_price: float, F: float, K: float, T: float, r: float, tol: float = 1e-6
+    call_price: float, put_price: float, F: float, K: float, T: float, r: float, tol: float = 1e-6  # noqa: N803
 ) -> bool:
     """True when a call/put pair violates futures put-call parity.
 
@@ -504,9 +504,9 @@ def _solve_implied_vol(
 
 def implied_volatility_black76(
     market_price: float,
-    F: float,
-    K: float,
-    T: float,
+    F: float,  # noqa: N803
+    K: float,  # noqa: N803
+    T: float,  # noqa: N803
     r: float,
     option_type: str = "call",
     initial_guess: float = 0.30,
@@ -544,7 +544,7 @@ def implied_volatility_black76(
 # ── Futures / physical commodity (§3.4) ────────────────────────────────────
 
 
-def fair_futures_price(spot: float, risk_free: float, carry_cost: float, convenience_yield: float, T: float) -> float:
+def fair_futures_price(spot: float, risk_free: float, carry_cost: float, convenience_yield: float, T: float) -> float:  # noqa: N803
     """Tier-1 cost-of-carry fair futures: F* = S · e^((r + c − y)·T).
 
     c شامل تأمین مالی، انبارداری، بیمه و حمل؛ y بازده راحتی (Convenience Yield).

@@ -86,7 +86,7 @@ class DatasetBuilder:
         return self._apply(data, stats)
 
     def create_sequences(self, data: list[Any], sequence_length: int = 5) -> tuple[list[list[Any]], list[Any]]:
-        X, y = [], []
+        X, y = [], []  # noqa: N806
         for i in range(len(data) - sequence_length):
             X.append(data[i : i + sequence_length])
             y.append(data[i + sequence_length])

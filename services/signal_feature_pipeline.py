@@ -449,7 +449,7 @@ class SignalFeaturePipeline:
                         "train on a shifted label alignment."
                     )
 
-        X_rows = []
+        X_rows = []  # noqa: N806
         y_values = []
 
         for i in range(sequence_length, len(feature_sequence)):

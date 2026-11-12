@@ -37,7 +37,7 @@ def main():
             best[s] = x
     rows = sorted(best.values(), key=lambda x: x['sym'])
 
-    L = []
+    L = []  # noqa: N806
     L.append('# داشبورد کلی نمادها')
     L.append('')
     L.append('> ' + DISC)
@@ -129,7 +129,7 @@ def main():
     filled = [(19 - x['unknowns']) / 19 * 100 for x in rows]
     avg = sum(filled) / len(filled)
     worst = sorted(rows, key=lambda x: x['unknowns'], reverse=True)[:8]
-    S = []
+    S = []  # noqa: N806
     S.append('# گزارش خلاصه اجرا')
     S.append('')
     S.append(f'- تعداد کل نمادهای پردازش‌شده: **{n}**')

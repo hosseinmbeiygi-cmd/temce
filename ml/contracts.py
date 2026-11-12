@@ -27,11 +27,11 @@ class FeatureBuilder(ABC):
 
 class ModelTrainer(ABC):
     @abstractmethod
-    async def train(self, X_train: FeatureMatrix, y_train: TargetVector, **kwargs: Any) -> ModelArtifactMeta: ...
+    async def train(self, X_train: FeatureMatrix, y_train: TargetVector, **kwargs: Any) -> ModelArtifactMeta: ...  # noqa: N803
 
     @abstractmethod
     async def validate(
-        self, model_meta: ModelArtifactMeta, X_val: FeatureMatrix, y_val: TargetVector
+        self, model_meta: ModelArtifactMeta, X_val: FeatureMatrix, y_val: TargetVector  # noqa: N803
     ) -> dict[str, float]: ...
 
 
