@@ -24,13 +24,34 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# ── Simple in-memory state for last run ──
-_last_run: dict[str, Any] = {
+_LAST_RUN_KEY = "screener110:last_run"
+_LAST_RUN_DEFAULTS: dict[str, Any] = {
     "last_populate": None,
     "last_cycle": None,
     "last_buy_signals": 0,
     "last_error": None,
 }
+
+
+async def _read_last_run() -> dict[str, Any]:
+    from core.cache import get_cache
+
+    cache = get_cache()
+    await cache.initialize()
+    stored = await cache.get(_LAST_RUN_KEY)
+    if isinstance(stored, dict):
+        return {**_LAST_RUN_DEFAULTS, **stored}
+    return dict(_LAST_RUN_DEFAULTS)
+
+
+async def _update_last_run(**updates: Any) -> None:
+    from core.cache import get_cache
+
+    cache = get_cache()
+    await cache.initialize()
+    current = await cache.get(_LAST_RUN_KEY)
+    state = {**_LAST_RUN_DEFAULTS, **(current if isinstance(current, dict) else {}), **updates}
+    await cache.set_persistent(_LAST_RUN_KEY, state)
 
 
 @router.post(
@@ -42,15 +63,13 @@ async def populate_profiles(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """پر کردن یا بروزرسانی پروفایل همه نمادها از داده‌های موجود."""
-    global _last_run
     try:
         from services.populate_profiles_service import PopulateProfilesService
 
         svc = PopulateProfilesService(session)
         summary = await svc.populate_all()
 
-        _last_run["last_populate"] = utc_now_naive().isoformat()
-        _last_run["last_error"] = None
+        await _update_last_run(last_populate=utc_now_naive().isoformat(), last_error=None)
 
         return ApiResponse[dict[str, Any]](
             success=True,
@@ -61,7 +80,7 @@ async def populate_profiles(
         )
     except Exception as exc:
         logger.exception("Populate profiles failed: %s", exc)
-        _last_run["last_error"] = safe_error_message(exc)
+        await _update_last_run(last_error=safe_error_message(exc))
         return ApiResponse[dict[str, Any]](
             success=False,
             data={"summary": {"total": 0, "created": 0, "updated": 0, "skipped": 0}},
@@ -112,16 +131,17 @@ async def run_cycle(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """اجرای چرخه کامل مدل ۱۱۰ ستونی."""
-    global _last_run
     try:
         from services.screener110_service import Screener110Service
 
         svc = Screener110Service(session, total_capital=total_capital)
         buy_signals = await svc.run_full_cycle()
 
-        _last_run["last_cycle"] = utc_now_naive().isoformat()
-        _last_run["last_buy_signals"] = len(buy_signals)
-        _last_run["last_error"] = None
+        await _update_last_run(
+            last_cycle=utc_now_naive().isoformat(),
+            last_buy_signals=len(buy_signals),
+            last_error=None,
+        )
 
         return ApiResponse[dict[str, Any]](
             success=True,
@@ -133,7 +153,7 @@ async def run_cycle(
         )
     except Exception as exc:
         logger.exception("Run cycle failed: %s", exc)
-        _last_run["last_error"] = safe_error_message(exc)
+        await _update_last_run(last_error=safe_error_message(exc))
         return ApiResponse[dict[str, Any]](
             success=False,
             data={"buy_signals_count": 0, "buy_signals": []},
@@ -150,7 +170,7 @@ async def screener110_status() -> ApiResponse[dict[str, Any]]:
     """وضعیت آخرین اجراهای مدل ۱۱۰ ستونی."""
     return ApiResponse[dict[str, Any]](
         success=True,
-        data=_last_run,
+        data=await _read_last_run(),
     )
 
 
@@ -191,6 +211,7 @@ async def screener110_monitor(session: AsyncSession = Depends(get_db_session)) -
         )
         r5 = await session.execute(r5_sql)
         top_industries = [dict(r._mapping) for r in r5.fetchall()]
+        last_run = await _read_last_run()
         data = {
             "profiles": ps,
             "signals": ss,
@@ -198,10 +219,10 @@ async def screener110_monitor(session: AsyncSession = Depends(get_db_session)) -
             "recent_signals": recent_signals,
             "top_industries": top_industries,
             "system": {
-                "last_populate": _last_run.get("last_populate"),
-                "last_cycle": _last_run.get("last_cycle"),
-                "last_buy_signals": _last_run.get("last_buy_signals", 0),
-                "last_error": _last_run.get("last_error"),
+                "last_populate": last_run.get("last_populate"),
+                "last_cycle": last_run.get("last_cycle"),
+                "last_buy_signals": last_run.get("last_buy_signals", 0),
+                "last_error": last_run.get("last_error"),
             },
         }
         return ApiResponse[dict[str, Any]](success=True, data=data)
