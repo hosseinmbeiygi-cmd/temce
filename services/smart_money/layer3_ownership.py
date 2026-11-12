@@ -11,7 +11,6 @@ class OwnershipLayer:
     def compute(
         self, quote: dict[str, Any], history: list[dict[str, Any]], trades: list[dict[str, Any]] | None = None
     ) -> dict[str, float]:
-        quote.get("volume", 0) or 1
         vt = quote.get("value", 0) or 1
 
         vols_20 = [q.get("volume", 0) or 1 for q in history[-20:]] or [1]
@@ -23,7 +22,6 @@ class OwnershipLayer:
         avg_sell = quote.get("avg_sell", 0.0) or 0.0
         real_buy = quote.get("real_buy_value", 0.0) or 0.0
         real_sell = quote.get("real_sell_value", 0.0) or 0.0
-        quote.get("real_buy_count", 1) or 1
         sell_count = quote.get("real_sell_count", 1) or 1
         avg_buy_20 = self._avg_ma(history, "avg_buy", 20) or avg_buy or 1.0
 
