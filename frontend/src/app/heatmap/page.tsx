@@ -60,7 +60,7 @@ function HeatmapCellComponent({ cell }: { cell: HeatmapCell }) {
                 <span style={{ color: "var(--text-secondary)" }}>وضعیت:</span>
                 <span style={{
                   fontWeight: 700, fontSize: 10, padding: "0 6px", borderRadius: 3,
-                  background: cell.state === "مجاز" ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)",
+                  background: cell.state === "مجاز" ? "color-mix(in srgb, var(--up) 20%, transparent)" : "color-mix(in srgb, var(--down) 20%, transparent)",
                   color: cell.state === "مجاز" ? "var(--positive)" : "var(--negative)",
                 }}>{cell.state}</span>
               </div>

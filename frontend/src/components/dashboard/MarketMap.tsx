@@ -9,9 +9,6 @@ import { cn } from "@/lib/cn";
 import LiveDataBanner from "./LiveDataBanner";
 import { EmptyState, SectionHeader } from "./primitives";
 
-const UP_RGB = "22,163,74";
-const DOWN_RGB = "220,38,38";
-
 const VIEWS = [
   { key: "stocks", label: "سهام" },
   { key: "funds", label: "صندوق‌ها" },
@@ -23,12 +20,13 @@ type ViewKey = (typeof VIEWS)[number]["key"];
 function tileStyle(changePct: number) {
   const pos = changePct >= 0;
   const heat = Math.min(Math.abs(changePct) / 3, 1);
-  const alpha = 0.1 + heat * 0.5;
-  const rgb = pos ? UP_RGB : DOWN_RGB;
+  const alpha = Math.round((0.1 + heat * 0.5) * 100);
+  const borderAlpha = Math.round((0.28 + heat * 0.4) * 100);
+  const colorVar = pos ? "var(--up)" : "var(--down)";
   return {
-    background: `rgba(${rgb}, ${alpha})`,
-    borderColor: `rgba(${rgb}, ${0.28 + heat * 0.4})`,
-    color: alpha > 0.45 ? "#fff" : pos ? "var(--up)" : "var(--down)",
+    background: `color-mix(in srgb, ${colorVar} ${alpha}%, transparent)`,
+    borderColor: `color-mix(in srgb, ${colorVar} ${borderAlpha}%, transparent)`,
+    color: alpha > 45 ? "#fff" : colorVar,
   };
 }
 

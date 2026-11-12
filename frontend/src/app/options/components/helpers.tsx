@@ -95,7 +95,7 @@ export function PayoffDiagram({ analysis, width = 600, height = 300 }: { analysi
       <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke='#475569' strokeWidth={1} />
 
       {/* fill area */}
-      <polygon points={fillPoints} fill={isProfitable ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)'} />
+      <polygon points={fillPoints} style={{ fill: isProfitable ? 'color-mix(in srgb, var(--up) 8%, transparent)' : 'color-mix(in srgb, var(--down) 8%, transparent)' }} />
       {/* payoff line */}
       <polyline points={pts} fill='none' stroke={chartColor} strokeWidth={2.5} strokeLinejoin='round' strokeLinecap='round' />
 
