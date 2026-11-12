@@ -332,112 +332,21 @@ async def screener_v2_filter(
 
         screener = SmartScreenerV2()
 
-        # Apply signal filter if specified
         if body.signal_filter:
             screener.config.min_pattern_confidence = 0.5
 
-        # Run pipeline with filters applied inside batch_analyze
-        # Note: batch_analyze does NOT accept a logic/filter_logic param,
-        # so OR logic must be handled here after pipeline execution.
-        # First run without filters to get all scored results, then apply
-        # the user's logic client-side.
         results, stats = screener.batch_analyze(
             instruments=instruments,
             market_watch=market_watch,
             history_map=history_map,
             sort_by=body.sort_by,
             sort_order=body.sort_order,
-            limit=len(instruments),  # Get all results, paginate after filtering
+            limit=len(instruments),  # keep all; signal_filter applied after pagination
             min_score=body.min_score,
             market=body.market,
+            filters=body.filters,
+            filter_logic=body.logic,
         )
-
-        # Apply client-side filters with correct AND/OR logic
-        if body.filters:
-            filtered = []
-            for r in results:
-                matches: list[bool] = []
-                for f in body.filters:
-                    field_name = f.get("field", "")
-                    operator = f.get("operator", "gte")
-                    value = f.get("value")
-                    if value is None:
-                        matches.append(True)  # Skip empty filters
-                        continue
-                    r_val = getattr(r, field_name, None)
-                    if r_val is None:
-                        r_val = r.details.get(field_name)
-                    if r_val is None:
-                        matches.append(False)
-                        continue
-
-                    # ── String operators (eq, neq, contains, in, not_in) ──
-                    if operator in ("eq", "neq", "contains", "in", "not_in"):
-                        str_r_val = str(r_val).lower()
-                        str_value = str(value).lower()
-                        if operator == "eq":
-                            matches.append(str_r_val == str_value)
-                        elif operator == "neq":
-                            matches.append(str_r_val != str_value)
-                        elif operator == "contains":
-                            matches.append(str_value in str_r_val)
-                        elif operator == "in":
-                            values_list = [v.strip().lower() for v in str_value.split(",") if v.strip()]
-                            matches.append(str_r_val in values_list)
-                        elif operator == "not_in":
-                            values_list = [v.strip().lower() for v in str_value.split(",") if v.strip()]
-                            matches.append(str_r_val not in values_list)
-                        else:
-                            matches.append(False)
-                        continue
-
-                    # ── Numeric operators (gte, lte, gt, lt, eq, neq, between) ──
-                    try:
-                        num_r_val = float(r_val)
-                        num_value = float(value)
-                    except (TypeError, ValueError):
-                        matches.append(False)
-                        continue
-
-                    if operator == "gte":
-                        matches.append(num_r_val >= num_value)
-                    elif operator == "lte":
-                        matches.append(num_r_val <= num_value)
-                    elif operator == "gt":
-                        matches.append(num_r_val > num_value)
-                    elif operator == "lt":
-                        matches.append(num_r_val < num_value)
-                    elif operator == "eq":
-                        tolerance = max(abs(num_value) * 0.01, 0.001)
-                        matches.append(abs(num_r_val - num_value) <= tolerance)
-                    elif operator == "neq":
-                        tolerance = max(abs(num_value) * 0.01, 0.001)
-                        matches.append(abs(num_r_val - num_value) > tolerance)
-                    elif operator == "between":
-                        value_to = f.get("value_to")
-                        if value_to is not None:
-                            try:
-                                num_value_to = float(value_to)
-                                matches.append(num_value <= num_r_val <= num_value_to)
-                            except (TypeError, ValueError):
-                                matches.append(False)
-                        else:
-                            matches.append(False)
-                    else:
-                        # Unknown operator; fail closed
-                        matches.append(False)
-
-                # Apply AND/OR logic
-                if body.logic == "or":
-                    # Match if ANY filter matches
-                    if matches and any(matches):
-                        filtered.append(r)
-                else:
-                    # Match only if ALL filters match (default AND)
-                    if matches and all(matches):
-                        filtered.append(r)
-
-            results = filtered
 
         # Paginate after filtering
         results = results[: body.limit]
