@@ -70,6 +70,8 @@ class ScoringEngine:
         from services.screener_service import ScreenerPipeline, SmartScreenerService
         ScreenerPipeline._score_cache.clear()
         SmartScreenerService._prebuilt_cache.clear()
+        import apps.api.endpoints.screener_v2 as _sv2
+        _sv2._CACHE.clear()
 
     def analyze(
         self,
