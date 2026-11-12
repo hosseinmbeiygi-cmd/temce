@@ -53,7 +53,7 @@ class BreakoutQualityLayer:
 
         close_vals = [q.get("price_close", 0.0) for q in history[-5:]]
         low_vals = [q.get("price_low", 0.0) for q in history[-5:]]
-        pullback_pct = (max(close_vals) - min(low_vals)) / max(avg_vol_20 / max(c, 1), 1) if c else 0.0
+        pullback_pct = ((max(close_vals) - min(low_vals)) / max(c, 1)) * 100 if c else 0.0
         pt_n = 1.0 - norm(pullback_pct, 0.5, 3.0)
 
         rngs_20 = [q.get("price_high", 0.0) - q.get("price_low", 0.0) for q in history[-20:]] or [1]
