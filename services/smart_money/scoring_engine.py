@@ -67,9 +67,9 @@ class ScoringEngine:
         self._config = load_config(path)
         self._data_quality_gate = DataQualityGate(self._config.data_quality)
         # Clear all caches so old weights are not used
-        from services.screener_service import ScreenerPipeline, SmartScreenerService
+        from services.screener_service import ScreenerPipeline, ScreenerService
         ScreenerPipeline._score_cache.clear()
-        SmartScreenerService._prebuilt_cache.clear()
+        ScreenerService._prebuilt_cache.clear()
         import sys as _sys
         _sv2_mod = _sys.modules.get("apps.api.endpoints.screener_v2")
         if _sv2_mod is not None:
