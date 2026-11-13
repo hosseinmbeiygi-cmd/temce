@@ -1301,12 +1301,17 @@ class MultiMarketSignalEngine:
                     put_vol = sum(p[4] or 0 for p in puts)
                     pcr = put_vol / max(call_vol, 1)
 
-                    # Max pain (strike with highest total OI)
-                    oi_by_strike: dict[float, int] = {}
-                    for c in calls + puts:
-                        s = c[2] or 0
-                        oi_by_strike[s] = oi_by_strike.get(s, 0) + (c[5] or 0)
-                    max_pain = max(oi_by_strike, key=lambda strike: oi_by_strike[strike]) if oi_by_strike else und_price
+                    # Max pain: strike that minimises total payout to option holders.
+                    # For each candidate expiry price P:
+                    #   calls ITM when P > K → payout = (P - K) * call_OI
+                    #   puts  ITM when P < K → payout = (K - P) * put_OI
+                    all_pain_strikes = sorted({c[2] or 0 for c in calls + puts} - {0})
+                    payout_by_strike: dict[float, float] = {}
+                    for _test_p in all_pain_strikes:
+                        _pain = sum(max(_test_p - (c[2] or 0), 0.0) * (c[5] or 0) for c in calls)
+                        _pain += sum(max((p[2] or 0) - _test_p, 0.0) * (p[5] or 0) for p in puts)
+                        payout_by_strike[_test_p] = _pain
+                    max_pain = min(payout_by_strike, key=payout_by_strike.get) if payout_by_strike else und_price
 
                     # Signal logic
                     reasons = []
