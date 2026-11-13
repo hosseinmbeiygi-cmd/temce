@@ -4,7 +4,7 @@
 # Includes:
 #   - PostgreSQL (TimescaleDB) for persistence
 #   - Redis for cache & queue
-#   - decision-engine service (port 8002)
+#   - decision-engine service (port 8003)
 #
 # Usage:
 #   docker compose -f docker-compose.decision-engine.yml up -d
@@ -67,7 +67,7 @@ services:
       redis:
         condition: service_started
     ports:
-      - "8002:8002"
+      - "8003:8003"
     environment:
       # Database
       - DATABASE_URL=postgresql://decision_user:${DECISION_POSTGRES_PASSWORD:?DECISION_POSTGRES_PASSWORD must be set in .env}@postgres:5432/decision_engine
@@ -75,7 +75,7 @@ services:
       # Redis
       - REDIS_URL=redis://:${DECISION_REDIS_PASSWORD:?DECISION_REDIS_PASSWORD must be set in .env}@redis:6379/0
       # Service config
-      - DECISION_ENGINE_PORT=8002
+      - DECISION_ENGINE_PORT=8003
       - API_PREFIX=/api/v1
       - APP_NAME=Decision-Engine
       - LOG_LEVEL=INFO
@@ -86,7 +86,7 @@ services:
     networks:
       - decision-net
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       start_period: 20s
@@ -96,10 +96,10 @@ services:
   # app lifespan (_auto_seed_on_startup). No separate seed job needed.
   #
   # Manual seed (optional):
-  #   curl -X POST http://localhost:8002/decision-engine/seed
+  #   curl -X POST http://localhost:8003/decision-engine/seed
   #
   # Or via seed script:
-  #   python scripts/seed_decisions.py --url http://localhost:8002
+  #   python scripts/seed_decisions.py --url http://localhost:8003
 
 networks:
   decision-net:
