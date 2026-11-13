@@ -37,6 +37,23 @@ WEIGHTS: dict[str, float] = {
     "feedstock": 0.10,
 }
 
+# Maximum achievable raw score = Σ(per-category max × weight).
+# Category maxes: fundamental=30, valuation=20, institutional=25,
+# technical=15, macro=10, gov_support=18, liquidity=5, farabourse=10,
+# feedstock=10.  Used to normalise raw → 0-100 so the 70-pt buy
+# threshold is actually reachable.
+_MAX_RAW_SCORE: float = (
+    30.0 * WEIGHTS["fundamental"]
+    + 20.0 * WEIGHTS["valuation"]
+    + 25.0 * WEIGHTS["institutional"]
+    + 15.0 * WEIGHTS["technical"]
+    + 10.0 * WEIGHTS["macro"]
+    + 18.0 * WEIGHTS["gov_support"]
+    + 5.0 * WEIGHTS["liquidity"]
+    + 10.0 * WEIGHTS["farabourse"]
+    + 10.0 * WEIGHTS["feedstock"]
+)  # ≈ 18.79
+
 RISK_FILTER_COLUMNS: list[str] = [
     "ceo_change_fail", "annual_meeting_passed", "heavy_legal_case",
     "telegram_pump", "end_of_month", "pre_holiday", "political_tension",
@@ -464,7 +481,7 @@ class VectorCalculator:
                + s_m * WEIGHTS["macro"] + s_g * WEIGHTS["gov_support"]
                + s_l * WEIGHTS["liquidity"] + s_fb * WEIGHTS["farabourse"]
                + s_fd * WEIGHTS["feedstock"])
-        final = self._clamp(raw, 0.0, 100.0)
+        final = self._clamp(raw / _MAX_RAW_SCORE * 100, 0.0, 100.0)
 
         # ── 8. Adjustments (104-106) ──
         adj = final
