@@ -121,7 +121,7 @@ class TestSignalPolicy:
     def test_global_defaults_structure(self):
         policy = SignalPolicy()
         assert policy.get_gate_config("data", "")["min_data_quality"] == 0.80
-        assert policy.get_gate_config("probability", "")["base_threshold"] == 0.55
+        assert policy.get_gate_config("probability", "")["base_threshold"] == 0.62
         assert policy.get_gate_config("liquidity", "")["minimum_score"] == 0.50
         assert policy.get_gate_config("expectancy", "")["minimum_net_expectancy_r"] == 0.05
 
@@ -164,13 +164,13 @@ class TestSignalPolicy:
         stock_cfg = policy.get_gate_config("probability", "stock")
         assert stock_cfg["base_threshold"] == 0.58
 
-        # Second call without market (global) — should still be 0.55
+        # Second call without market (global) — should still be 0.62
         global_cfg = policy.get_gate_config("probability", "")
-        assert global_cfg["base_threshold"] == 0.55
+        assert global_cfg["base_threshold"] == 0.62
 
         # Also test different market
         crypto_cfg = policy.get_gate_config("probability", "crypto")
-        assert crypto_cfg["base_threshold"] == 0.55  # crypto has no override → global
+        assert crypto_cfg["base_threshold"] == 0.62  # crypto has no override → global
 
     def test_get_gate_config_multiple_markets_independent(self):
         """Verify that two market calls don't interfere with each other."""
@@ -191,19 +191,19 @@ class TestSignalPolicy:
         assert crypto["volatility_penalty"] == 0.08
         # Global unchanged
         global_cfg = policy.get_gate_config("probability", "")
-        assert global_cfg["base_threshold"] == 0.55
+        assert global_cfg["base_threshold"] == 0.62
 
     def test_effective_threshold_default(self):
         policy = SignalPolicy()
         t = policy.get_effective_threshold(volatility=0.5, liquidity=0.7, drift=0.0)
-        assert t == 0.55  # no penalties applied
+        assert t == 0.62  # no penalties applied
 
     def test_effective_threshold_with_penalties(self):
         policy = SignalPolicy()
         # High volatility + low liquidity + high drift
-        # base=0.55 + vol_penalty=0.05 + liq_penalty=0.03 + drift_penalty=0.04 = 0.67
+        # base=0.62 + vol_penalty=0.05 + liq_penalty=0.03 + drift_penalty=0.04 = 0.74
         t = policy.get_effective_threshold(volatility=0.8, liquidity=0.3, drift=0.5)
-        assert t == pytest.approx(0.67)
+        assert t == pytest.approx(0.74)
 
     def test_effective_threshold_capped_at_80(self):
         policy = SignalPolicy()
@@ -221,9 +221,9 @@ class TestSignalPolicy:
             "probability": {"base_threshold": 0.60, "volatility_penalty": 0.08},
         }
 
-        # Without market: base=0.55 + vol_penalty=0.05 = 0.60
+        # Without market: base=0.62 + vol_penalty=0.05 = 0.67
         t_global = policy.get_effective_threshold(volatility=0.8, liquidity=0.7, drift=0.0, market="")
-        assert t_global == pytest.approx(0.60)
+        assert t_global == pytest.approx(0.67)
 
         # With crypto market: base=0.60 + vol_penalty=0.08 = 0.68
         t_crypto = policy.get_effective_threshold(volatility=0.8, liquidity=0.7, drift=0.0, market="crypto")
