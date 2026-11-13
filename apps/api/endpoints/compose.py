@@ -33,15 +33,19 @@ async def compose_start(body: ComposeStartRequest) -> ApiResponse[dict[str, Any]
     end = date.fromisoformat(body.end_date) if body.end_date else None
 
     import asyncio
-    # Run in background
-    asyncio.create_task(svc.start(
+    _coro = svc.start(
         symbols=body.symbols,
         start_date=start,
         end_date=end,
         capital=body.capital,
         batch_size=body.batch_size,
         max_batches=body.max_batches,
-    ))
+    )
+    try:
+        from apps.api.app import _track_background_task
+        _track_background_task(_coro, "signal-compose")
+    except Exception:
+        asyncio.create_task(_coro)
 
     return ApiResponse[dict[str, Any]](success=True, data={"message": "Generation started", "symbols": body.symbols})
 

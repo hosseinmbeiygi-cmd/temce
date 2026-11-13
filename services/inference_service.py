@@ -368,6 +368,7 @@ class InferenceService:
                                      metadata={"confidence": 0.75, "source": "artifact"})
                 )
             except Exception:
+                logger.debug("Artifact %s not usable for %s, trying next", cid, model_id, exc_info=True)
                 continue
 
         # Fall back to registry-created (possibly untrained) model

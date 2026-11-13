@@ -728,6 +728,10 @@ def invalidate_agg_cache() -> None:
     # may otherwise be garbage-collected before it writes to Redis.
     _agg_publish_tasks.add(task)
     task.add_done_callback(_agg_publish_tasks.discard)
+    task.add_done_callback(
+        lambda t: logger.error("agg-invalidation task failed: %s", t.exception())
+        if not t.cancelled() and t.exception() else None
+    )
 
 
 def _fa_weekday(date_str: str) -> str:

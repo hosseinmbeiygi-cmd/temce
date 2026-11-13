@@ -84,7 +84,11 @@ async def _get_cached_funds(session: AsyncSession) -> dict[str, dict[str, Any]]:
             # because FastAPI closes it when the request ends, raising
             # IllegalStateChangeError ("close() can't be called here").
             _cache_at = time.monotonic()  # avoid re-triggering on every request
-            asyncio.create_task(_rebuild_cache())
+            try:
+                from apps.api.app import _track_background_task
+                _track_background_task(_rebuild_cache(), "fund-cache-rebuild")
+            except Exception:
+                asyncio.create_task(_rebuild_cache())
             return _cache
         merged = await _load_merged_funds(session)
         _cache = merged
@@ -1039,7 +1043,11 @@ async def fund_overview(
             return ApiResponse(success=True, data=_overview_cache)
         if _overview_cache is not None:
             _overview_cache_at = time.monotonic()  # avoid re-triggering on every request
-            asyncio.create_task(_rebuild_overview_cache())
+            try:
+                from apps.api.app import _track_background_task
+                _track_background_task(_rebuild_overview_cache(), "fund-overview-cache-rebuild")
+            except Exception:
+                asyncio.create_task(_rebuild_overview_cache())
             return ApiResponse(success=True, data=_overview_cache)
         try:
             data = await _build_fund_overview(session)

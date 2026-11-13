@@ -2006,6 +2006,10 @@ async def sync_all_candlesticks(
         }
     )
     _candle_backfill_task = asyncio.create_task(_run_candle_backfill(max_symbols, allow_weekend))
+    _candle_backfill_task.add_done_callback(
+        lambda t: logger.error("candle-backfill task failed: %s", t.exception())
+        if not t.cancelled() and t.exception() else None
+    )
     return ApiResponse[dict[str, Any]](
         success=True,
         data={
@@ -2163,6 +2167,10 @@ async def sync_all_shareholders(
         }
     )
     _shareholder_backfill_task = asyncio.create_task(_run_shareholder_backfill(max_symbols, allow_weekend))
+    _shareholder_backfill_task.add_done_callback(
+        lambda t: logger.error("shareholder-backfill task failed: %s", t.exception())
+        if not t.cancelled() and t.exception() else None
+    )
     return ApiResponse[dict[str, Any]](
         success=True,
         data={
@@ -2358,6 +2366,10 @@ async def sync_all_history_price(
         }
     )
     _history_price_backfill_task = asyncio.create_task(_run_history_price_backfill(max_symbols, allow_weekend))
+    _history_price_backfill_task.add_done_callback(
+        lambda t: logger.error("history-price-backfill task failed: %s", t.exception())
+        if not t.cancelled() and t.exception() else None
+    )
     return ApiResponse[dict[str, Any]](
         success=True,
         data={
@@ -2446,6 +2458,10 @@ async def sync_all_history_real_legal(
     )
     _history_real_legal_backfill_task = asyncio.create_task(
         _run_history_real_legal_backfill(max_symbols, allow_weekend)
+    )
+    _history_real_legal_backfill_task.add_done_callback(
+        lambda t: logger.error("history-real-legal-backfill task failed: %s", t.exception())
+        if not t.cancelled() and t.exception() else None
     )
     return ApiResponse[dict[str, Any]](
         success=True,
