@@ -61,7 +61,7 @@ class FMPClient:
         client: httpx.AsyncClient | None = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
-        self._api_key = api_key or _get_fmp_key()
+        self._api_key = api_key if api_key is not None else _get_fmp_key()
         self._base_url = base_url
         self._client = client
         self._timeout_seconds = timeout_seconds
