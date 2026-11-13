@@ -1,11 +1,11 @@
-"""
-🏦 Fund Sync Service — سرویس همگام‌سازی دوره‌ای صندوق‌ها از BrsApi
+﻿"""
+ðŸ¦ Fund Sync Service â€” Ø³Ø±ÙˆÛŒØ³ Ù‡Ù…Ú¯Ø§Ù…â€ŒØ³Ø§Ø²ÛŒ Ø¯ÙˆØ±Ù‡â€ŒØ§ÛŒ ØµÙ†Ø¯ÙˆÙ‚â€ŒÙ‡Ø§ Ø§Ø² BrsApi
 
-دو حالت اجرا:
-  1. Periodic (هر ۱۵ دقیقه در ساعات بازار) — به‌روزرسانی قیمت‌های لحظه‌ای
-  2. Daily (شبانه) — به‌روزرسانی کامل با داده‌های پایانی
+Ø¯Ùˆ Ø­Ø§Ù„Øª Ø§Ø¬Ø±Ø§:
+  1. Periodic (Ù‡Ø± Û±Ûµ Ø¯Ù‚ÛŒÙ‚Ù‡ Ø¯Ø± Ø³Ø§Ø¹Ø§Øª Ø¨Ø§Ø²Ø§Ø±) â€” Ø¨Ù‡â€ŒØ±ÙˆØ²Ø±Ø³Ø§Ù†ÛŒ Ù‚ÛŒÙ…Øªâ€ŒÙ‡Ø§ÛŒ Ù„Ø­Ø¸Ù‡â€ŒØ§ÛŒ
+  2. Daily (Ø´Ø¨Ø§Ù†Ù‡) â€” Ø¨Ù‡â€ŒØ±ÙˆØ²Ø±Ø³Ø§Ù†ÛŒ Ú©Ø§Ù…Ù„ Ø¨Ø§ Ø¯Ø§Ø¯Ù‡â€ŒÙ‡Ø§ÛŒ Ù¾Ø§ÛŒØ§Ù†ÛŒ
 
-هر دو حالت از ``FundService.update_from_brsapi()`` برای هر نماد استفاده می‌کنند.
+Ù‡Ø± Ø¯Ùˆ Ø­Ø§Ù„Øª Ø§Ø² ``FundService.update_from_brsapi()`` Ø¨Ø±Ø§ÛŒ Ù‡Ø± Ù†Ù…Ø§Ø¯ Ø§Ø³ØªÙØ§Ø¯Ù‡ Ù…ÛŒâ€ŒÚ©Ù†Ù†Ø¯.
 """
 
 from __future__ import annotations
@@ -20,22 +20,22 @@ from core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# ── Known fund symbols (from _SAMPLE_FUNDS) ──
+# â”€â”€ Known fund symbols (from _SAMPLE_FUNDS) â”€â”€
 
-from domain.instruments.symbol_catalog import KNOWN_FUND_SYMBOLS  # noqa: F401 — re-exported for API compat
+from domain.instruments.symbol_catalog import KNOWN_FUND_SYMBOLS  # noqa: F401 â€” re-exported for API compat
 
-# ── Market hours (Tehran time) ──
+# â”€â”€ Market hours (Tehran time) â”€â”€
 
 MARKET_OPEN = time(8, 45)  # 08:45 Tehran
 MARKET_CLOSE = time(12, 30)  # 12:30 Tehran
 
-# ── Concurrency ──
+# â”€â”€ Concurrency â”€â”€
 
 MAX_CONCURRENT = 5  # Max concurrent API calls to BrsApi (rate-limit safety)
 DELAY_BETWEEN_SYMBOLS = 1.5  # Seconds between each symbol to avoid rate-limit bursts
 
 
-# ── Data classes ──
+# â”€â”€ Data classes â”€â”€
 
 
 @dataclass
@@ -69,12 +69,12 @@ class SyncReport:
         )
 
 
-# ── Service ──
+# â”€â”€ Service â”€â”€
 
 
 class FundSyncService:
     """
-    سرویس همگام‌سازی دوره‌ای صندوق‌ها از BrsApi.
+    Ø³Ø±ÙˆÛŒØ³ Ù‡Ù…Ú¯Ø§Ù…â€ŒØ³Ø§Ø²ÛŒ Ø¯ÙˆØ±Ù‡â€ŒØ§ÛŒ ØµÙ†Ø¯ÙˆÙ‚â€ŒÙ‡Ø§ Ø§Ø² BrsApi.
 
     Args:
         fund_service: ``FundService`` instance with DB session.
@@ -86,7 +86,7 @@ class FundSyncService:
         self._brsapi = brsapi
         self._lock = asyncio.Lock()
 
-    # ── Public API ─────────────────────────────────────────────────
+    # â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async def sync_all_funds(
         self,
@@ -94,34 +94,34 @@ class FundSyncService:
         max_concurrent: int = MAX_CONCURRENT,
     ) -> SyncReport:
         """
-        همگام‌سازی همه صندوق‌ها.
+        Ù‡Ù…Ú¯Ø§Ù…â€ŒØ³Ø§Ø²ÛŒ Ù‡Ù…Ù‡ ØµÙ†Ø¯ÙˆÙ‚â€ŒÙ‡Ø§.
 
         Args:
-            symbols: لیست نمادها (پیش‌فرض: همه صندوق‌های شناخته شده).
-            max_concurrent: (kept for API compat) — execution is sequential
+            symbols: Ù„ÛŒØ³Øª Ù†Ù…Ø§Ø¯Ù‡Ø§ (Ù¾ÛŒØ´â€ŒÙØ±Ø¶: Ù‡Ù…Ù‡ ØµÙ†Ø¯ÙˆÙ‚â€ŒÙ‡Ø§ÛŒ Ø´Ù†Ø§Ø®ØªÙ‡ Ø´Ø¯Ù‡).
+            max_concurrent: (kept for API compat) â€” execution is sequential
                 because ``FundService``/``BrsApiQueryService`` share one
                 AsyncSession that is not concurrency-safe.
 
         Returns:
-            ``SyncReport`` با آمار کامل.
+            ``SyncReport`` Ø¨Ø§ Ø¢Ù…Ø§Ø± Ú©Ø§Ù…Ù„.
         """
         async with self._lock:
             return await self._sync_all(symbols or KNOWN_FUND_SYMBOLS, max_concurrent)
 
     async def sync_single_fund(self, symbol: str) -> SyncResult:
         """
-        همگام‌سازی یک صندوق مشخص.
+        Ù‡Ù…Ú¯Ø§Ù…â€ŒØ³Ø§Ø²ÛŒ ÛŒÚ© ØµÙ†Ø¯ÙˆÙ‚ Ù…Ø´Ø®Øµ.
 
         Args:
-            symbol: نماد صندوق (مثلاً ``"آگاس"``).
+            symbol: Ù†Ù…Ø§Ø¯ ØµÙ†Ø¯ÙˆÙ‚ (Ù…Ø«Ù„Ø§Ù‹ ``"Ø¢Ú¯Ø§Ø³"``).
         """
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         try:
             result = await self._fund_service.update_from_brsapi(
                 symbol=symbol,
                 brsapi=self._brsapi,
             )
-            elapsed = (asyncio.get_event_loop().time() - start) * 1000
+            elapsed = (asyncio.get_running_loop().time() - start) * 1000
             if "error" in result:
                 return SyncResult(
                     symbol=symbol,
@@ -138,7 +138,7 @@ class FundSyncService:
             if hasattr(self._brsapi, "session") and self._brsapi.session is not None:
                 with contextlib.suppress(Exception):
                     await self._brsapi.session.rollback()
-            elapsed = (asyncio.get_event_loop().time() - start) * 1000
+            elapsed = (asyncio.get_running_loop().time() - start) * 1000
             logger.exception("Failed to sync fund %s", symbol)
             return SyncResult(
                 symbol=symbol,
@@ -147,7 +147,7 @@ class FundSyncService:
                 duration_ms=elapsed,
             )
 
-    # ── Internal ───────────────────────────────────────────────────
+    # â”€â”€ Internal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async def _sync_all(
         self,
@@ -156,14 +156,14 @@ class FundSyncService:
     ) -> SyncReport:
         """Internal: sync all symbols sequentially.
 
-        NOTE: intentionally serialized — ``FundService`` and
+        NOTE: intentionally serialized â€” ``FundService`` and
         ``BrsApiQueryService`` share a single AsyncSession, and running
         ``update_from_brsapi`` concurrently on one session raises
         ``InvalidRequestError: This session is provisioning a new connection;
         concurrent operations are not permitted``. Sequential execution is
         also rate-limit friendly (``DELAY_BETWEEN_SYMBOLS`` between calls).
         """
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
         report = SyncReport(total=len(symbols))
 
         for symbol in symbols:
@@ -182,12 +182,12 @@ class FundSyncService:
                     }
                 )
 
-        report.duration_ms = (asyncio.get_event_loop().time() - start) * 1000
+        report.duration_ms = (asyncio.get_running_loop().time() - start) * 1000
         logger.info("Fund sync complete: %s", report.summary)
         return report
 
 
-# ── Market-hours helper ──
+# â”€â”€ Market-hours helper â”€â”€
 
 
 def _is_market_open() -> bool:

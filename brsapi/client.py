@@ -419,7 +419,7 @@ class BrsApiClient:
     ) -> Result[BrsApiResponse]:
         assert self._client is not None
 
-        start = asyncio.get_event_loop().time()
+        start = asyncio.get_running_loop().time()
 
         # Rate limit through the budget governor (persisted daily cap + shared
         # 5-min window + block cooldown) layered over the in-process limiter.
@@ -445,7 +445,7 @@ class BrsApiClient:
         for attempt in range(self._max_retries + 1):
             try:
                 resp = await self._client.get(url, params=params)
-                elapsed = (asyncio.get_event_loop().time() - start) * 1000
+                elapsed = (asyncio.get_running_loop().time() - start) * 1000
                 received_at = datetime.now(UTC).replace(microsecond=0, tzinfo=None)
 
                 raw_bytes = resp.content

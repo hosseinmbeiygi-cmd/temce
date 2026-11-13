@@ -173,14 +173,14 @@ class HistoryFetchService:
         # uses asyncio.Lock — must not be used from a worker thread's own loop).
         # The worker thread then only performs the plain sync requests call.
         await get_budget_governor().acquire("commodity", endpoint="Gold_Currency_Pro.php")
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(_executor, _fetch_symbol_list_sync, section)
 
     async def fetch_crypto_symbols(self) -> list[str]:
         import asyncio
 
         await get_budget_governor().acquire("commodity", endpoint="Gold_Currency_Pro.php")
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(_executor, _fetch_crypto_symbols_sync)
 
     async def fetch_history(
@@ -191,7 +191,7 @@ class HistoryFetchService:
         import asyncio
 
         await get_budget_governor().acquire("commodity", endpoint="Gold_Currency_Pro.php")
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             _executor, _fetch_history_sync, symbol, date_start, date_end,
         )

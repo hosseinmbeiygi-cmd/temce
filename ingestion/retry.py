@@ -96,7 +96,7 @@ class CircuitBreaker:
         async with self._lock:
             if self._open:
                 if self._last_failure_time is not None and (
-                    asyncio.get_event_loop().time() - self._last_failure_time
+                    asyncio.get_running_loop().time() - self._last_failure_time
                     >= self.recovery_timeout
                 ):
                     self._open = False
@@ -112,7 +112,7 @@ class CircuitBreaker:
         except Exception as e:
             async with self._lock:
                 self._failures += 1
-                self._last_failure_time = asyncio.get_event_loop().time()
+                self._last_failure_time = asyncio.get_running_loop().time()
                 if self._failures >= self.failure_threshold:
                     self._open = True
             raise e

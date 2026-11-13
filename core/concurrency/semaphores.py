@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any, TypeVar
 
 from core.logging import get_logger
@@ -53,12 +54,12 @@ class RateLimitingSemaphore:
         self._rate = rate
         self._burst = burst
         self._tokens: float = float(burst)
-        self._last_refill = asyncio.get_event_loop().time()
+        self._last_refill = time.monotonic()
         self._lock = asyncio.Lock()
 
     async def acquire(self) -> None:
         async with self._lock:
-            now = asyncio.get_event_loop().time()
+            now = asyncio.get_running_loop().time()
             elapsed = now - self._last_refill
             self._tokens = min(self._burst, self._tokens + elapsed * self._rate)
             self._last_refill = now

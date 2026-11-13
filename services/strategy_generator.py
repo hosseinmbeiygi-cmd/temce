@@ -422,7 +422,7 @@ class StrategyGenerator:
             batch_size = 50
             for batch_start in range(0, len(work_items), batch_size):
                 batch = work_items[batch_start:batch_start + batch_size]
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 futures = [
                     loop.run_in_executor(executor, self._run_single_sync, *item)
                     for item in batch

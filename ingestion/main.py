@@ -161,7 +161,7 @@ async def run_ingestion() -> None:
     try:
         await engine.start()
         import asyncio
-        forever = asyncio.get_event_loop().create_future()
+        forever = asyncio.get_running_loop().create_future()
         await forever
     finally:
         await engine.stop()

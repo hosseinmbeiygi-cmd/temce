@@ -38,7 +38,7 @@ class WorkerPool:
                 break
 
     async def submit(self, task: Callable[[], Coroutine[Any, Any, T]]) -> asyncio.Future[T]:
-        future: asyncio.Future[T] = asyncio.get_event_loop().create_future()
+        future: asyncio.Future[T] = asyncio.get_running_loop().create_future()
 
         async def wrapper() -> None:
             try:

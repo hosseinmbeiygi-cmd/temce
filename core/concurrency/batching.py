@@ -21,7 +21,7 @@ class BatchProcessor:
         self._running = False
 
     async def add(self, task: Callable[[], Coroutine[Any, Any, T]]) -> T:
-        future: asyncio.Future[T] = asyncio.get_event_loop().create_future()
+        future: asyncio.Future[T] = asyncio.get_running_loop().create_future()
         async with self._lock:
             self._batch.append((task, future))
             if len(self._batch) >= self.batch_size:
