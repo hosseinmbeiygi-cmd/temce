@@ -570,9 +570,15 @@ class BrsApiSyncService:
         # parse must not shift the (symbol, fetched_at) dedup key.
         received_at = _naive_utc(getattr(brs_resp, "received_at", None))
         if received_at is not None:
+            # Some models store fetched_at as String(30) (most tables); others
+            # use DateTime (SymbolSnapshotModel, IndexValueModel, SymbolDetailModel).
+            # Preserve whichever type the parser already chose so asyncpg doesn't
+            # reject a datetime where it expects str, or vice-versa.
+            received_at_str = received_at.strftime("%Y-%m-%d %H:%M:%S")
             for rec in records:
                 if isinstance(rec, dict) and "fetched_at" in rec:
-                    rec["fetched_at"] = received_at
+                    orig = rec["fetched_at"]
+                    rec["fetched_at"] = received_at_str if isinstance(orig, str) else received_at
 
         # 4. Store
         repo = BulkUpsertRepository(sess, model_class)

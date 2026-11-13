@@ -89,6 +89,21 @@ class QuoteRepository:
         quotes = [q for q in self._mem._store.values() if q.instrument_id == instrument_id]
         return Result.ok(quotes)
 
+    async def get_range_by_symbol(
+        self, symbol: str, start_date: date, end_date: date
+    ) -> Result[list[Quote]]:
+        """Quote history for a symbol string (not instrument_id)."""
+        if self._db:
+            return await self._db.get_range_by_symbol(symbol, start_date, end_date)
+        quotes = [
+            q
+            for q in self._mem._store.values()
+            if (q.symbol or "") == symbol
+            and q.date >= start_date.isoformat()
+            and q.date <= end_date.isoformat()
+        ]
+        return Result.ok(sorted(quotes, key=lambda q: (q.date, q.time)))
+
     async def get_by_date(self, instrument_id: str, date_str: str) -> Result[Quote | None]:
         """Find a single quote by instrument + exact date."""
         if self._db:
@@ -196,6 +211,22 @@ class _QuoteDbRepo(DbRepository[Quote, QuoteModel]):
             select(QuoteModel)
             .where(
                 QuoteModel.instrument_id == instrument_id,
+                QuoteModel.date >= start_date.isoformat(),
+                QuoteModel.date <= end_date.isoformat(),
+            )
+            .order_by(QuoteModel.date, QuoteModel.time)
+        )
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return Result.ok([self._to_domain(r) for r in rows])
+
+    async def get_range_by_symbol(
+        self, symbol: str, start_date: date, end_date: date
+    ) -> Result[list[Quote]]:
+        stmt = (
+            select(QuoteModel)
+            .where(
+                QuoteModel.symbol == symbol,
                 QuoteModel.date >= start_date.isoformat(),
                 QuoteModel.date <= end_date.isoformat(),
             )

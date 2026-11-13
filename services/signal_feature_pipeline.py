@@ -117,7 +117,7 @@ class SignalFeaturePipeline:
             if len(closes) > period:
                 returns = [(closes[i] - closes[i - 1]) / max(closes[i - 1], 0.001)
                            for i in range(-period, 0) if closes[i - 1] > 0]
-                vol = float(np.std(returns)) if returns else 0.0
+                vol = float(np.std(returns, ddof=1)) if len(returns) > 1 else 0.0
             else:
                 vol = 0.0
             vector.append(vol)

@@ -104,7 +104,10 @@ class InferenceService:
 
             end = date_type.today()
             start = end - timedelta(days=limit)
-            result = await self.quote_repo.get_range(symbol, start, end)
+            # F1: get_range(instrument_id) returned 0 rows when called with a
+            # symbol string; use get_range_by_symbol which filters on the symbol
+            # column (ix_quotes_symbol_date index).
+            result = await self.quote_repo.get_range_by_symbol(symbol, start, end)
         except Exception as e:
             return Result.fail(f"DB query failed: {e}")
 

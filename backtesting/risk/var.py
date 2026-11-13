@@ -25,7 +25,7 @@ class ValueAtRisk:
         from scipy.stats import norm
 
         mu = np.mean(returns)
-        sigma = np.std(returns)
+        sigma = np.std(returns, ddof=1)  # sample std (estimating σ from a sample)
         z = norm.ppf(1 - self.confidence)
         var = -(mu + z * sigma)  # positive loss magnitude
         return float(var * np.sqrt(self.horizon_days))

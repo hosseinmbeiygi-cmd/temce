@@ -176,14 +176,16 @@ class VectorizedBacktestEngine:
 
         total_return = float((1.0 + returns).prod() - 1.0)
         annual_return = float((1.0 + total_return) ** (ANNUAL_TRADING_DAYS / max(n, 1)) - 1.0)
-        volatility = float(returns.std(ddof=0) * (ANNUAL_TRADING_DAYS ** 0.5))
+        # VE-M1: sample std (ddof=1) consistent with RiskMetrics / PerformanceMetrics
+        volatility = float(returns.std(ddof=1) * (ANNUAL_TRADING_DAYS ** 0.5)) if n > 1 else 0.0
 
         excess = returns - RISK_FREE_RATE / ANNUAL_TRADING_DAYS
-        sharpe = float(excess.mean() / returns.std(ddof=0) * (ANNUAL_TRADING_DAYS ** 0.5)) \
-            if returns.std(ddof=0) > 0 else 0.0
+        _vol = returns.std(ddof=1) if n > 1 else 0.0
+        sharpe = float(excess.mean() / _vol * (ANNUAL_TRADING_DAYS ** 0.5)) \
+            if _vol > 0 else 0.0
 
         downside = returns[returns < 0]
-        downside_std = float(downside.std(ddof=0)) if len(downside) > 1 else 0.0
+        downside_std = float(downside.std(ddof=1)) if len(downside) > 1 else 0.0
         sortino = float(returns.mean() / downside_std * (ANNUAL_TRADING_DAYS ** 0.5)) \
             if downside_std > 0 else 0.0
 

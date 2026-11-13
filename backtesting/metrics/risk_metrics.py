@@ -23,9 +23,12 @@ class RiskMetrics:
         downside_vol = float(np.std(downside, ddof=1) * np.sqrt(252)) if len(downside) > 1 else 1.0
         metrics["sortino_ratio"] = avg_ret / downside_vol if downside_vol > 0 else 0.0
 
-        # Get max_drawdown from metrics dict (computed by DrawdownMetrics)
-        max_dd_pct = result.metrics.get("max_drawdown", 0.0) if result.metrics else 0.0
-        # BUG FIX #9: Calmar ratio - max_drawdown is already a percentage
+        # BT-H3: compute max_drawdown directly — avoids depending on result.metrics
+        # being pre-populated by a separate DrawdownMetrics call.
+        running_max = np.maximum.accumulate(navs)
+        dd_series = (np.array(navs) - running_max) / running_max * 100
+        max_dd_pct = float(np.min(dd_series))  # negative percentage
+        metrics["max_drawdown"] = max_dd_pct
         metrics["calmar_ratio"] = avg_ret / abs(max_dd_pct) if max_dd_pct != 0 else 0.0
 
         var_95 = float(np.percentile(returns, 5)) if len(returns) > 0 else 0.0

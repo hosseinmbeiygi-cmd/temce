@@ -45,7 +45,8 @@ class PortfolioRiskEngine:
         if len(returns) < 2:
             return 0.0
         arr = np.array(returns)
-        var = float(np.percentile(arr, (1 - self.confidence) * 100))
+        # BT-H1: negate so VaR is a positive loss magnitude (matches ValueAtRisk.compute)
+        var = -float(np.percentile(arr, (1 - self.confidence) * 100))
         return var * np.sqrt(self.horizon_days)
 
     def compute_cvar(self, returns: list[float]) -> float:
@@ -53,11 +54,12 @@ class PortfolioRiskEngine:
         if len(returns) < 2:
             return 0.0
         arr = np.array(returns)
-        var = float(np.percentile(arr, (1 - self.confidence) * 100))
-        tail = arr[arr <= var]
+        var_threshold = float(np.percentile(arr, (1 - self.confidence) * 100))
+        tail = arr[arr <= var_threshold]
+        # BT-H2: negate tail mean → positive loss magnitude; fallback mirrors VaR sign
         if len(tail) == 0:
-            return var
-        return float(tail.mean()) * np.sqrt(self.horizon_days)
+            return -var_threshold * np.sqrt(self.horizon_days)
+        return -float(tail.mean()) * np.sqrt(self.horizon_days)
 
     def compute_stress_var(self, returns: list[float], stress_period_returns: list[float]) -> float:
         """Compute VaR using a stressed historical period."""
