@@ -234,6 +234,8 @@ class PopulateProfilesService:
         # ═══════════════════════════════════════════════════════
         # 5. Real / Legal (30-day aggregates)
         # ═══════════════════════════════════════════════════════
+        _inst_buy_30d = 0.0
+        _inst_sell_30d = 0.0
         with contextlib.suppress(Exception):
             q = text("""
                 SELECT drl.legal_buy_volume, drl.legal_sell_volume,
@@ -280,6 +282,9 @@ class PopulateProfilesService:
             "bank_interest_rate": bank_rate,
             "nima_rate": round(nima_rate, 0),
             "free_market_rate": round(free_rate, 0),
+            "avg_daily_value": round(avg_daily_value, 0) if avg_daily_value else None,
+            "institutional_buy": int(_inst_buy_30d) if _inst_buy_30d else None,
+            "institutional_sell": int(_inst_sell_30d) if _inst_sell_30d else None,
         }
 
         update_set = {k: v for k, v in values.items() if k != "symbol"}
