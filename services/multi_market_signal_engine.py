@@ -176,8 +176,8 @@ def _composite_buy_score(
 ) -> tuple[float, list[str]]:
     """Composite directional score from RSI + momentum + trend + volume.
 
-    Returns ``(buy_score, reasons)`` where ``buy_score > 0.15`` → buy,
-    ``< -0.15`` → sell, else hold. Used by both the live signal engine
+    Returns ``(buy_score, reasons)`` where ``buy_score > 0.35`` → buy,
+    ``< -0.35`` → sell, else hold. Used by both the live signal engine
     and the accuracy benchmark so the logic stays in one place.
 
     Volume is optional — when ``None`` (gold/currency have no volume
@@ -1200,7 +1200,8 @@ class MultiMarketSignalEngine:
                                 buy_score += 0.1
                                 reasons.append("حجم بالا نسبت به ارزش بازار")
 
-                        direction = "buy" if buy_score > 0.15 else "sell" if buy_score < -0.15 else "hold"
+                        # Require ≥2 confirming signals (threshold 0.35)
+                        direction = "buy" if buy_score > 0.35 else "sell" if buy_score < -0.35 else "hold"
                         strength = min(1.0, max(0.0, abs(buy_score)))
                         score = 50 + buy_score * 50
 
@@ -1332,7 +1333,8 @@ class MultiMarketSignalEngine:
                     if short_term:
                         reasons.append(f"{len(short_term)} قرارداد کوتاه‌مدت با حجم بالا")
 
-                    direction = "buy" if buy_score > 0.15 else "sell" if buy_score < -0.15 else "hold"
+                    # Require PCR signal + price vs max_pain confirmation (threshold 0.35)
+                    direction = "buy" if buy_score > 0.35 else "sell" if buy_score < -0.35 else "hold"
                     strength = min(1.0, max(0.0, abs(buy_score)))
 
                     # Best call for buy signal
@@ -1539,7 +1541,8 @@ class MultiMarketSignalEngine:
         buy_score, reasons = _composite_buy_score(
             closes, highs, lows, tf_days, volumes, market,
         )
-        direction = "buy" if buy_score > 0.15 else "sell" if buy_score < -0.15 else "hold"
+        # Consistent 0.35 threshold across all markets — requires ≥2 confirming signals
+        direction = "buy" if buy_score > 0.35 else "sell" if buy_score < -0.35 else "hold"
         strength = min(1.0, max(0.0, abs(buy_score)))
         score = 50 + buy_score * 50
 
