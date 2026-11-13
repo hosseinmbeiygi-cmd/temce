@@ -318,6 +318,18 @@ class SchedulerApp:
             replace_existing=True,
         )
 
+        # ── Normalize raw options into canonical schema (OF6) ─────────────────
+        # Runs after BrsApiOptionsJob (18:50) so that today's raw data is
+        # already present before the upsert into option_contracts / option_snapshots.
+        self.add_job(
+            "OptionsNormalizeJob",
+            trigger="cron",
+            hour=19,
+            minute=5,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         self.scheduler.start()
         logger.info("Scheduler started with %d BrsApi jobs", len(register_all_brsapi_jobs().enabled))
 
