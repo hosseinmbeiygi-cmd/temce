@@ -76,28 +76,37 @@ def _characteristic_function_heston(u: complex, tau: float, params: HestonParams
 
 
 def _heston_call_price_semi_closed(params: HestonParams) -> float:
-    """Semi-closed form Heston call price via Fourier inversion.
+    """Semi-closed form Heston call price via Gil-Pelaez inversion.
 
-    Uses the Gil-Pelaez inversion formula.
+    C = S·e^{-qT}·P1 − K·e^{-rT}·P2
+
+    P1 (stock-measure probability): CF with imaginary shift −i, normalised by
+    the forward price F = S·exp((r−q)T).
+    P2 (risk-neutral probability): CF without imaginary shift.
+
+    Both integrands use K^{−iu} = exp(−iu·log K) as the oscillating factor.
     """
     S, K, T, r, q = params.S, params.K, params.T, params.r, params.q  # noqa: N806
-    ln_S_K = math.log(S / K)  # noqa: N806
+    F = S * math.exp((r - q) * T)  # forward price
+    ln_K = math.log(K)
 
-    def integrand_real(u: float) -> float:
+    def integrand_p1(u: float) -> float:
+        # Phi(u−i) = E_Q[S_T^{1+iu}]; divide by F = E_Q[S_T] to get
+        # E_S[S_T^{iu}] (stock-measure moment), then K^{−iu}/(iu).
         phi = _characteristic_function_heston(complex(u, -1), T, params)
-        return float((phi * np.exp(-1j * u * ln_S_K) / (1j * u)).real)
+        return float((phi * np.exp(-1j * u * ln_K) / (F * 1j * u)).real)
 
-    def integrand_imag(u: float) -> float:
-        phi = _characteristic_function_heston(complex(u, -1), T, params)
-        return float((phi * np.exp(-1j * u * ln_S_K) / (1j * u)).imag)
+    def integrand_p2(u: float) -> float:
+        phi = _characteristic_function_heston(complex(u, 0), T, params)
+        return float((phi * np.exp(-1j * u * ln_K) / (1j * u)).real)
 
-    I1, _ = integrate.quad(integrand_real, 1e-8, 200, limit=200)  # noqa: N806
-    I2, _ = integrate.quad(integrand_imag, 1e-8, 200, limit=200)  # noqa: N806
+    I1, _ = integrate.quad(integrand_p1, 1e-8, 200, limit=200)  # noqa: N806
+    I2, _ = integrate.quad(integrand_p2, 1e-8, 200, limit=200)  # noqa: N806
 
-    call = S * math.exp(-q * T) * 0.5 - K * math.exp(-r * T) * 0.5
-    call += K * math.exp(-r * T) / math.pi * I1
-    call += S * math.exp(-q * T) / math.pi * I2
+    P1 = 0.5 + I1 / math.pi  # noqa: N806
+    P2 = 0.5 + I2 / math.pi  # noqa: N806
 
+    call = S * math.exp(-q * T) * P1 - K * math.exp(-r * T) * P2
     return float(max(call, 0.0))
 
 

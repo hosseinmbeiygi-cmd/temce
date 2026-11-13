@@ -423,8 +423,8 @@ class ScreenerAIReportService:
             if closes:
                 ma5 = sum(closes[:5]) / len(closes[:5]) if len(closes) >= 5 else 0
                 ma20 = sum(closes[:20]) / len(closes[:20]) if len(closes) >= 20 else 0
-                hi60 = max(float(d.get("price_max") or 0) for d in daily_60)
-                lo60 = min(float(d.get("price_min") or 0) for d in daily_60)
+                hi60 = max((float(d.get("price_max") or 0) for d in daily_60 if d.get("price_max")), default=0)
+                lo60 = min((float(d.get("price_min") or 0) for d in daily_60 if d.get("price_min")), default=0)
                 lines.append(f"• میانگین ۵ روزه: {_fmt(ma5)} | میانگین ۲۰ روزه: {_fmt(ma20)}")
                 lines.append(f"• سقف ۶۰ روزه: {_fmt(hi60)} | کف ۶۰ روزه: {_fmt(lo60)}")
                 if ma20 and price:

@@ -89,7 +89,6 @@ class OptionsStrategyEngine:
         self, stock_price: float, put_strike: float, put_premium: float, shares: int = 1000
     ) -> StrategyResult:
         """Married Put: Own stock + buy put (insurance)."""
-        float("inf")
         max_loss = -(stock_price - put_strike + put_premium)
         be = stock_price + put_premium
         return StrategyResult(
@@ -986,12 +985,25 @@ class OptionsStrategyEngine:
         total_put_vol = sum(o.get("volume", 0) for o in puts)
         pcr = total_put_vol / total_call_vol if total_call_vol > 0 else 1.0
 
-        # Max Pain (strike with most open interest)
-        all_oi: dict[float, float] = {}
-        for o in options_chain:
-            strike = float(o.get("strike", 0) or 0)
-            all_oi[strike] = all_oi.get(strike, 0.0) + float(o.get("open_interest", 0) or 0)
-        max_pain = max(all_oi, key=lambda k: all_oi[k]) if all_oi else stock_price
+        # Max Pain — strike that minimizes total payout to option holders at expiry:
+        # payout(S) = Σ max(S−K,0)·OI_call + Σ max(K−S,0)·OI_put
+        _strikes = sorted({float(o.get("strike", 0) or 0) for o in options_chain if o.get("strike")})
+        if _strikes:
+            _best_pain, _best_strike = float("inf"), _strikes[0]
+            for _s in _strikes:
+                _total = 0.0
+                for _o in options_chain:
+                    _k = float(_o.get("strike", 0) or 0)
+                    _oi = float(_o.get("open_interest", 0) or 0)
+                    if _o.get("type") == "call":
+                        _total += max(0.0, _s - _k) * _oi
+                    else:
+                        _total += max(0.0, _k - _s) * _oi
+                if _total < _best_pain:
+                    _best_pain, _best_strike = _total, _s
+            max_pain = _best_strike
+        else:
+            max_pain = stock_price
 
         # Support/Resistance from options
         call_oi_strikes = sorted(

@@ -215,7 +215,7 @@ async def option_predict(body: PredictBody) -> ApiResponse[dict[str, Any]]:
     data["probabilities"] = asdict(
         svc.touch_probabilities(
             body.spot,
-            body.sigma or (data["vol_forecast"].realized_vol_annual if "vol_forecast" in data else 0.0),
+            body.sigma or (data["vol_forecast"]["realized_vol_annual"] if "vol_forecast" in data else 0.0),
             body.days_to_expiry,
             breakeven_upper=band.upper_68,
             breakeven_lower=band.lower_68,
