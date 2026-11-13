@@ -289,6 +289,8 @@ class BacktestService:
             # Persist to database
             try:
                 from domain.backtest.entities import BacktestRun as BacktestRunEntity
+                from domain.backtest.trades import BacktestTrade as _BacktestTradeEntity
+                from domain.common.enum_types import OrderSide as _OS
 
                 run_entity = BacktestRunEntity(
                     id=run_id,
@@ -307,6 +309,28 @@ class BacktestService:
                 run_entity.start()
                 run_entity.complete()
                 await self._repo.save(run_entity)
+                for fill in bt_result.trades:
+                    is_buy = getattr(fill, "side", None) == _OS.BUY
+                    fill_ts = getattr(fill, "timestamp", None)
+                    fill_date = fill_ts.isoformat() if fill_ts else ""
+                    trade_entity = _BacktestTradeEntity(
+                        id=new_id(),
+                        backtest_run_id=run_id,
+                        instrument_id=getattr(fill, "instrument_id", ""),
+                        side=getattr(fill, "side", _OS.BUY),
+                        symbol=getattr(fill, "instrument_id", ""),
+                        entry_price=getattr(fill, "price", 0.0) if is_buy else 0.0,
+                        exit_price=getattr(fill, "price", 0.0) if not is_buy else 0.0,
+                        quantity=getattr(fill, "quantity", 0),
+                        entry_date=fill_date if is_buy else "",
+                        exit_date=fill_date if not is_buy else "",
+                        extra={
+                            "order_id": getattr(fill, "order_id", ""),
+                            "commission": getattr(fill, "commission", 0.0),
+                            "slippage": getattr(fill, "slippage", 0.0),
+                        },
+                    )
+                    await self._repo.save_trade(trade_entity)
             except Exception as save_err:
                 logger.warning("Failed to persist backtest result: %s", save_err)
 
