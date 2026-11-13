@@ -1,0 +1,14 @@
+{
+  "date_local": "2026-10-03",
+  "timezone": "Asia/Tehran",
+  "source_commit": "f5d195a43eedd9727c053afa078e90958047ef9a",
+  "python": "3.11.2",
+  "node": "22.22.3 (available; not used)",
+  "previous_artifacts_available": false,
+  "historical_evidence_reused": false,
+  "purpose": "Rebuild compact reproducible read-only QA changes and evidence for a PR. This is not a rerun of the missing full-system audit.",
+  "production_source_changes": 0,
+  "external_services_started": false,
+  "dependencies": "qa/audit/requirements.lock",
+  "results": "qa/audit/results.json"
+}

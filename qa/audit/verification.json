@@ -1,0 +1,33 @@
+{
+  "source_commit": "f5d195a43eedd9727c053afa078e90958047ef9a",
+  "date_local": "2026-10-03",
+  "timezone": "Asia/Tehran",
+  "original_files_verified": 12187,
+  "initial_capture_matches_final": true,
+  "changed_original_files": [],
+  "two_runs_match": true,
+  "economic_digest_sha256": "2fe2c1e30b100564f2ae9da95b18a74eb7a7af779d94aba886ee70b163ccad8f",
+  "primary_counts": {
+    "PASS": 91,
+    "FAIL": 99,
+    "ERROR": 10
+  },
+  "repeat_counts": {
+    "PASS": 91,
+    "FAIL": 99,
+    "ERROR": 10
+  },
+  "network_attempts": 0,
+  "harness_unit_tests": {
+    "executed": 10,
+    "pass": 10
+  },
+  "note": "Product contracts intentionally expose unfixed issues. Unit harness success is not application certification.",
+  "cleanup": {
+    "qa_runtime_removed": true,
+    "retained_dependencies": false,
+    "retained_services": false,
+    "application_state_created": false,
+    "only_qa_and_named_report_changes": true
+  }
+}

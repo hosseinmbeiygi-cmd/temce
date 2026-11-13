@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "date_local": "2026-10-03",
+  "timezone": "Asia/Tehran",
+  "source_commit": "f5d195a43eedd9727c053afa078e90958047ef9a",
+  "verdict": "NO-GO",
+  "score": null,
+  "score_reason": "Full-system weighted gates were not re-executed; historical artifacts absent. No historical score reused.",
+  "scope": "compact isolated numerical reconstruction; QA-only PR",
+  "scenarios": {
+    "total": 200,
+    "counts": {
+      "PASS": 91,
+      "FAIL": 99,
+      "ERROR": 10
+    },
+    "by_category": {
+      "BT": {
+        "PASS": 15,
+        "FAIL": 60
+      },
+      "ML": {
+        "FAIL": 15,
+        "ERROR": 10,
+        "PASS": 30
+      },
+      "SC": {
+        "PASS": 41,
+        "FAIL": 9
+      },
+      "SP": {
+        "FAIL": 15,
+        "PASS": 5
+      }
+    },
+    "same_two_run_economic_digest": true
+  },
+  "gates": {
+    "harness_selftests": "PASS (10/10)",
+    "source_immutability": "PASS (12187 files)",
+    "network_isolation": "PASS (0 attempted connects)",
+    "numerical_contracts": "FAIL (99 assertions, 10 runtime errors)",
+    "full_app_auth_and_http_readiness": "NOT_EXECUTED",
+    "routes_apis_ws_sse": "NOT_EXECUTED",
+    "two_viewport_browser_and_charts": "NOT_EXECUTED",
+    "fifteen_alert_lifecycle": "NOT_EXECUTED",
+    "six_runner_backends": "NOT_EXECUTED",
+    "production_ml_and_universe_screener_load": "NOT_QUALIFIED",
+    "transactional_concurrency_idempotency": "NOT_EXECUTED",
+    "current_exchange_regulatory_rules": "NOT_QUALIFIED"
+  },
+  "proposed_fixes_applied": false,
+  "production_source_changes": 0,
+  "historical_evidence_reused": false,
+  "evidence": [
+    "qa/audit/results.json",
+    "qa/audit/repeat.json",
+    "qa/audit/verification.json",
+    "reports/QA_AUDIT_2026-10-03.md"
+  ]
+}

@@ -1,0 +1,4215 @@
+{
+  "schema_version": 1,
+  "suite": "compact-read-only-200-v1",
+  "seed": 20261003,
+  "generated_at_utc": "2026-10-02T22:36:45.896383+00:00",
+  "source_commit": "f5d195a43eedd9727c053afa078e90958047ef9a",
+  "historical_evidence_reused": false,
+  "scope": "isolated original numerical modules; not full app/UI/API",
+  "counts": {
+    "PASS": 91,
+    "FAIL": 99,
+    "ERROR": 10
+  },
+  "by_category": {
+    "BT": {
+      "PASS": 15,
+      "FAIL": 60
+    },
+    "ML": {
+      "FAIL": 15,
+      "ERROR": 10,
+      "PASS": 30
+    },
+    "SC": {
+      "PASS": 41,
+      "FAIL": 9
+    },
+    "SP": {
+      "FAIL": 15,
+      "PASS": 5
+    }
+  },
+  "duration_seconds": 1.268,
+  "peak_rss_kib": 232384,
+  "economic_digest_sha256": "2fe2c1e30b100564f2ae9da95b18a74eb7a7af779d94aba886ee70b163ccad8f",
+  "isolation": {
+    "network_policy": "all IP socket connects blocked",
+    "blocked_attempts": [],
+    "external_services_started": false,
+    "persistent_test_state": "QA runtime workspace only"
+  },
+  "immutability": {
+    "baseline_files": 12187,
+    "changed_original_files": [],
+    "baseline_manifest_sha256": "0ac2850f0f11fdbe2e3ad064a6e9e590a846e75d057efa127576c9a3dc60892d"
+  },
+  "cases": [
+    {
+      "id": "BT-roundtrip-00",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100011.5,
+          "expected": 100011.5
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 11.5,
+          "expected": 11.5
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.126,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-01",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100023.0,
+          "expected": 100023.0
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 23.0,
+          "expected": 23.0
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.043,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-02",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100034.5,
+          "expected": 100034.5
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 34.5,
+          "expected": 34.5
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.038,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-03",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100046.0,
+          "expected": 100046.0
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 46.0,
+          "expected": 46.0
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.031,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-04",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100057.5,
+          "expected": 100057.5
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 57.5,
+          "expected": 57.5
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.023,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-05",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100069.0,
+          "expected": 100069.0
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 69.0,
+          "expected": 69.0
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.02,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-06",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 6
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100080.5,
+          "expected": 100080.5
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 80.5,
+          "expected": 80.5
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.019,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-07",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 7
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100092.0,
+          "expected": 100092.0
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 92.0,
+          "expected": 92.0
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.03,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-08",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 8
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100103.5,
+          "expected": 100103.5
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 103.5,
+          "expected": 103.5
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.018,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-09",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 9
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100115.0,
+          "expected": 100115.0
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 115.0,
+          "expected": 115.0
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.019,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-10",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 10
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100126.5,
+          "expected": 100126.5
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 126.5,
+          "expected": 126.5
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.016,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-11",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 11
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100138.0,
+          "expected": 100138.0
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 138.0,
+          "expected": 138.0
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.016,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-12",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 12
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100149.5,
+          "expected": 100149.5
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 149.5,
+          "expected": 149.5
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.014,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-13",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 13
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100161.0,
+          "expected": 100161.0
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 161.0,
+          "expected": 161.0
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.015,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-roundtrip-14",
+      "category": "BT",
+      "family": "roundtrip",
+      "parameters": {
+        "variant": 14
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "cash_and_nav_after_roundtrip": {
+          "actual": 100172.5,
+          "expected": 100172.5
+        },
+        "fifo_net_pnl_includes_both_fees": {
+          "actual": 172.5,
+          "expected": 172.5
+        },
+        "flat_quantity": {
+          "actual": 0,
+          "expected": 0
+        }
+      },
+      "duration_ms": 0.016,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-00",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.021,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-01",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.04,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-02",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.015,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-03",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.011,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-04",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.008,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-05",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-06",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 6
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-07",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 7
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-08",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 8
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-09",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 9
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-10",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 10
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.008,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-11",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 11
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-12",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 12
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-13",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 13
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-drawdown-14",
+      "category": "BT",
+      "family": "drawdown",
+      "parameters": {
+        "variant": 14
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "maximum_percentage_independent_of_absolute_dd: expected 20.0, observed 5.0"
+      },
+      "observations": {
+        "maximum_percentage_independent_of_absolute_dd": {
+          "actual": 5.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-00",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.016,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-01",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-02",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-03",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.008,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-04",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-05",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-06",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 6
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-07",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 7
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-08",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 8
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-09",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 9
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-10",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 10
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-11",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 11
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-12",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 12
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-13",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 13
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.005,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-budget-14",
+      "category": "BT",
+      "family": "budget",
+      "parameters": {
+        "variant": 14
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "long_only_fill_cannot_create_negative_cash: expected True, observed False"
+      },
+      "observations": {
+        "long_only_fill_cannot_create_negative_cash": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.005,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-00",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.012,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-01",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-02",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-03",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-04",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-05",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-06",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 6
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.008,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-07",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 7
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-08",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 8
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-invalid-09",
+      "category": "BT",
+      "family": "invalid",
+      "parameters": {
+        "variant": 9
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "reject_invalid_fill_domain: expected True, observed False"
+      },
+      "observations": {
+        "reject_invalid_fill_domain": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-00",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (2, 10), observed (1, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            1,
+            10
+          ],
+          "expected": [
+            2,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.194,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-01",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (4, 10), observed (2, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            2,
+            10
+          ],
+          "expected": [
+            4,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.078,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-02",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (6, 10), observed (3, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            3,
+            10
+          ],
+          "expected": [
+            6,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.052,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-03",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (8, 10), observed (4, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            4,
+            10
+          ],
+          "expected": [
+            8,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.049,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-04",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (10, 10), observed (5, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            5,
+            10
+          ],
+          "expected": [
+            10,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.045,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-05",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (12, 10), observed (6, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            6,
+            10
+          ],
+          "expected": [
+            12,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.059,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-06",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 6
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (14, 10), observed (7, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            7,
+            10
+          ],
+          "expected": [
+            14,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.043,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-07",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 7
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (16, 10), observed (8, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            8,
+            10
+          ],
+          "expected": [
+            16,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.06,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-08",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 8
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (18, 10), observed (9, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            9,
+            10
+          ],
+          "expected": [
+            18,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.258,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-oversell-09",
+      "category": "BT",
+      "family": "oversell",
+      "parameters": {
+        "variant": 9
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "caller_owned_fill_not_mutated: expected (20, 10), observed (10, 10)"
+      },
+      "observations": {
+        "caller_owned_fill_not_mutated": {
+          "actual": [
+            10,
+            10
+          ],
+          "expected": [
+            20,
+            10
+          ]
+        }
+      },
+      "duration_ms": 0.079,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-precision-00",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.017,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-precision-01",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.01,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-precision-02",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.012,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-precision-03",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 203704
+    },
+    {
+      "id": "BT-precision-04",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.008,
+      "process_peak_rss_kib": 203968
+    },
+    {
+      "id": "BT-precision-05",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203968
+    },
+    {
+      "id": "BT-precision-06",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 6
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.005,
+      "process_peak_rss_kib": 203968
+    },
+    {
+      "id": "BT-precision-07",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 7
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 203968
+    },
+    {
+      "id": "BT-precision-08",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 8
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203968
+    },
+    {
+      "id": "BT-precision-09",
+      "category": "BT",
+      "family": "precision",
+      "parameters": {
+        "variant": 9
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "exact_single_rial_cash_debit: expected True, observed False"
+      },
+      "observations": {
+        "exact_single_rial_cash_debit": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 203968
+    },
+    {
+      "id": "ML-causal_prefix-00",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 0,
+        "seed": 20261003
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(200.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 200.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 24.831,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-01",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 1,
+        "seed": 20261004
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(300.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 300.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 20.156,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-02",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 2,
+        "seed": 20261005
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(400.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 400.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 20.713,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-03",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 3,
+        "seed": 20261006
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(500.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 500.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 20.219,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-04",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 4,
+        "seed": 20261007
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(600.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 600.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 20.228,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-05",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 5,
+        "seed": 20261008
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(700.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 700.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 19.366,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-06",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 6,
+        "seed": 20261009
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(800.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 800.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 19.334,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-07",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 7,
+        "seed": 20261010
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(900.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 900.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 19.644,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-08",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 8,
+        "seed": 20261011
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(1000.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 1000.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 19.595,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-09",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 9,
+        "seed": 20261012
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(1100.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 1100.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 21.155,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-10",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 10,
+        "seed": 20261013
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(1200.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 1200.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 19.624,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-11",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 11,
+        "seed": 20261014
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(1300.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 1300.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 19.12,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-12",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 12,
+        "seed": 20261015
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(1400.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 1400.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 19.174,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-13",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 13,
+        "seed": 20261016
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(1500.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 1500.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 19.665,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-causal_prefix-14",
+      "category": "ML",
+      "family": "causal_prefix",
+      "parameters": {
+        "variant": 14,
+        "seed": 20261017
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "future_row_must_not_change_first_row_vwap: expected np.float64(100.0), observed np.float64(1600.0)"
+      },
+      "observations": {
+        "future_row_must_not_change_first_row_vwap": {
+          "actual": 1600.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 20.287,
+      "process_peak_rss_kib": 206400
+    },
+    {
+      "id": "ML-trade_schema-00",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 0,
+        "seed": 20261003
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 8.337,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-trade_schema-01",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 1,
+        "seed": 20261004
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 5.313,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-trade_schema-02",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 2,
+        "seed": 20261005
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 5.191,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-trade_schema-03",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 3,
+        "seed": 20261006
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 5.326,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-trade_schema-04",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 4,
+        "seed": 20261007
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 5.304,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-trade_schema-05",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 5,
+        "seed": 20261008
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 5.285,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-trade_schema-06",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 6,
+        "seed": 20261009
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 5.243,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-trade_schema-07",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 7,
+        "seed": 20261010
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 5.475,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-trade_schema-08",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 8,
+        "seed": 20261011
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 5.23,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-trade_schema-09",
+      "category": "ML",
+      "family": "trade_schema",
+      "parameters": {
+        "variant": 9,
+        "seed": 20261012
+      },
+      "status": "ERROR",
+      "error": {
+        "type": "KeyError",
+        "message": "'real_net_flow_ma{w}'",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/indexes/base.py\", line 3812, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 167, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 196, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'real_net_flow_ma{w}'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/user/temce/qa/audit/run.py\", line 470, in run\n    c[\"function\"]()\n  File \"/home/user/temce/qa/audit/run.py\", line 292, in <lambda>\n    case(\"ML\", family, i, lambda i=i, fn=fn: fn(i), {\"variant\": i, \"seed\": SEED + i})\n                                             ^^^^^\n  File \"/home/user/temce/qa/audit/run.py\", line 249, in ml_trade\n    result = TradeFeatures().compute(df)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/ml/features/trade_features.py\", line 53, in compute\n    df[f\"real_net_flow_delta{w}\"] = df[\"real_net_flow\"] - df[\"real_net_flow_ma{w}\"]\n                                                          ~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/user/temce/qa/runtime/.venv/lib/python3.11/site-packages/pandas/core/frame.py\", line 4113, in __getitem__\n    indexer = self.columns.get_loc(key)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\nKeyError: 'real_net_flow_ma{w}'\n"
+      },
+      "observations": {},
+      "duration_ms": 5.15,
+      "process_peak_rss_kib": 208284
+    },
+    {
+      "id": "ML-linear-00",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 0,
+        "seed": 20261003
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 8.43769498715119e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 80.997,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-01",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 1,
+        "seed": 20261004
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 5.329070518200751e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.761,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-02",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 2,
+        "seed": 20261005
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 3.552713678800501e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.614,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-03",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 3,
+        "seed": 20261006
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 3.552713678800501e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.577,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-04",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 4,
+        "seed": 20261007
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 5.329070518200751e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.588,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-05",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 5,
+        "seed": 20261008
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 4.440892098500626e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.524,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-06",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 6,
+        "seed": 20261009
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 3.552713678800501e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.599,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-07",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 7,
+        "seed": 20261010
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 3.552713678800501e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.545,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-08",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 8,
+        "seed": 20261011
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 4.440892098500626e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.554,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-09",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 9,
+        "seed": 20261012
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 5.329070518200751e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.539,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-10",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 10,
+        "seed": 20261013
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 3.552713678800501e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.487,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-11",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 11,
+        "seed": 20261014
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 7.105427357601002e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.539,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-12",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 12,
+        "seed": 20261015
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 6.217248937900877e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.477,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-13",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 13,
+        "seed": 20261016
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 4.440892098500626e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.569,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-linear-14",
+      "category": "ML",
+      "family": "linear",
+      "parameters": {
+        "variant": 14,
+        "seed": 20261017
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "linear_holdout_error": {
+          "actual": 3.552713678800501e-15,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.5,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-logistic-00",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 0,
+        "seed": 20261003
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 2.48,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-logistic-01",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 1,
+        "seed": 20261004
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 1.89,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-logistic-02",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 2,
+        "seed": 20261005
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 1.696,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-logistic-03",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 3,
+        "seed": 20261006
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 1.728,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-logistic-04",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 4,
+        "seed": 20261007
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 1.666,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-logistic-05",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 5,
+        "seed": 20261008
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 1.641,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-logistic-06",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 6,
+        "seed": 20261009
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 1.653,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-logistic-07",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 7,
+        "seed": 20261010
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 1.671,
+      "process_peak_rss_kib": 219292
+    },
+    {
+      "id": "ML-logistic-08",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 8,
+        "seed": 20261011
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 2.001,
+      "process_peak_rss_kib": 221244
+    },
+    {
+      "id": "ML-logistic-09",
+      "category": "ML",
+      "family": "logistic",
+      "parameters": {
+        "variant": 9,
+        "seed": 20261012
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "classification_holdout_accuracy": {
+          "actual": 1.0,
+          "expected": 1.0
+        }
+      },
+      "duration_ms": 1.707,
+      "process_peak_rss_kib": 221244
+    },
+    {
+      "id": "ML-forest-00",
+      "category": "ML",
+      "family": "forest",
+      "parameters": {
+        "variant": 0,
+        "seed": 20261003
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "forest_finite_holdout": {
+          "actual": true,
+          "expected": true
+        },
+        "forest_seeded_repeatability": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 47.918,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "ML-forest-01",
+      "category": "ML",
+      "family": "forest",
+      "parameters": {
+        "variant": 1,
+        "seed": 20261004
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "forest_finite_holdout": {
+          "actual": true,
+          "expected": true
+        },
+        "forest_seeded_repeatability": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 18.452,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "ML-forest-02",
+      "category": "ML",
+      "family": "forest",
+      "parameters": {
+        "variant": 2,
+        "seed": 20261005
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "forest_finite_holdout": {
+          "actual": true,
+          "expected": true
+        },
+        "forest_seeded_repeatability": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 18.167,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "ML-forest-03",
+      "category": "ML",
+      "family": "forest",
+      "parameters": {
+        "variant": 3,
+        "seed": 20261006
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "forest_finite_holdout": {
+          "actual": true,
+          "expected": true
+        },
+        "forest_seeded_repeatability": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 18.23,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "ML-forest-04",
+      "category": "ML",
+      "family": "forest",
+      "parameters": {
+        "variant": 4,
+        "seed": 20261007
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "forest_finite_holdout": {
+          "actual": true,
+          "expected": true
+        },
+        "forest_seeded_repeatability": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 18.439,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-00",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.039,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-01",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.013,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-02",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.013,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-03",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.013,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-04",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.012,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-05",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-06",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 6
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-07",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 7
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.016,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-08",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 8
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.013,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-09",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 9
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.008,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-10",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 10
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.008,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-11",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 11
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.008,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-12",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 12
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-13",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 13
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-14",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 14
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-15",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 15
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-16",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 16
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-17",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 17
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-18",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 18
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-19",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 19
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-20",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 20
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-21",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 21
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-22",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 22
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-numeric-23",
+      "category": "SC",
+      "family": "numeric",
+      "parameters": {
+        "variant": 23
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_numeric_oracle": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-logic-00",
+      "category": "SC",
+      "family": "logic",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_and_or_and_strings": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.019,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-logic-01",
+      "category": "SC",
+      "family": "logic",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_and_or_and_strings": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.011,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-logic-02",
+      "category": "SC",
+      "family": "logic",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_and_or_and_strings": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-logic-03",
+      "category": "SC",
+      "family": "logic",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_and_or_and_strings": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-logic-04",
+      "category": "SC",
+      "family": "logic",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_and_or_and_strings": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-logic-05",
+      "category": "SC",
+      "family": "logic",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "filter_and_or_and_strings": {
+          "actual": true,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.008,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-fail_closed-00",
+      "category": "SC",
+      "family": "fail_closed",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "unknown_or_missing_filter_fails_closed": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-fail_closed-01",
+      "category": "SC",
+      "family": "fail_closed",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "unknown_or_missing_filter_fails_closed": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-fail_closed-02",
+      "category": "SC",
+      "family": "fail_closed",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "unknown_or_missing_filter_fails_closed": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.005,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-fail_closed-03",
+      "category": "SC",
+      "family": "fail_closed",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "unknown_or_missing_filter_fails_closed": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.005,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-fail_closed-04",
+      "category": "SC",
+      "family": "fail_closed",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "unknown_or_missing_filter_fails_closed": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.005,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-fail_closed-05",
+      "category": "SC",
+      "family": "fail_closed",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "unknown_or_missing_filter_fails_closed": {
+          "actual": false,
+          "expected": false
+        }
+      },
+      "duration_ms": 0.005,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-sort-00",
+      "category": "SC",
+      "family": "sort",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "sort_numeric_oracle_including_formatted_value": {
+          "actual": 0.0,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.014,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-sort-01",
+      "category": "SC",
+      "family": "sort",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "sort_numeric_oracle_including_formatted_value": {
+          "actual": -1.0,
+          "expected": -1.0
+        }
+      },
+      "duration_ms": 0.005,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-sort-02",
+      "category": "SC",
+      "family": "sort",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "sort_numeric_oracle_including_formatted_value": {
+          "actual": 10.0,
+          "expected": 10.0
+        }
+      },
+      "duration_ms": 0.004,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-sort-03",
+      "category": "SC",
+      "family": "sort",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "sort_numeric_oracle_including_formatted_value": {
+          "actual": 100.0,
+          "expected": 100.0
+        }
+      },
+      "duration_ms": 0.004,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-sort-04",
+      "category": "SC",
+      "family": "sort",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "sort_numeric_oracle_including_formatted_value": {
+          "actual": 0.0,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.005,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-sort-05",
+      "category": "SC",
+      "family": "sort",
+      "parameters": {
+        "variant": 5
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "sort_numeric_oracle_including_formatted_value: expected 1234.0, observed 0.0"
+      },
+      "observations": {
+        "sort_numeric_oracle_including_formatted_value": {
+          "actual": 0.0,
+          "expected": 1234.0
+        }
+      },
+      "duration_ms": 0.016,
+      "process_peak_rss_kib": 225780
+    },
+    {
+      "id": "SC-rsi-00",
+      "category": "SC",
+      "family": "rsi",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "pipeline_populates_advertised_rsi_filter: expected True, observed False"
+      },
+      "observations": {
+        "lookup": null,
+        "pipeline_populates_advertised_rsi_filter": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 32.599,
+      "process_peak_rss_kib": 226520
+    },
+    {
+      "id": "SC-rsi-01",
+      "category": "SC",
+      "family": "rsi",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "pipeline_populates_advertised_rsi_filter: expected True, observed False"
+      },
+      "observations": {
+        "lookup": null,
+        "pipeline_populates_advertised_rsi_filter": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 30.88,
+      "process_peak_rss_kib": 226520
+    },
+    {
+      "id": "SC-rsi-02",
+      "category": "SC",
+      "family": "rsi",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "pipeline_populates_advertised_rsi_filter: expected True, observed False"
+      },
+      "observations": {
+        "lookup": null,
+        "pipeline_populates_advertised_rsi_filter": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 30.631,
+      "process_peak_rss_kib": 226520
+    },
+    {
+      "id": "SC-rsi-03",
+      "category": "SC",
+      "family": "rsi",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "pipeline_populates_advertised_rsi_filter: expected True, observed False"
+      },
+      "observations": {
+        "lookup": null,
+        "pipeline_populates_advertised_rsi_filter": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 31.692,
+      "process_peak_rss_kib": 226520
+    },
+    {
+      "id": "SC-cache-00",
+      "category": "SC",
+      "family": "cache",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "same_length_history_cache_is_content_aware: expected 362.7580789268526, observed 181.3790394634263"
+      },
+      "observations": {
+        "previous_price": 181.3790394634263,
+        "same_length_history_cache_is_content_aware": {
+          "actual": 181.3790394634263,
+          "expected": 362.7580789268526
+        }
+      },
+      "duration_ms": 33.403,
+      "process_peak_rss_kib": 226520
+    },
+    {
+      "id": "SC-cache-01",
+      "category": "SC",
+      "family": "cache",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "same_length_history_cache_is_content_aware: expected 364.7580789268526, observed 182.3790394634263"
+      },
+      "observations": {
+        "previous_price": 182.3790394634263,
+        "same_length_history_cache_is_content_aware": {
+          "actual": 182.3790394634263,
+          "expected": 364.7580789268526
+        }
+      },
+      "duration_ms": 32.872,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SC-cache-02",
+      "category": "SC",
+      "family": "cache",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "same_length_history_cache_is_content_aware: expected 366.7580789268526, observed 183.3790394634263"
+      },
+      "observations": {
+        "previous_price": 183.3790394634263,
+        "same_length_history_cache_is_content_aware": {
+          "actual": 183.3790394634263,
+          "expected": 366.7580789268526
+        }
+      },
+      "duration_ms": 32.998,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SC-cache-03",
+      "category": "SC",
+      "family": "cache",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "same_length_history_cache_is_content_aware: expected 368.7580789268526, observed 184.3790394634263"
+      },
+      "observations": {
+        "previous_price": 184.3790394634263,
+        "same_length_history_cache_is_content_aware": {
+          "actual": 184.3790394634263,
+          "expected": 368.7580789268526
+        }
+      },
+      "duration_ms": 33.526,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-zero_sigma-00",
+      "category": "SP",
+      "family": "zero_sigma",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "positive_maturity_zero_vol_discounted_forward_payoff: expected 14.389351794935735, observed 10.0"
+      },
+      "observations": {
+        "positive_maturity_zero_vol_discounted_forward_payoff": {
+          "actual": 10.0,
+          "expected": 14.389351794935735
+        }
+      },
+      "duration_ms": 0.023,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-zero_sigma-01",
+      "category": "SP",
+      "family": "zero_sigma",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "positive_maturity_zero_vol_discounted_forward_payoff: expected 5.122942450071406, observed 10.0"
+      },
+      "observations": {
+        "positive_maturity_zero_vol_discounted_forward_payoff": {
+          "actual": 10.0,
+          "expected": 5.122942450071406
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-zero_sigma-02",
+      "category": "SP",
+      "family": "zero_sigma",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "positive_maturity_zero_vol_discounted_forward_payoff: expected 9.939617161422007, observed 0.0"
+      },
+      "observations": {
+        "positive_maturity_zero_vol_discounted_forward_payoff": {
+          "actual": 0.0,
+          "expected": 9.939617161422007
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-zero_sigma-03",
+      "category": "SP",
+      "family": "zero_sigma",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "positive_maturity_zero_vol_discounted_forward_payoff: expected 0.0, observed 10.0"
+      },
+      "observations": {
+        "positive_maturity_zero_vol_discounted_forward_payoff": {
+          "actual": 10.0,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-margin-00",
+      "category": "SP",
+      "family": "margin",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "unequal_spread_residual_requires_naked_margin: expected True, observed False"
+      },
+      "observations": {
+        "actual_and_residual_lower_bound": {
+          "actual": 70000.0,
+          "lower_bound": 270000.0
+        },
+        "unequal_spread_residual_requires_naked_margin": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.051,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-margin-01",
+      "category": "SP",
+      "family": "margin",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "unequal_spread_residual_requires_naked_margin: expected True, observed False"
+      },
+      "observations": {
+        "actual_and_residual_lower_bound": {
+          "actual": 70000.0,
+          "lower_bound": 240000.0
+        },
+        "unequal_spread_residual_requires_naked_margin": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.018,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-margin-02",
+      "category": "SP",
+      "family": "margin",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "covered_calls_do_not_remove_unrelated_naked_put_margin: expected True, observed False"
+      },
+      "observations": {
+        "covered_calls_do_not_remove_unrelated_naked_put_margin": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.026,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-margin-03",
+      "category": "SP",
+      "family": "margin",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "covered_calls_do_not_remove_unrelated_naked_put_margin: expected True, observed False"
+      },
+      "observations": {
+        "covered_calls_do_not_remove_unrelated_naked_put_margin": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.018,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-margin-04",
+      "category": "SP",
+      "family": "margin",
+      "parameters": {
+        "variant": 4
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "single_naked_minimum_not_discounted: expected True, observed False"
+      },
+      "observations": {
+        "single_naked_minimum_not_discounted": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.017,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-nav_finite-00",
+      "category": "SP",
+      "family": "nav_finite",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "nav_premium_rejects_nonfinite_input: expected True, observed False"
+      },
+      "observations": {
+        "nav_premium_rejects_nonfinite_input": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.019,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-nav_finite-01",
+      "category": "SP",
+      "family": "nav_finite",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "nav_premium_rejects_nonfinite_input: expected True, observed False"
+      },
+      "observations": {
+        "nav_premium_rejects_nonfinite_input": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.007,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-nav_finite-02",
+      "category": "SP",
+      "family": "nav_finite",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "nav_premium_rejects_nonfinite_input: expected True, observed False"
+      },
+      "observations": {
+        "nav_premium_rejects_nonfinite_input": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-nav_finite-03",
+      "category": "SP",
+      "family": "nav_finite",
+      "parameters": {
+        "variant": 3
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "nav_premium_rejects_nonfinite_input: expected True, observed False"
+      },
+      "observations": {
+        "nav_premium_rejects_nonfinite_input": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-coin-00",
+      "category": "SP",
+      "family": "coin",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "explicit_physical_gold_content_irr": {
+          "actual": 282400372.95,
+          "expected": 282400372.95
+        },
+        "explicit_coin_bubble_pct": {
+          "actual": 20.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.017,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-coin-01",
+      "category": "SP",
+      "family": "coin",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "explicit_physical_gold_content_irr": {
+          "actual": 296520391.6,
+          "expected": 296520391.6
+        },
+        "explicit_coin_bubble_pct": {
+          "actual": 20.0,
+          "expected": 20.0
+        }
+      },
+      "duration_ms": 0.009,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-usd-00",
+      "category": "SP",
+      "family": "usd",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "dollar_adjusted_return_oracle": {
+          "actual": 0.0,
+          "expected": 0.0
+        }
+      },
+      "duration_ms": 0.011,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-usd-01",
+      "category": "SP",
+      "family": "usd",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "dollar_adjusted_return_oracle": {
+          "actual": 8.33,
+          "expected": 8.33
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-usd-02",
+      "category": "SP",
+      "family": "usd",
+      "parameters": {
+        "variant": 2
+      },
+      "status": "PASS",
+      "error": null,
+      "observations": {
+        "dollar_adjusted_return_oracle": {
+          "actual": 16.67,
+          "expected": 16.67
+        }
+      },
+      "duration_ms": 0.006,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-iv_bounds-00",
+      "category": "SP",
+      "family": "iv_bounds",
+      "parameters": {
+        "variant": 0
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "implied_volatility_rejects_impossible_option_premium: expected True, observed False"
+      },
+      "observations": {
+        "implied_volatility_rejects_impossible_option_premium": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.638,
+      "process_peak_rss_kib": 226780
+    },
+    {
+      "id": "SP-iv_bounds-01",
+      "category": "SP",
+      "family": "iv_bounds",
+      "parameters": {
+        "variant": 1
+      },
+      "status": "FAIL",
+      "error": {
+        "type": "AssertionError",
+        "message": "implied_volatility_rejects_impossible_option_premium: expected True, observed False"
+      },
+      "observations": {
+        "implied_volatility_rejects_impossible_option_premium": {
+          "actual": false,
+          "expected": true
+        }
+      },
+      "duration_ms": 0.38,
+      "process_peak_rss_kib": 226780
+    }
+  ]
+}

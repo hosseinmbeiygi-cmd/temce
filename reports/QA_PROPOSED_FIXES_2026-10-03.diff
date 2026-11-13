@@ -1,0 +1,143 @@
+--- a/backtesting/analytics/engine.py
++++ b/backtesting/analytics/engine.py
+@@ -81,8 +81,8 @@
+                 running_max = nav
+             dd = running_max - nav
+             dd_pct = (dd / running_max) * 100 if running_max > 0 else 0
+-            if dd > max_dd:
+-                max_dd, max_dd_pct = dd, dd_pct
++            max_dd = max(max_dd, dd)
++            max_dd_pct = max(max_dd_pct, dd_pct)
+         ar.max_drawdown, ar.max_drawdown_pct = max_dd, max_dd_pct
+         if max_dd_pct > 0 and ar.cagr != 0:
+             ar.calmar_ratio = ar.cagr / max_dd_pct
+--- a/ml/features/trade_features.py
++++ b/ml/features/trade_features.py
+@@ -50,8 +50,8 @@
+         for w in [3, 5]:
+             df[f"real_net_flow_ma{w}"] = df["real_net_flow"].rolling(w).mean()
+             df[f"legal_net_flow_ma{w}"] = df["legal_net_flow"].rolling(w).mean()
+-            df[f"real_net_flow_delta{w}"] = df["real_net_flow"] - df["real_net_flow_ma{w}"]
+-            df[f"legal_net_flow_delta{w}"] = df["legal_net_flow"] - df["legal_net_flow_ma{w}"]
++            df[f"real_net_flow_delta{w}"] = df["real_net_flow"] - df[f"real_net_flow_ma{w}"]
++            df[f"legal_net_flow_delta{w}"] = df["legal_net_flow"] - df[f"legal_net_flow_ma{w}"]
+
+         # ── Volume concentration ──────────────────────────────────
+         df["real_buy_vol_concentration"] = df["real_buy_volume"] / df["real_buy_count"].replace(0, np.nan)
+@@ -62,7 +62,7 @@
+         thresh = max(1, int(0.5 * len(feature_names)))
+         df = df.dropna(subset=feature_names, thresh=thresh)
+         # Forward-fill remaining NaN (up to 3 rows) for time-series continuity
+-        df[feature_names] = df[feature_names].ffill(limit=3).bfill(limit=1)
++        df[feature_names] = df[feature_names].ffill(limit=3)
+         return FeatureMatrix(data=df.reset_index(drop=True), feature_names=feature_names)
+
+     def get_feature_names(self) -> list[str]:
+--- a/ml/features/microstructure_features.py
++++ b/ml/features/microstructure_features.py
+@@ -61,7 +61,7 @@
+         thresh = max(1, int(0.5 * len(feature_names)))
+         df = df.dropna(subset=feature_names, thresh=thresh)
+         # Forward-fill remaining NaN for time-series continuity
+-        df[feature_names] = df[feature_names].ffill(limit=3).bfill(limit=1)
++        df[feature_names] = df[feature_names].ffill(limit=3)
+         return FeatureMatrix(data=df.reset_index(drop=True), feature_names=feature_names)
+
+     def get_feature_names(self) -> list[str]:
+--- a/services/gold/calculator.py
++++ b/services/gold/calculator.py
+@@ -11,6 +11,7 @@
+
+ from __future__ import annotations
+
++import math
+ from dataclasses import dataclass
+ from typing import Any
+
+@@ -60,8 +61,10 @@
+
+ def calculate_nav_premium(market_price: float, nav: float) -> NavPremiumResult:
+     """پرمیوم/دیسکانت صندوق نسبت به NAV (درصد)."""
+-    if nav <= 0:
+-        raise ValueError("nav must be > 0")
++    if not math.isfinite(market_price) or not math.isfinite(nav):
++        raise ValueError("price and nav must be finite")
++    if market_price <= 0 or nav <= 0:
++        raise ValueError("price and nav must be > 0")
+     premium_pct = ((market_price - nav) / nav) * 100.0
+
+     if premium_pct > ETF_PREMIUM_SELL_THRESHOLD:
+--- a/domain/options/pricing.py
++++ b/domain/options/pricing.py
+@@ -56,8 +56,12 @@
+     Returns:
+         Call option price
+     """
+-    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
++    if T <= 0 or S <= 0 or K <= 0:
+         return max(0.0, S - K)
++    if sigma == 0:
++        return max(0.0, S - K * math.exp(-r * T))
++    if sigma < 0:
++        raise ValueError("sigma must be nonnegative")
+     d1 = _d1(S, K, T, r, sigma)
+     d2 = _d2(d1, sigma, T)
+     return S * stats.norm.cdf(d1) - K * math.exp(-r * T) * stats.norm.cdf(d2)
+@@ -76,8 +80,12 @@
+     Returns:
+         Put option price
+     """
+-    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
++    if T <= 0 or S <= 0 or K <= 0:
+         return max(0.0, K - S)
++    if sigma == 0:
++        return max(0.0, K * math.exp(-r * T) - S)
++    if sigma < 0:
++        raise ValueError("sigma must be nonnegative")
+     d1 = _d1(S, K, T, r, sigma)
+     d2 = _d2(d1, sigma, T)
+     return K * math.exp(-r * T) * stats.norm.cdf(-d2) - S * stats.norm.cdf(-d1)
+@@ -98,7 +106,18 @@
+         OptionPrice dataclass with price, Greeks, and intrinsic/time values.
+         Theta is per calendar day. Vega is per 1%% vol change. Rho is per 1%% rate change.
+     """
+-    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
++    if sigma < 0:
++        raise ValueError("sigma must be nonnegative")
++    if T > 0 and sigma == 0 and S > 0 and K > 0:
++        # Review-only sketch: deterministic-case Greeks need separate tests.
++        price = (black_scholes_call(S, K, T, r, sigma) if option_type == "call"
++                 else black_scholes_put(S, K, T, r, sigma))
++        intrinsic = max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
++        return OptionPrice(model=PRICING_MODEL_BLACK_SCHOLES, price=price,
++                           intrinsic_value=intrinsic, time_value=price - intrinsic,
++                           parameters={"S": S, "K": K, "T": T, "r": r, "sigma": sigma,
++                                       "option_type": option_type})
++    if T <= 0 or S <= 0 or K <= 0:
+         intrinsic = max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
+         return OptionPrice(
+             model=PRICING_MODEL_BLACK_SCHOLES,
+--- a/services/smart_screener_v2.py
++++ b/services/smart_screener_v2.py
+@@ -12,6 +12,8 @@
+
+ from __future__ import annotations
+
++import hashlib
++import json
+ import time
+ from dataclasses import dataclass, field
+ from typing import Any
+@@ -205,7 +207,11 @@
+         sector_history: list[float] | None = None,
+     ) -> EnhancedScreenedSymbol:
+         """Analyze a single symbol with full advanced analytics."""
+-        cache_key = f"analysis:{symbol}:{len(history)}"
++        # Include the mutable numerical inputs, not just history length.
++        payload = {"symbol": symbol, "quote": quote, "history": history,
++                   "sector_history": sector_history}
++        content = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
++        cache_key = "analysis:" + hashlib.sha256(content).hexdigest()
+         cached = self._get_cached(cache_key)
+         if cached:
+             return cached
