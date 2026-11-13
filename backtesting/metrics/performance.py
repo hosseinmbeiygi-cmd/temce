@@ -17,7 +17,8 @@ class PerformanceMetrics:
         navs = [p.nav for p in result.equity_curve]
         if len(navs) > 1:
             returns = np.diff(navs) / navs[:-1]
-            metrics["volatility"] = float(np.std(returns) * np.sqrt(252)) if len(returns) > 0 else 0.0
+            # BT-M1: sample std (ddof=1) consistent with RiskMetrics
+            metrics["volatility"] = float(np.std(returns, ddof=1) * np.sqrt(252)) if len(returns) > 1 else 0.0
             avg_return = float(np.mean(returns)) * 252 if len(returns) > 0 else 0.0
             vol = metrics["volatility"]
             excess_return = avg_return - risk_free_rate
@@ -28,7 +29,11 @@ class PerformanceMetrics:
             metrics["max_drawdown"] = float(np.min(drawdowns)) * 100
 
         if result.total_trades > 0:
-            wins = sum(1 for t in result.trades if t.net_profit > 0)
-            metrics["win_rate"] = (wins / result.total_trades) * 100
+            # BT-C1: win rate is computed on closing (sell) fills only; each
+            # sell's net_pnl is the FIFO-realised gain net of all commissions.
+            closing = [t for t in result.trades if t.side == "sell"]
+            wins = sum(1 for t in closing if t.net_pnl > 0)
+            denom = len(closing) if closing else result.total_trades
+            metrics["win_rate"] = (wins / denom) * 100
 
         return metrics

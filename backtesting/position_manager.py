@@ -86,9 +86,11 @@ class PositionManager:
             pos.lot_commissions.append(fill.commission)
             pos.quantity += fill.quantity
         else:
-            pos.realized_pnl += consume_lots_fifo(
+            realized = consume_lots_fifo(
                 pos, fill.quantity, fill.price, fill.commission,
             )
+            pos.realized_pnl += realized
+            fill.net_pnl = realized
 
         pos.avg_price = lots_avg_price(pos.lots)
 

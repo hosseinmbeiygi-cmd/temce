@@ -33,7 +33,7 @@ def test_sharpe_uses_annualized_mean_minus_risk_free_over_annualized_vol() -> No
     metrics = PerformanceMetrics.compute(_result(navs), risk_free_rate=rf)
 
     returns = np.diff(navs) / np.array(navs[:-1])
-    vol = np.std(returns) * math.sqrt(252)
+    vol = np.std(returns, ddof=1) * math.sqrt(252)  # sample std (ddof=1)
     expected = (np.mean(returns) * 252 - rf) / vol
 
     assert metrics["volatility"] == pytest.approx(vol)

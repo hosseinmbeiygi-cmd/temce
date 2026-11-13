@@ -35,15 +35,20 @@ class FeatureStoreBuildJob(BaseJob):
         symbols = context.get_param("symbols", None)
 
         try:
+            # NOTE: do NOT return inside this `async for` loop — get_session()
+            # commits only when the generator is resumed after the yield.
+            result: JobResult | None = None
             async for _session in get_session():
                 builder = FeatureStoreBuilder(symbols=symbols, days=days, workers=workers)
                 stats = await builder.build_all()
-                return JobResult.success_result(
+                result = JobResult.success_result(
                     job_name=self._name,
                     data=stats,
                     message=f"Feature store: {stats['rows']} rows, {stats['fail']} failed",
                 )
-            return JobResult.failure("Could not obtain DB session", job_name=self._name)
+            if result is None:
+                return JobResult.failure("Could not obtain DB session", job_name=self._name)
+            return result
         except Exception as e:  # noqa: BLE001
             logger.exception("FeatureStoreBuildJob failed")
             return JobResult.failure(str(e), job_name=self._name)
@@ -60,14 +65,19 @@ class ScreenerDailyScoresJob(BaseJob):
         trade_date = date.fromisoformat(date_str) if date_str else date.today()
 
         try:
+            # NOTE: do NOT return inside this `async for` loop — get_session()
+            # commits only when the generator is resumed after the yield.
+            result: JobResult | None = None
             async for session in get_session():
                 stats = await build_daily_scores(session, trade_date)
-                return JobResult.success_result(
+                result = JobResult.success_result(
                     job_name=self._name,
                     data=stats,
                     message=f"Screener daily scores: {stats['rows']} rows for {stats['trade_date']}",
                 )
-            return JobResult.failure("Could not obtain DB session", job_name=self._name)
+            if result is None:
+                return JobResult.failure("Could not obtain DB session", job_name=self._name)
+            return result
         except Exception as e:  # noqa: BLE001
             logger.exception("ScreenerDailyScoresJob failed")
             return JobResult.failure(str(e), job_name=self._name)

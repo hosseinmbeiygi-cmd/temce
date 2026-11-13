@@ -30,7 +30,7 @@ from jobs.definitions.gold_macro_jobs import (
 )
 from jobs.definitions.gold_options_jobs import GoldOptionIvSnapshotJob
 from jobs.definitions.options_normalize_job import OptionsNormalizeJob
-from jobs.definitions.housekeeping_jobs import CacheWarmupJob, DataRetentionJob, HealthCheckJob
+from jobs.definitions.housekeeping_jobs import CacheWarmupJob, DataRetentionJob, DatabaseRetentionJob, HealthCheckJob
 from jobs.definitions.macro_jobs import GoldPriceJob, MacroDataJob, MetalsPriceJob
 from jobs.definitions.market_data_jobs import HistoricalDataJob, QuoteIngestionJob, RealtimeQuoteJob
 from jobs.definitions.ml_jobs import BatchInferenceJob, MlArtifactLifecycleJob, ModelEvaluationJob, ModelTrainingJob

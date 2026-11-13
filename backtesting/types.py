@@ -33,6 +33,9 @@ class FillEvent:
     commission: float = 0.0
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     slippage: float = 0.0
+    # Net realized PnL for sell fills (populated by PositionManager.update).
+    # Zero for buy fills — profit is only realised on the closing leg.
+    net_pnl: float = 0.0
 
 
 @dataclass
