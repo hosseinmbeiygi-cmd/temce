@@ -29,7 +29,7 @@ class FundNavReconciliationJob(BaseJob):
         from services.fund_nav_engine import FundNavEngine
         from services.fund_nav_reconciliation import FundNavReconciliationService
 
-        limit = int(getattr(context, "fund_limit", DEFAULT_FUND_LIMIT) or DEFAULT_FUND_LIMIT)
+        limit = int(context.get_param("fund_limit", DEFAULT_FUND_LIMIT) or DEFAULT_FUND_LIMIT)
         t0 = time.time()
         calculated = 0
         reconciled = 0

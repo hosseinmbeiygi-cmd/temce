@@ -115,6 +115,7 @@ __all__ = [
     "FeatureStoreBuildJob",
     "ScreenerDailyScoresJob",
     "DataRetentionJob",
+    "DatabaseRetentionJob",
     "CacheWarmupJob",
     "HealthCheckJob",
 ]

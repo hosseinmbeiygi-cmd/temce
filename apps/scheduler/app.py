@@ -255,6 +255,32 @@ class SchedulerApp:
             replace_existing=True,
         )
 
+        # ── DB table retention: trim job_runs / audit_logs / provider_health ──
+        # Tables that only ever receive INSERTs grow unbounded without this job
+        # (audit finding: unbounded growth). Runs nightly at 3:15 AM, after the
+        # backfill job (2:00 AM), well away from the morning market open.
+        self.add_job(
+            "DatabaseRetentionJob",
+            trigger="cron",
+            hour=3,
+            minute=15,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── ML artifact lifecycle: prune stale model files ────────────────
+        # Keeps 3 latest per algorithm, removes artifacts older than 90 days.
+        # Weekly Sunday at 4 AM — low-traffic, well away from nightly rebuilds.
+        self.add_job(
+            "MlArtifactLifecycleJob",
+            trigger="cron",
+            day_of_week="sun",
+            hour=4,
+            minute=0,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         # ── BrsApi key-readiness probe (hourly) ─────────────────────────
         # 1 request/hour (24/day — negligible vs the 4,000/day cap). While
         # the key is blocked (BRSAPI_ENABLED=false, DB-only mode) this
