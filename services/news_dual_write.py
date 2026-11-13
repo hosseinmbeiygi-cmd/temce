@@ -23,9 +23,11 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 from core.database import AsyncSession, text
+from core.dbcompat import naive_utc
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -117,6 +119,7 @@ class NewsDualWriter:
                 {"name": source},
             )
 
+        _pub = naive_utc(published_at) if isinstance(published_at, datetime) else published_at
         inserted = await session.execute(
             text(
                 "INSERT INTO news_items "
@@ -130,7 +133,7 @@ class NewsDualWriter:
                 "body": body,
                 "source": source,
                 "url": url,
-                "published_at": published_at,
+                "published_at": _pub,
                 "category": category or None,
                 "is_breaking": is_breaking,
                 "dedup_hash": dedup_hash,
