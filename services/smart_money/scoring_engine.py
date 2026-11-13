@@ -70,8 +70,10 @@ class ScoringEngine:
         from services.screener_service import ScreenerPipeline, SmartScreenerService
         ScreenerPipeline._score_cache.clear()
         SmartScreenerService._prebuilt_cache.clear()
-        import apps.api.endpoints.screener_v2 as _sv2
-        _sv2._CACHE.clear()
+        import sys as _sys
+        _sv2_mod = _sys.modules.get("apps.api.endpoints.screener_v2")
+        if _sv2_mod is not None:
+            _sv2_mod._CACHE.clear()
 
     def analyze(
         self,
