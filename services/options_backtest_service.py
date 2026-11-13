@@ -13,7 +13,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+from core.trading_constants import CALENDAR_DAYS_PER_YEAR as _CDAYS, TRADING_DAYS_PER_YEAR_GLOBAL
 from domain.options.pricing import black_scholes_call
 from domain.trading import iran_costs as _costs
 
@@ -169,7 +169,7 @@ class OptionsBacktestService:
         """Execute the strategy over `bars` and return the full report."""
         closes = [b.close for b in bars]
         dates = [b.date for b in bars]
-        t_years = self._dte / 365.0
+        t_years = self._dte / _CDAYS
 
         trades: list[OptionTrade] = []
         equity = [self._capital]
@@ -192,7 +192,7 @@ class OptionsBacktestService:
             exit_idx = i + self._dte
             exit_value = max(closes[exit_idx] - s, 0.0) * self._size
             for j in range(i + 1, i + self._dte):
-                t_rem = max((i + self._dte - j) / 365.0, 1e-6)
+                t_rem = max((i + self._dte - j) / _CDAYS, 1e-6)
                 theo = black_scholes_call(closes[j], s, t_rem, self._r, self._sigma) * self._size
                 if theo <= stop_level:
                     exit_reason, exit_idx, exit_value = "stop", j, max(theo, 0.0)

@@ -24,6 +24,7 @@ from logging import getLogger
 import numpy as np
 from scipy import integrate
 
+from core.trading_constants import CALENDAR_DAYS_PER_YEAR as _CDAYS
 from domain.options.pricing import OptionPrice
 
 logger = getLogger(__name__)
@@ -141,8 +142,8 @@ def heston_price(params: HestonParams) -> OptionPrice:
     p_vdn = _heston_call_price_semi_closed(params_vdn)
     vega = float((p_vup - p_vdn) / (2 * h_vol) / 100.0)  # Per 1% vol change
 
-    # Theta (forward difference)
-    h_t = 1 / 365.0
+    # Theta (forward difference, per calendar day)
+    h_t = 1 / _CDAYS
     if h_t < params.T:
         params_tdn = HestonParams(**{**params.__dict__, "T": params.T - h_t})
         p_tdn = _heston_call_price_semi_closed(params_tdn)
