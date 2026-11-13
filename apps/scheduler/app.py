@@ -355,6 +355,20 @@ class SchedulerApp:
             replace_existing=True,
         )
 
+        # ── Monitoring snapshot: data_freshness + market_data_quality_events (F6) ──
+        # Runs at 02:30 after the nightly backfill (02:00). Writes freshness
+        # watermarks for all major tables, emits staleness events, and evaluates
+        # any pending signal_performance rows so signal_weight_accuracy stays
+        # up-to-date.
+        self.add_job(
+            "MonitoringSnapshotJob",
+            trigger="cron",
+            hour=2,
+            minute=30,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         # ── Normalize raw options into canonical schema (OF6) ─────────────────
         # Runs after BrsApiOptionsJob (18:50) so that today's raw data is
         # already present before the upsert into option_contracts / option_snapshots.

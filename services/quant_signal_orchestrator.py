@@ -1819,6 +1819,24 @@ class QuantSignalOrchestrator:
 
                 if inserted > 0:
                     await session.commit()
+                    # F6: also record into signal_performance for the feedback
+                    # weight-accuracy loop (SignalPerformanceTracker private table)
+                    try:
+                        from services.signal_performance_tracker import SignalPerformanceTracker
+                        tracker = SignalPerformanceTracker(session=session)
+                        await tracker.ensure_tables()
+                        for sig in signals:
+                            if sig.direction not in ("hold", "wait"):
+                                await tracker.record_signal(
+                                    signal_id=new_id("spf"),
+                                    symbol=sig.symbol,
+                                    direction=sig.direction,
+                                    entry_price=sig.price,
+                                    source=sig.source or "quant",
+                                )
+                        await session.commit()
+                    except Exception as sp_err:
+                        logger.debug("signal_performance record failed: %s", sp_err)
                 if inserted < len(signals):
                     logger.info("Persisted %d new pending signals (%d already pending / hold skipped)", inserted, len(signals) - inserted)
                 else:

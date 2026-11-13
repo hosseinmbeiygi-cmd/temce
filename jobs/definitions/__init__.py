@@ -29,6 +29,7 @@ from jobs.definitions.gold_macro_jobs import (
     GoldTokenizedGoldSyncJob,
 )
 from jobs.definitions.gold_options_jobs import GoldOptionIvSnapshotJob
+from jobs.definitions.monitoring_snapshot_job import MonitoringSnapshotJob
 from jobs.definitions.options_normalize_job import OptionsNormalizeJob
 from jobs.definitions.housekeeping_jobs import CacheWarmupJob, DataRetentionJob, DatabaseRetentionJob, HealthCheckJob
 from jobs.definitions.macro_jobs import GoldPriceJob, MacroDataJob, MetalsPriceJob
@@ -118,4 +119,5 @@ __all__ = [
     "DatabaseRetentionJob",
     "CacheWarmupJob",
     "HealthCheckJob",
+    "MonitoringSnapshotJob",
 ]
