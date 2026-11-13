@@ -38,9 +38,15 @@ def _sig():
 
 def test_e2e_decision_with_real_history_lengths():
     orch = QuantSignalOrchestrator(session=None)
+    # Provide volume history so the liquidity gate scores >= 0.50 (minimum_score).
+    # Without volumes the score degrades to 0.30 and the gate blocks the signal.
+    volumes = [1_000_000.0] * 60
+    history_map = {"E2E": {"volumes": volumes}}
     with _approved_empty_portfolio():
         released, rejected = asyncio.run(
-            orch._apply_signal_decision([_sig()], history_lengths={"E2E": 60})
+            orch._apply_signal_decision(
+                [_sig()], history_lengths={"E2E": 60}, history_map=history_map
+            )
         )
     assert len(released) > 0, "valid sample data must release at least one signal"
     assert len(released) + len(rejected) == 1

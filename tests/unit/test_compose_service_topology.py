@@ -30,16 +30,16 @@ def services() -> dict:
 
 
 def test_backend_builds_the_api_image(services: dict) -> None:
-    build = services["backend"]["build"]
+    build = services["api"]["build"]
 
     assert build["dockerfile"] == "Dockerfile.api", (
-        "backend must build Dockerfile.api; the root Dockerfile runs ingestion.main "
+        "api must build Dockerfile.api; the root Dockerfile runs ingestion.main "
         "and never binds port 8000"
     )
 
 
 def test_backend_publishes_the_api_port(services: dict) -> None:
-    assert "8000:8000" in services["backend"]["ports"]
+    assert "8000:8000" in services["api"]["ports"]
 
 
 def test_api_image_runs_uvicorn_on_the_published_port() -> None:
@@ -61,14 +61,14 @@ def test_ingestion_entrypoint_keeps_its_own_service(services: dict) -> None:
 
 def test_dead_ingestion_env_is_not_left_on_the_api_service(services: dict) -> None:
     """The API never imports ``ingestion``; those vars only belong to the engine."""
-    environment = " ".join(services["backend"]["environment"])
+    environment = " ".join(services["api"]["environment"])
 
     assert "INGESTION_DB_DSN" not in environment
     assert "INGESTION_REDIS_URL" not in environment
 
 
 def test_build_dockerfiles_exist_for_the_api_and_ingestion(services: dict) -> None:
-    for name in ("backend", "ingestion"):
+    for name in ("api", "ingestion"):
         build = services[name]["build"]
         context = ROOT / build.get("context", ".")
         assert (context / build["dockerfile"]).is_file(), f"{name}: missing {build['dockerfile']}"
