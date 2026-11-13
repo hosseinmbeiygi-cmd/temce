@@ -141,13 +141,13 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
         price = S * nd1 - K * math.exp(-r * T) * nd2
         delta = nd1
         theta = (-S * npdf_d1 * sigma / (2 * math.sqrt(T))
-                 - r * K * math.exp(-r * T) * nd2) / _CDAYS
+                 - r * K * math.exp(-r * T) * nd2) / _TDAYS
         intrinsic = max(0.0, S - K)
     else:
         price = K * math.exp(-r * T) * stats.norm.cdf(-d2) - S * stats.norm.cdf(-d1)
         delta = nd1 - 1
         theta = (-S * npdf_d1 * sigma / (2 * math.sqrt(T))
-                 + r * K * math.exp(-r * T) * stats.norm.cdf(-d2)) / _CDAYS
+                 + r * K * math.exp(-r * T) * stats.norm.cdf(-d2)) / _TDAYS
         intrinsic = max(0.0, K - S)
 
     # Guard against near-zero sigma*sqrt(T) that would produce inf gamma

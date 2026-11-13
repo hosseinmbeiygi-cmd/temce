@@ -2011,13 +2011,16 @@ class QuantSignalOrchestrator:
                             stop_loss=stop_est,
                         )
 
-                        # Update the row with outcome data
+                        # Update the row with outcome data (F4: include hit_target/stopped_out)
                         stmt = text("""
                             UPDATE signal_accuracy
                             SET actual_return_pct = :actual_return_pct,
                                 direction_correct = :direction_correct,
                                 max_profit_pct = :max_profit_pct,
                                 max_loss_pct = :max_loss_pct,
+                                hit_target1 = :hit_target1,
+                                hit_target2 = :hit_target2,
+                                stopped_out = :stopped_out,
                                 entry_price = :entry_price,
                                 exit_price = :exit_price,
                                 outcome_set_at = :outcome_set_at
@@ -2029,6 +2032,9 @@ class QuantSignalOrchestrator:
                             "direction_correct": outcome.direction_correct,
                             "max_profit_pct": outcome.max_profit_pct,
                             "max_loss_pct": outcome.max_loss_pct,
+                            "hit_target1": outcome.hit_target1,
+                            "hit_target2": outcome.hit_target2,
+                            "stopped_out": outcome.stopped_out,
                             "entry_price": entry_price,
                             "exit_price": exit_price,
                             "outcome_set_at": datetime.now(UTC).replace(tzinfo=None),

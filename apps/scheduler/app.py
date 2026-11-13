@@ -244,6 +244,17 @@ class SchedulerApp:
             replace_existing=True,
         )
 
+        # ── Screener 110-column model: buy signal generation (every 2 min) ──
+        # The job class exists and is exported but was never registered here,
+        # so the buy-signal model never ran automatically (audit SCH-110).
+        self.add_job(
+            "Screener110RunCycleJob",
+            trigger="interval",
+            minutes=2,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         # ── BrsApi key-readiness probe (hourly) ─────────────────────────
         # 1 request/hour (24/day — negligible vs the 4,000/day cap). While
         # the key is blocked (BRSAPI_ENABLED=false, DB-only mode) this
