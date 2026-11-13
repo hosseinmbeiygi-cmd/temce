@@ -84,14 +84,19 @@ class NewsDualWriter:
         # Dedup fast-path: same content identity already mirrored, or this
         # legacy row is already linked (``legacy_article_id`` is UNIQUE — the
         # link the parity audit joins on; it used to never be written).
-        existing = await session.execute(
-            text(
+        # asyncpg cannot infer the type of a bare NULL parameter, so build the
+        # WHERE clause conditionally to avoid passing None as a typed column bind.
+        if legacy_article_id is not None:
+            dedup_sql = (
                 "SELECT id FROM news_items "
-                "WHERE dedup_hash = :h OR (:legacy_id IS NOT NULL AND legacy_article_id = :legacy_id) "
+                "WHERE dedup_hash = :h OR legacy_article_id = :legacy_id "
                 "LIMIT 1"
-            ),
-            {"h": dedup_hash, "legacy_id": legacy_article_id},
-        )
+            )
+            dedup_params: dict = {"h": dedup_hash, "legacy_id": legacy_article_id}
+        else:
+            dedup_sql = "SELECT id FROM news_items WHERE dedup_hash = :h LIMIT 1"
+            dedup_params = {"h": dedup_hash}
+        existing = await session.execute(text(dedup_sql), dedup_params)
         row = existing.scalar_one_or_none()
         if row is not None:
             # Traceable skip: the article is already mirrored under this
