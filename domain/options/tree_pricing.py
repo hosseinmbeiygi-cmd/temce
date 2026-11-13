@@ -25,6 +25,7 @@ from enum import Enum
 
 import numpy as np
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 from domain.options.pricing import PRICING_MODEL_BINOMIAL, OptionPrice
 
 #: Charter floor for volatility (منشور: σ ≥ 1e-4)
@@ -223,7 +224,7 @@ def binomial_tree_price(params: TreeOptionParams, *, _compute_theta: bool = True
         price=price,
         delta=delta,
         gamma=gamma,
-        theta=theta_annual / 365.0,  # Per calendar day
+        theta=theta_annual / _TDAYS,  # Per trading day (TSE)
         vega=0.0,  # Would need tree re-computation
         rho=0.0,
         intrinsic_value=intrinsic,

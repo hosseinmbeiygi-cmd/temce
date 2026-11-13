@@ -24,7 +24,7 @@ from logging import getLogger
 import numpy as np
 from scipy import integrate
 
-from core.trading_constants import CALENDAR_DAYS_PER_YEAR as _CDAYS
+from core.trading_constants import CALENDAR_DAYS_PER_YEAR as _CDAYS, TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 from domain.options.pricing import OptionPrice
 
 logger = getLogger(__name__)
@@ -147,7 +147,7 @@ def heston_price(params: HestonParams) -> OptionPrice:
     if h_t < params.T:
         params_tdn = HestonParams(**{**params.__dict__, "T": params.T - h_t})
         p_tdn = _heston_call_price_semi_closed(params_tdn)
-        theta = float((p_tdn - price) / h_t / 365.0)  # Per calendar day
+        theta = float((p_tdn - price) / h_t / _TDAYS)  # Per trading day (TSE)
     else:
         theta = 0.0
 

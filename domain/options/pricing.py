@@ -6,7 +6,7 @@ from typing import Any
 
 from scipy import stats
 
-from core.trading_constants import CALENDAR_DAYS_PER_YEAR as _CDAYS
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 
 PRICING_MODEL_BLACK_SCHOLES = "black_scholes"
 PRICING_MODEL_BINOMIAL = "binomial"
@@ -116,7 +116,7 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
 
     Returns:
         OptionPrice dataclass with price, Greeks, and intrinsic/time values.
-        Theta is per calendar day. Vega is per 1%% vol change. Rho is per 1%% rate change.
+        Theta is per trading day (TSE: 250 days/yr). Vega is per 1%% vol change. Rho is per 1%% rate change.
     """
     degenerate = T <= 0 or sigma <= 0 or S <= 0 or K <= 0
     if not degenerate:

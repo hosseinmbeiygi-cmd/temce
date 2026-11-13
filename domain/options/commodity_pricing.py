@@ -19,6 +19,7 @@ from typing import Any
 from scipy import stats
 from scipy.optimize import brentq
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_IME as _IDAYS
 from domain.options.pricing import PRICING_MODEL_BLACK_SCHOLES, OptionPrice
 
 
@@ -275,7 +276,7 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
         price=price,
         delta=delta,
         gamma=gamma,
-        theta=theta_annual / 365.0,
+        theta=theta_annual / _IDAYS,
         vega=vega,
         rho=rho,
         intrinsic_value=intrinsic,
@@ -436,7 +437,7 @@ def price_displaced_diffusion(
         price=price,
         delta=delta,
         gamma=gamma,
-        theta=theta_annual / 365.0,
+        theta=theta_annual / _IDAYS,
         vega=vega,
         rho=rho,
         implied_vol=sigma,

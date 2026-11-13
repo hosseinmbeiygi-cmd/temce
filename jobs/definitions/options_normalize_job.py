@@ -17,7 +17,7 @@ OptionsNormalizeJob).
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 
@@ -41,7 +41,7 @@ class OptionsNormalizeJob(BaseJob):
 
 
 async def _normalize(session) -> JobResult:
-    today = date.today().isoformat()
+    today = datetime.now(timezone.utc).date().isoformat()
 
     # ── 1. Upsert option_contracts ────────────────────────────────────────────
     # Latest snapshot per symbol gives the most up-to-date contract metadata.
