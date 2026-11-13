@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تحلیل عمیق و جامع زیرسیستم آپشن — TEMCE</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --bg: #f8fafc; --card: #ffffff; --border: #e2e8f0;
+    --text: #1e293b; --muted: #64748b; --accent: #2563eb;
+    --red: #dc2626; --orange: #ea580c; --yellow: #ca8a04; --green: #16a34a; --blue: #2563eb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; font-size: 15px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 28px; margin-bottom: 8px; color: var(--text); }
+  h2 { font-size: 22px; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); color: var(--accent); }
+  h3 { font-size: 18px; margin: 20px 0 10px; }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th { text-align: right; padding: 8px 12px; background: #f1f5f9; border-bottom: 2px solid var(--border); font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  td.num { text-align: left; font-family: 'Consolas', monospace; direction: ltr; }
+  td.small { font-size: 12px; color: var(--muted); }
+  .chart { width: 100%; height: 320px; }
+  .chartfallback { padding: 40px; text-align: center; color: var(--muted); background: #f1f5f9; border-radius: 6px; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .v-pass { background: #dcfce7; color: #166534; }
+  .v-partial { background: #fef3c7; color: #92400e; }
+  .v-fail { background: #fee2e2; color: #991b1b; }
+  .s-crit { background: #fee2e2; color: #991b1b; }
+  .s-high { background: #fed7aa; color: #9a3412; }
+  .s-med { background: #fef3c7; color: #92400e; }
+  .s-low { background: #dbeafe; color: #1e40af; }
+  .finding { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 14px; border-right: 4px solid var(--accent); }
+  .finding.s-crit { border-right-color: var(--red); }
+  .finding.s-high { border-right-color: var(--orange); }
+  .finding.s-med { border-right-color: var(--yellow); }
+  .finding.s-low { border-right-color: var(--blue); }
+  .f-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .f-id { font-family: monospace; font-weight: 700; color: var(--muted); font-size: 13px; }
+  .f-title { font-weight: 600; font-size: 15px; }
+  .f-desc { margin-bottom: 8px; font-size: 14px; }
+  .f-fix { font-size: 13px; color: var(--muted); }
+  .kpi { text-align: center; padding: 16px; }
+  .kpi .val { font-size: 28px; font-weight: 700; font-family: 'Consolas', monospace; }
+  .kpi .lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .verdict-box { padding: 16px; border-radius: 8px; text-align: center; font-size: 18px; font-weight: 700; margin: 16px 0; }
+  .disclaimer { font-size: 12px; color: var(--muted); padding: 12px; background: #f1f5f9; border-radius: 6px; margin-top: 24px; }
+  code { font-family: 'Consolas', 'Courier New', monospace; background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-size: 13px; direction: ltr; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>تحلیل عمیق و جامع زیرسیستم آپشن</h1>
+<p class="meta">
+  پروژه TEMCE · تولید: 2026-11-12 22:46 UTC · منبع: PostgreSQL زنده + کد منبع + ۱۵ راستی‌آزمایی عددی مستقل<br>
+  داده‌ها از <code>options_db_metrics.json</code> و <code>options_math_metrics.json</code> — بدون عدد دست‌نویس
+</p>
+
+<div class="verdict-box" style="background: #fef3c7; color: #92400e;">
+  امتیاز کلی زیرسیستم آپشن: ۶/۱۰ — هسته ریاضی صحیح است ولی ۳ باگ CRITICAL، ۵ خانواده schema موازی، و داده‌های ناقص
+</div>
+
+<div class="card">
+  <h2>خلاصه اجرایی</h2>
+  <div class="grid3">
+    <div class="kpi"><div class="val" style="color:var(--red)">3</div><div class="lbl">CRITICAL</div></div>
+    <div class="kpi"><div class="val" style="color:var(--orange)">4</div><div class="lbl">HIGH</div></div>
+    <div class="kpi"><div class="val" style="color:var(--yellow)">5</div><div class="lbl">MEDIUM</div></div>
+  </div>
+  <p style="margin-top:12px; text-align:center;">
+    15 یافته کل ·
+    CRITICAL: 3 · HIGH: 4 · MEDIUM: 5 · LOW: 3 ·
+    ۴۱۵ تست عبور · ۰ شکست
+  </p>
+</div>
+
+<h2>۱. نقشه زیرسیستم آپشن</h2>
+<div class="card">
+  <p>زیرسیستم آپشن در ۵ لایه سازماندهی شده است:</p>
+  <table>
+    <tr><th>لایه</th><th>فایلها/ماژولها</th><th>وضعیت</th></tr>
+    <tr><td>Domain (هسته ریاضی)</td><td><code>domain/options/</code> — ۱۸ ماژول: pricing, greeks, monte_carlo, tree_pricing, heston_model, commodity_pricing, probability, higher_order_greeks, var_calculator, margin_engine, volatility, payoff, entities, rules, symbol_parser, strategy_engine, cointegration, signals</td><td>تکمیلPartial</td></tr>
+    <tr><td>Services</td><td><code>services/options_service.py</code> (۱۱۵۲ خط)، <code>options_analytics.py</code>، <code>options_signals.py</code>، <code>options_ml_service.py</code>، <code>options_backtest_service.py</code>، <code>options_reference.py</code>، <code>services/gold/options_chain.py</code>، <code>options_chain_service.py</code>، <code>options_matrix.py</code></td><td>متصل ولی دارای تکرار</td></tr>
+    <tr><td>API</td><td><code>apps/api/endpoints/options.py</code> (۷۲۳ خط، ۳۰ مسیر)، <code>options_frontend.py</code>، <code>options_strategy.py</code> (۱۰ مسیر)</td><td>نیمه‌متصل</td></tr>
+    <tr><td>Models/DB</td><td>۵ خانواده schema: legacy <code>options</code>، <code>commodity_options</code>، <code>brsapi_option_snapshots</code>، <code>brsapi_ime_options</code>، و normalized <code>option_contracts/snapshots/trades</code> + <code>gold_option_iv_history</code></td><td>موازی و ناقابل‌یکپارچه</td></tr>
+    <tr><td>Frontend</td><td>۳ صفحه + ۷ پنل legacy + <code>options-api.ts</code></td><td>نیمه‌فعال</td></tr>
+    <tr><td>Tests</td><td>۲۴ فایل در <code>tests/unit/options/</code> + ۶ فایل در services/jobs = ۳۷۷ تابع تست</td><td>۴۱۵ تست عبور</td></tr>
+  </table>
+</div>
+
+<h2>۲. ممیزی عددی پایگاه داده</h2>
+<div class="grid2">
+  <div class="card"><div id="chart_db" class="chart"></div></div>
+  <div class="card"><div id="chart_cp" class="chart"></div></div>
+</div>
+
+<div class="card">
+  <table>
+    <tr><th>جدول</th><th>نام</th><th>ردیف</th><th>symbol/underlying</th><th>اولین رکورد</th><th>آخرین رکورد</th></tr>
+    <tr><td>BRS API snapshots</td><td><code>brsapi_option_snapshots</code></td><td class='num'>1,281,678</td><td class='num'>3498</td><td class='num'>2026-07-15 11:23:09.561305</td><td class='num'>2026-11-10 19:34:03.177277</td></tr>
+<tr><td>BRS IME options</td><td><code>brsapi_ime_options</code></td><td class='num'>136,163</td><td class='num'>—</td><td class='num'>2026-07-15 11:12:42.547112</td><td class='num'>2026-11-10 19:34:00.473612</td></tr>
+<tr><td>Legacy options</td><td><code>options</code></td><td class='num'>3,225</td><td class='num'>1075</td><td class='num'>2026-07-14 18:28:07.656964+03:30</td><td class='num'>2026-07-14 18:48:11.565576+03:30</td></tr>
+<tr><td>Commodity options</td><td><code>commodity_options</code></td><td class='num'>476</td><td class='num'>238</td><td class='num'>2026-07-14 18:40:37.650343+03:30</td><td class='num'>2026-07-14 18:48:12.534337+03:30</td></tr>
+<tr><td>Normalized contracts</td><td><code>option_contracts</code></td><td class='num'>0</td><td class='num'>—</td><td class='num'>—</td><td class='num'>—</td></tr>
+<tr><td>Normalized snapshots</td><td><code>option_snapshots</code></td><td class='num'>0</td><td class='num'>—</td><td class='num'>—</td><td class='num'>—</td></tr>
+<tr><td>Normalized trades</td><td><code>option_trades</code></td><td class='num'>0</td><td class='num'>—</td><td class='num'>—</td><td class='num'>—</td></tr>
+<tr><td>Gold IV history</td><td><code>gold_option_iv_history</code></td><td class='num'>0</td><td class='num'>—</td><td class='num'>—</td><td class='num'>—</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>یافته‌های کلیدی DB</h3>
+  <ul>
+    <li><strong>جداول نرمال‌شده کاملاً خالی:</strong> option_contracts، option_snapshots، option_trades، gold_option_iv_history همگی صفر ردیف — هیچ writerی وجود ندارد</li>
+    <li><strong>26.8٪ زیر ارزش ذاتی:</strong> از 25,840 نمونه، 6,917 آپشن زیر ارزش ذاتی قیمت‌گذاری شده (نقض آربیتراژ)</li>
+    <li><strong>567,511 رکورد با OI صفر</strong> در brsapi_option_snapshots (44٪ از کل)</li>
+    <li><strong>830,679 رکورد با volume صفر</strong> (64٪)</li>
+    <li><strong>legacy options:</strong> ۳۲۲۵ ردیف، ۱۰۷۵ symbol، ولی strike/expiry برای همه null — داده ناقص</li>
+    <li><strong>expiry با رشته Jalali:</strong> date_end در brsapi از نوع VARCHAR(20) با تاریخ Jalali، بدون تبدیل به Gregorian</li>
+    <li><strong>max_days_to_expiry:</strong> 133 در BRS snapshots، 284 در IME</li>
+  </ul>
+</div>
+
+<h2>۳. راستی‌آزمایی ریاضی (۱۵ آزمون مستقل)</h2>
+<div class="grid2">
+  <div class="card"><div id="chart_sev" class="chart"></div></div>
+  <div class="card"><div id="chart_math" class="chart"></div></div>
+</div>
+
+<div class="card">
+  <table>
+    <tr><th>آزمون</th><th>نتیجه</th><th>جزئیات</th></tr>
+    <tr><td>Put-Call Parity</td><td><span class='badge v-pass'>PASS</span></td><td class='small'></td></tr>
+<tr><td>Greeks vs Finite Diff</td><td><span class='badge v-pass'>PASS</span></td><td class='small'></td></tr>
+<tr><td>Higher-Order Greeks</td><td><span class='badge v-partial'>?</span></td><td class='small'></td></tr>
+<tr><td>IV Round-Trip</td><td><span class='badge v-pass'>PASS</span></td><td class='small'></td></tr>
+<tr><td>Binomial Convergence</td><td><span class='badge v-pass'>PASS</span></td><td class='small'></td></tr>
+<tr><td>MC vs Closed Form</td><td><span class='badge v-pass'>PASS</span></td><td class='small'></td></tr>
+<tr><td>Black-76 Parity</td><td><span class='badge v-pass'>PASS</span></td><td class='small'></td></tr>
+<tr><td>Heston Pricing</td><td><span class='badge v-partial'>PARTIAL</span></td><td class='small'></td></tr>
+<tr><td>Prob. of Touch</td><td><span class='badge v-partial'>?</span></td><td class='small'></td></tr>
+<tr><td>Max Pain Correctness</td><td><span class='badge v-partial'>?</span></td><td class='small'></td></tr>
+<tr><td>VaR Units</td><td><span class='badge v-pass'>PASS</span></td><td class='small'></td></tr>
+<tr><td>Margin Engine</td><td><span class='badge v-partial'>?</span></td><td class='small'></td></tr>
+<tr><td>Symbol Parser FP</td><td><span class='badge v-partial'>?</span></td><td class='small'></td></tr>
+<tr><td>Validators</td><td><span class='badge v-fail'>NO_OP</span></td><td class='small'></td></tr>
+<tr><td>Day-Count Consistency</td><td><span class='badge v-partial'>?</span></td><td class='small'></td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>جزئیات آزمون‌های کلیدی</h3>
+  <table>
+    <tr><th>آزمون</th><th>ورودی</th><th>نتایج</th></tr>
+    <tr>
+      <td>Put-Call Parity (C1)</td>
+      <td>۲۷ نقطه (S, K, T, r, σ)</td>
+      <td>حداکثر residual: 2.27e-13 — <span class="badge v-pass">PASS</span></td>
+    </tr>
+    <tr>
+      <td>Greeks vs FD (C2)</td>
+      <td>S=1000, K=1000, T=0.25, r=0.15, σ=0.3</td>
+      <td>Δ: analytic=0.627409 vs FD=0.627276 (err=0.021٪) — <span class="badge v-pass">PASS</span></td>
+    </tr>
+    <tr>
+      <td>Heston (C8)</td>
+      <td>S=K=1000, T=0.5, σ_v=0.0001→0.1</td>
+      <td>BS=122.56 ولی Heston=0.0 در همه حالات — <span class="badge v-fail">PARTIAL/FAIL</span></td>
+    </tr>
+    <tr>
+      <td>Max Pain (C10)</td>
+      <td>۵ strike، call/put OI</td>
+      <td>صحیح=1000، domain=950 (اشتباه!)، options_service=1000 (به طور تصادفی) — <span class="badge v-partial">PARTIAL</span></td>
+    </tr>
+    <tr>
+      <td>Day-Count (C15)</td>
+      <td>θ و σ سالانه</td>
+      <td>اختلاف θ: 44.8٪، اختلاف vol: 20.4٪ — <span class="badge v-partial">PARTIAL</span></td>
+    </tr>
+  </table>
+</div>
+
+<h2>۴. پوشش cross-subsystem</h2>
+<div class="card">
+  <table>
+    <tr><th>زیرسیستم</th><th>ردیف آپشن</th><th>جزئیات</th></tr>
+    <tr><td>Signal Accuracy</td><td class='num'>2</td><td class='num'>2</td></tr>
+<tr><td>Signals</td><td class='num'>0</td><td class='num'>—</td></tr>
+<tr><td>Paper Trades</td><td class='num'>0</td><td class='num'>—</td></tr>
+<tr><td>Backtest Runs</td><td class='num'>0</td><td class='num'>—</td></tr>
+<tr><td>Quality Events</td><td class='num'>0</td><td class='num'>—</td></tr>
+  </table>
+  <p style="margin-top:8px;font-size:13px;color:var(--muted);">
+    تنها ۲ ردیف در signal_accuracy مربوط به آپشن است (direction_correct=۰٪، avg_return=-۱۸.۶۶٪)؛
+    هیچ سیگنال، paper trade، یا backtest آپشنی در DB وجود ندارد.
+  </p>
+</div>
+
+<h2>۵. یافته‌های تفصیلی (15 یافته)</h2>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-crit">CRITICAL</span>
+    <span class="f-id">OF1</span>
+    <span class="f-title">باگ کرش /predict: asdict سپس دسترسی به مشخصه</span>
+  </div>
+  <p class="f-desc">در options_frontend.py:211-218، خروجی asdict(svc.garch_forecast(...)) که یک dict است، سپس با data['vol_forecast'].realized_vol_annual بهصورت مشخصه شیء دسترسی میشود → AttributeError → HTTP 500. با sigma=0 (مجاز: Field(ge=0)) و log_returns غیرخالی این باگ فعال میشود. با sigma>0 کوتولهسازی or باعث میشود GARCH هیچوقت استفاده نشود (محاسبه مرده).</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> استفاده از data['vol_forecast']['realized_vol_annual'] بهجای دسترسی مشخصه‌ای</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-crit">CRITICAL</span>
+    <span class="f-id">OF2</span>
+    <span class="f-title">Max Pain اشتباه در API زنده</span>
+  </div>
+  <p class="f-desc">options_service.py:989-994 بهجای کمینهسازی پرداختی کل دارنده‌های آپشن، «strike با بیشترین OI تجمیعی» را برمی‌گرداند. این مقدار از طریق POST /professional/chain-analysis و GET /live/chain به کاربر عرضه میشود. پیادهسازی صحیح در services/gold/options_matrix.py:100-139 و services/options_ml_service.py:210-245 وجود دارد ولی متصل نیست.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> جایگزینی max_OI با الگوریتم کمینهسازی payout از options_matrix.py</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-crit">CRITICAL</span>
+    <span class="f-id">OF3</span>
+    <span class="f-title">heston_price همیشه 0.0 برمی‌گرداند</span>
+  </div>
+  <p class="f-desc">حتی برای پارامتر کلاسیک Heston (S=K=100, T=1, r=0.05, v0=0.04, κ=2, σ_v=0.3, ρ=-0.7) که قیمت BS=10.45 است، heston_price() مقدار 0.0 برمی‌گرداند. پاسخ نیمه‌بازه (semi-closed-form) قبل از clamp نیز منفی است. مشکل در محاسبه یا clamp شرکت پذیر است. هیچ فراخوانی تولیدی وجود ندارد — فقط تست.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> بررسی انتگرال‌گیری عددی و تابع مشخصه؛ احتمالاً مشکل علامت یا نرمال‌سازی</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-high">HIGH</span>
+    <span class="f-id">OF4</span>
+    <span class="f-title">۲۶.۸٪ نمونه آپشن‌های زنده زیر ارزش ذاتی قیمت‌گذاری شده</span>
+  </div>
+  <p class="f-desc">از 25,840 نمونه TABLESAMPLE از brsapi_option_snapshots، 6,917 (26.8٪) زیر ارزش ذاتی هستند. این نقض آربیتراژ است و می‌تواند ناشی از داده کهنه، قیمتهای نقدی صفر، یا تاخیر در بسته شدن روز باشد.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> فیلتر کردن رکوردهای با قیمت < max(0, intrinsic) در لایه داده</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-high">HIGH</span>
+    <span class="f-id">OF5</span>
+    <span class="f-title">ناسازگاری day-count: ۳۶۵ تقویمی vs ۲۵۲ معاملاتی</span>
+  </div>
+  <p class="f-desc">theta در pricing.py به /365.0 تقسیم میشود (روز تقویمی)؛ var_calculator.py در Monte Carlo با /252 سالانه می‌کند. اختلاف theta: 44.8٪؛ اختلاف نوسان سالانه: 20.4٪. options_backtest_service.py با T/365.0 قیمت می‌دهد ولی Sharpe را sqrt(252) سالانه می‌کند.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> استانداردسازی روی یک day-count با مستندسازی صریح</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-high">HIGH</span>
+    <span class="f-id">OF6</span>
+    <span class="f-title">پنج خانواده schema موازی، خانواده نرمال‌شده کاملاً خالی</span>
+  </div>
+  <p class="f-desc">پنج خانواده جدول آپشن وجود دارد: legacy options(3225)، commodity_options(476)، brsapi_option_snapshots(1281678)، brsapi_ime_options(136163)، و option_contracts/snapshots/trades که همگی صفر ردیف هستند. هیچ سرویس یا jobی برای پر کردن جداول نرمال‌شده وجود ندارد. gold_option_iv_history نیز با وجود GoldOptionIvSnapshotJob که ثبت و زمان‌بندی شده، خالی است زیرا IV به ندرت همگرا میشود (نیاز به join رشته Jalali date_end).</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> نوشتن mapper از brsapi به option_contracts + اصلاح join تاریخ Jalali</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-high">HIGH</span>
+    <span class="f-id">OF7</span>
+    <span class="f-title">Greeks مرتبه بالاتر (vomma, charm) با مقیاس نادرست</span>
+  </div>
+  <p class="f-desc">vomma: خطای نسبی 9878٪ (scaling /100 نادرست است). charm: خطای نسبی 36600٪ (مقیاس روزانه vs سالانه). higher_order_greeks.py از /100.0 برای vega scaling استفاده می‌کند در حالی که pricing.py vega/rho را per-1% مستند می‌کند.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> همسان‌سازی مقیاس بین pricing.py و higher_order_greeks.py</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-med">MEDIUM</span>
+    <span class="f-id">OF8</span>
+    <span class="f-title">Symbol parser با false positive بالا</span>
+  </div>
+  <p class="f-desc">is_option_symbol فقط وجود token را بررسی می‌کند. ml_predictions: 15.8٪ false positive؛ paper_trades: 19.2٪؛ signal_accuracy: 16.5٪. علت: 'ت' (حرف فارسی) در _PUT_TOKENS است و در نام سهام عادی مثل «بتک»، «بترانس» دیده میشود.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> استفاده از regex کامل یا بررسی ساختار ticker (تاریخ + strike + نوع)</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-med">MEDIUM</span>
+    <span class="f-id">OF9</span>
+    <span class="f-title">اعتبارسنجی no-op: validate_expiration همیشه True</span>
+  </div>
+  <p class="f-desc">domain/options/rules.py:12-15 — validate_expiration() برای None، 'garbage'، و '2020-01-01' همگی True برمی‌گرداند. هیچ تستی برای این ماژول وجود ندارد. سایر validatorها (option_type, strike_price) درست کار می‌کنند.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> افزودن بررسی واقعی تاریخ اعتبار + تست</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-med">MEDIUM</span>
+    <span class="f-id">OF10</span>
+    <span class="f-title">خطای مسیر دوبل /api/v1 در صفحه بازار آپشن</span>
+  </div>
+  <p class="f-desc">markets/options-market/page.tsx:178,184 مسیرهای /api/v1/options/live/symbols را از طریق apiGet (که خود /api/v1 اضافه می‌کند) فراخوانی می‌کند → /api/v1/api/v1/options/... → 404 تضمینی.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> حذف /api/v1 پیشوند از مسیرهای فراخوانی در صفحه</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-med">MEDIUM</span>
+    <span class="f-id">OF11</span>
+    <span class="f-title"> بلعیدن استثنا و صفر خاموش در endpointها</span>
+  </div>
+  <p class="f-desc">options.py:126-127 bare except در /analyze؛ :178-179 vanna/charm = 0.0 در صورت خطا؛ :644-645 Black-76 theo/delta = 0.0. خطاها به کاربر منتقل نمیشوند و مقادیر صفر گمراهکننده عرضه میشود.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> لاگ کردن استثنا + بازگرداندن HTTP 422 یا پیام خطای صریح</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-med">MEDIUM</span>
+    <span class="f-id">OF12</span>
+    <span class="f-title">limit بدون کران در GET عمومی + raw SQL</span>
+  </div>
+  <p class="f-desc">options.py:431 live_options_chain(limit: int=50) بدون Query(ge/le)؛ :578 live_commodity_chain(limit: int=50). هر دو parameterized هستند (no injection) ولی در مسیر عمومی ناشناس بدون کرانه.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> Query(ge=1, le=500) برای محدودسازی</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-low">LOW</span>
+    <span class="f-id">OF13</span>
+    <span class="f-title">مقادیر hardcoded: نرخ ریسک‌فری، نوسان پیش‌فرض، اندازه قرارداد</span>
+  </div>
+  <p class="f-desc">نرخ: 0.15 (options_service.py:48)، 0.25 (options_backtest_service.py:119، options.py:577)، 0.0 (gold/*). نوسان: 0.35 (options_analytics.py)، 0.30 (options.py:576). اندازه قرارداد: 1000 در اکثر جاها ولی 1.0 در payoff.py:45. مقادیر نرخ باید از پیکربندی خوانده شوند.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> متمرکزسازی در config با مقدار پیش‌فرض مستند</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-low">LOW</span>
+    <span class="f-id">OF14</span>
+    <span class="f-title">پنل‌های legacy آپشن در فرانت‌اند بدون فراخواننده</span>
+  </div>
+  <p class="f-desc">۷ کامپوننت legacy (AnalyticsPanel, ForecastPanel, LearnPanel, LiveChainPanel, OptionsDashboard, ProfessionalTools, StrategyAnalyzer) توسط هیچ صفحهای ایمپورت نمیشوند. ~20 فراخوانی endpoint در آنها کد مرده است.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> حذف یا مهاجرت به صفحات فعال</p>
+</div>
+
+<div class="finding">
+  <div class="f-header">
+    <span class="badge s-low">LOW</span>
+    <span class="f-id">OF15</span>
+    <span class="f-title">م mismatch نام فیلد در AnalyticsPanel</span>
+  </div>
+  <p class="f-desc">AnalyticsPanel.tsx:185,189 از data.implied_volatility / data.historical_volatility می‌خواند ولی سرور average_iv / historical_vol برمی‌گرداند → کارت‌های IV/HV همیشه خالی.</p>
+  <p class="f-fix"><strong>اقدام اصلاحی:</strong> همسان‌سازی نام فیلدها یا استفاده از alias</p>
+</div>
+
+<h2>۶. کیفیت تست</h2>
+<div class="card">
+  <table>
+    <tr><th>معیار</th><th>مقدار</th></tr>
+    <tr><td>فایل تست آپشن</td><td class="num">۳۰</td></tr>
+    <tr><td>توابع تست</td><td class="num">۳۷۷</td></tr>
+    <tr><td>تست‌های اجراشده</td><td class="num">۴۱۵</td></tr>
+    <tr><td>عبور</td><td class="num">۴۱۵</td></tr>
+    <tr><td>شکست</td><td class="num">۰</td></tr>
+    <tr><td>skip/xfail</td><td class="num">۰</td></tr>
+    <tr><td>تست Greeks vs finite-differences</td><td>وجود ندارد</td></tr>
+    <tr><td>تست در برابر PostgreSQL</td><td>وجود ندارد (SQLite mock فقط)</td></tr>
+    <tr><td>تست validate_expiration</td><td>وجود ندارد</td></tr>
+  </table>
+  <p style="margin-top:8px;font-size:13px;color:var(--muted);">
+    تست‌ها عمدتاً finiteness و non-crash را بررسی می‌کنند. هیچ تستی Greeks را با finite-difference راستی‌آزمایی نمی‌کند.
+    پوشش numeric correctness جزئی است: put-call parity و IV round-trip تست شده، ولی higher-order Greeks و Heston نه.
+  </p>
+</div>
+
+<h2>۷. ادعاهای مستندات در برابر واقعیت</h2>
+<div class="card">
+  <table>
+    <tr><th>ادعا</th><th>منبع</th><th>وضعیت</th></tr>
+    <tr><td>options.py mounted، ۳۰ مسیر</td><td>router.py:540-556</td><td><span class="badge v-pass">CONFIRMED</span></td></tr>
+    <tr><td>Black-76 commodity pricing پیاده‌سازی شده</td><td>commodity_pricing.py</td><td><span class="badge v-pass">CONFIRMED</span></td></tr>
+    <tr><td>Longstaff-Schwartz LSM پیاده‌سازی شده</td><td>monte_carlo.py</td><td><span class="badge v-pass">CONFIRMED</span> (ولی فقط تست)</td></tr>
+    <tr><td>SABR sufficiency gate</td><td>volatility.py:80-105</td><td><span class="badge v-partial">PARTIAL</span> (gate فقط، calibration نه)</td></tr>
+    <tr><td>Heston calibration</td><td>heston_model.py:237-305</td><td><span class="badge v-partial">PARTIAL</span> (کد هست ولی price=0)</td></tr>
+    <tr><td>SABR calibration</td><td>—</td><td><span class="badge v-fail">REFUTED</span> (وجود ندارد)</td></tr>
+    <tr><td>Margin engine YAML-configurable</td><td>margin_engine.py</td><td><span class="badge v-fail">REFUTED</span> (hardcoded DEFAULT_CONFIG)</td></tr>
+    <tr><td>"all tests passing"</td><td>AUDIT_REPORTS/09_...</td><td><span class="badge v-partial">PARTIAL</span> (۴۱۵/۴۱۵ عبور ولی پوشش ناقص)</td></tr>
+    <tr><td>OPTIONS_MARKET_REPORT اعداد</td><td>OPTIONS_MARKET_REPORT.md</td><td><span class="badge v-fail">REFUTED</span> (کامل stale)</td></tr>
+    <tr><td>"options.py not mounted / 404"</td><td>CODEBASE_DISCOVERY_2026-09-16</td><td><span class="badge v-fail">REFUTED</span> (حالا mounted)</td></tr>
+    <tr><td>Monte Carlo QE method</td><td>OPTIONS_MARKET_REPORT.md:116</td><td><span class="badge v-fail">REFUTED</span> (Milstein+full truncation، نه QE)</td></tr>
+  </table>
+</div>
+
+<h2>۸. اقدامات اصلاحی اولویت‌بندی شده</h2>
+<div class="card">
+  <table>
+    <tr><th>اولویت</th><th>اقدام</th><th>یافته</th></tr>
+    <tr><td><span class="badge s-crit">P0</span></td><td>اصلاح باگ /predict (asdict → dict access)</td><td>OF1</td></tr>
+    <tr><td><span class="badge s-crit">P0</span></td><td>جایگزینی Max Pain اشتباه با پیادهسازی صحیح</td><td>OF2</td></tr>
+    <tr><td><span class="badge s-crit">P0</span></td><td>اصلاح heston_price (همیشه 0)</td><td>OF3</td></tr>
+    <tr><td><span class="badge s-high">P1</span></td><td>فیلتر زیر-ذاتی در داده آپشن زنده</td><td>OF4</td></tr>
+    <tr><td><span class="badge s-high">P1</span></td><td>استانداردسازی day-count</td><td>OF5</td></tr>
+    <tr><td><span class="badge s-high">P1</span></td><td>نوشتن mapper برای جداول نرمال‌شده</td><td>OF6</td></tr>
+    <tr><td><span class="badge s-high">P1</span></td><td>اصلاح مقیاس higher-order Greeks</td><td>OF7</td></tr>
+    <tr><td><span class="badge s-med">P2</span></td><td>بهبود symbol_parser</td><td>OF8</td></tr>
+    <tr><td><span class="badge s-med">P2</span></td><td>اصلاح validate_expiration</td><td>OF9</td></tr>
+    <tr><td><span class="badge s-med">P2</span></td><td>اصلاح مسیر دوبل /api/v1</td><td>OF10</td></tr>
+    <tr><td><span class="badge s-med">P2</span></td><td>متوقف کردن بلعیدن استثنا</td><td>OF11</td></tr>
+    <tr><td><span class="badge s-med">P2</span></td><td>کران‌دار کردن limit</td><td>OF12</td></tr>
+    <tr><td><span class="badge s-low">P3</span></td><td>متمرکزسازی hardcoded values</td><td>OF13</td></tr>
+    <tr><td><span class="badge s-low">P3</span></td><td>حذف پنل‌های legacy</td><td>OF14</td></tr>
+    <tr><td><span class="badge s-low">P3</span></td><td>اصلاح نام فیلد AnalyticsPanel</td><td>OF15</td></tr>
+  </table>
+</div>
+
+<h2>۹. محدودیت‌ها</h2>
+<div class="card">
+  <ul>
+    <li>معیارهای risk از TABLESAMPLE SYSTEM (2٪) استخراج شده‌اند، نه از کل جمعیت</li>
+    <li>بررسی no-arbitrage بر اساس last price است؛ bid-ask spread در دسترس نبود</li>
+    <li>تست‌های Cypress/E2E فرانت‌اند اجرا نشدند</li>
+    <li>GoldOptionIvSnapshotJob در محیط واقعی اجرا نشد (فقط لاگ تست بررسی شد)</li>
+    <li>پاسخ API در محیط زنده بررسی نشد — فقط کد استاتیک تحلیل شد</li>
+  </ul>
+</div>
+
+<div class="disclaimer">
+  <strong>سلب مسئولیت:</strong> این گزارش یک تحلیل فنی و مهندسی است و مشاوره سرمایه‌گذاری نیست.
+  ارقام از دیتابیس محلی پروژه در تاریخ ۱۲ نوامبر ۲۰۲۶ استخراج شده‌اند و ممکن است با محیط تولید تفاوت داشته باشند.
+  هیچ داده خارجی یا قیمت زنده بازار استفاده نشده است.
+</div>
+
+</div>
+<script>
+
+function mk(id, opt) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (typeof echarts === 'undefined') {
+    el.innerHTML = '<div class="chartfallback">کتابخانه ECharts از CDN بارگذاری نشد. ارقام در جداول زیرین موجود است.</div>';
+    return;
+  }
+  const ch = echarts.init(el);
+  ch.setOption(opt);
+  window.addEventListener('resize', function() { ch.resize(); });
+}
+
+// DB table row counts
+mk('chart_db', {
+  title: { text: 'تعداد ردیف جداول آپشن', left: 'center' },
+  tooltip: { trigger: 'axis' },
+  xAxis: { type: 'category', data: ['BRS Snap', 'BRS IME', 'Legacy', 'Commodity', 'Norm. Contracts', 'Norm. Snaps', 'Gold IV'], axisLabel: { rotate: 30 } },
+  yAxis: { type: 'log' },
+  series: [{ type: 'bar', data: [
+    1281678,
+    136163,
+    3225,
+    476,
+    0,
+    0,
+    0
+  ], itemStyle: { color: function(p) { return p.dataIndex < 2 ? '#2563eb' : p.dataIndex < 4 ? '#f59e0b' : '#ef4444'; } } }],
+  grid: { bottom: 80 }
+});
+
+// Calls vs Puts
+mk('chart_cp', {
+  title: { text: 'Call vs Put در brsapi_option_snapshots', left: 'center' },
+  tooltip: { trigger: 'item' },
+  series: [{
+    type: 'pie', radius: ['40%','70%'],
+    data: [
+      { value: 655279, name: 'Call' },
+      { value: 626399, name: 'Put' }
+    ]
+  }]
+});
+
+// Severity distribution
+mk('chart_sev', {
+  title: { text: 'توزیع شدت یافته‌ها', left: 'center' },
+  tooltip: { trigger: 'item' },
+  series: [{
+    type: 'pie', radius: '60%',
+    data: [
+      { value: 3, name: 'CRITICAL', itemStyle: {color:'#dc2626'} },
+      { value: 4, name: 'HIGH', itemStyle: {color:'#ea580c'} },
+      { value: 5, name: 'MEDIUM', itemStyle: {color:'#ca8a04'} },
+      { value: 3, name: 'LOW', itemStyle: {color:'#2563eb'} }
+    ]
+  }]
+});
+
+// Math validation results
+mk('chart_math', {
+  title: { text: 'نتیجه ۱۵ راستی‌آزمایی ریاضی', left: 'center' },
+  tooltip: { trigger: 'axis' },
+  xAxis: { type: 'category', data: ['C1','C2','C3','C4','C5','C6','C7','C8','C9','C10','C11','C12','C13','C14','C15'] },
+  yAxis: { type: 'category', data: ['FAIL','PARTIAL','PASS'] },
+  data: [],
+  visualMap: {
+    show: false, min: 0, max: 2,
+    inRange: { color: ['#dc2626','#f59e0b','#16a34a'] }
+  },
+  series: [{
+    type: 'heatmap',
+    data: [
+      [0,2,1],[1,2,1],[2,1,1],[3,2,1],[4,2,1],[5,2,1],[6,2,1],
+      [7,1,1],[8,2,1],[9,1,1],[10,2,1],[11,2,1],[12,1,1],[13,0,1],[14,1,1]
+    ],
+    label: { show: true, formatter: function(p) {
+      var v=['PASS','PASS','PARTIAL','PASS','PASS','PASS','PASS','PARTIAL','PASS','PARTIAL','PASS','PASS','PARTIAL','NO_OP','PARTIAL'];
+      return v[p.dataIndex];
+    }}
+  }],
+  grid: { top: 60, bottom: 40 }
+});
+
+</script>
+</body>
+</html>
