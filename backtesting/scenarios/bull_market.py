@@ -3,13 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 @dataclass
 class BullMarketScenario:
     name: str = "bull_market"
     avg_return_pct: float = 0.15
     volatility_pct: float = 0.02
-    duration_days: int = 252
+    duration_days: int = TRADING_DAYS_PER_YEAR_GLOBAL
 
     def apply(self, prices: list[float]) -> list[float]:
         import numpy as np
@@ -18,7 +20,7 @@ class BullMarketScenario:
             return []
         last = prices[-1]
         extended = list(prices)
-        daily_return = self.avg_return_pct / 252
+        daily_return = self.avg_return_pct / TRADING_DAYS_PER_YEAR_GLOBAL
         for _ in range(self.duration_days):
             ret = np.random.normal(daily_return, self.volatility_pct)
             last *= 1 + ret

@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 logger = get_logger(__name__)
 
@@ -180,7 +181,7 @@ class IncrementalIndicators:
         # --- Volatility ---
         if len(closes) >= 2:
             returns = np.diff(closes) / closes[:-1]
-            feat.volatility_20 = float(np.std(returns[-20:], ddof=1) * np.sqrt(252)) if len(returns) >= 2 else 0.0
+            feat.volatility_20 = float(np.std(returns[-20:], ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if len(returns) >= 2 else 0.0
 
         # --- Volume ---
         feat.volume_sma_20 = float(np.mean(volumes[-20:])) if len(volumes) > 0 else 0.0

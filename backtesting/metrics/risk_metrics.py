@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from backtesting.types import BacktestResult
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 
 class RiskMetrics:
@@ -14,13 +15,13 @@ class RiskMetrics:
             return {"volatility": 0.0, "sharpe_ratio": 0.0, "sortino_ratio": 0.0}
         returns = np.diff(navs) / navs[:-1]
         # BUG FIX #20: Use sample std (ddof=1) for financial return series
-        vol = float(np.std(returns, ddof=1) * np.sqrt(252)) if len(returns) > 1 else 0.0
+        vol = float(np.std(returns, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if len(returns) > 1 else 0.0
         metrics["volatility"] = vol
-        avg_ret = float(np.mean(returns)) * 252
+        avg_ret = float(np.mean(returns)) * TRADING_DAYS_PER_YEAR_GLOBAL
         excess_ret = avg_ret - risk_free_rate
         metrics["sharpe_ratio"] = excess_ret / vol if vol > 0 else 0.0
         downside = returns[returns < 0]
-        downside_vol = float(np.std(downside, ddof=1) * np.sqrt(252)) if len(downside) > 1 else 1.0
+        downside_vol = float(np.std(downside, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if len(downside) > 1 else 1.0
         metrics["sortino_ratio"] = avg_ret / downside_vol if downside_vol > 0 else 0.0
 
         # BT-H3: compute max_drawdown directly — avoids depending on result.metrics
@@ -41,7 +42,7 @@ class RiskMetrics:
         metrics["risk_free_return"] = risk_free_rate
 
         # BUG FIX #10: Omega ratio - clamp to avoid inf
-        threshold = risk_free_rate / 252
+        threshold = risk_free_rate / TRADING_DAYS_PER_YEAR_GLOBAL
         gains = float(np.sum(returns[returns > threshold] - threshold))
         losses = float(np.sum(threshold - returns[returns <= threshold]))
         metrics["omega_ratio"] = gains / losses if losses > 0 else 9999.0

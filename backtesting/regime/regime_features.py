@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 class MicrostructureFeatures:
     """Computes microstructure features for regime detection from market state."""
@@ -82,7 +84,7 @@ class MicrostructureFeatures:
 
         # Volatility
         if len(self._returns) >= 5:
-            features["realized_vol"] = float(np.std(self._returns) * np.sqrt(252 * 60))
+            features["realized_vol"] = float(np.std(self._returns) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL * 60))
             features["volatility_ratio"] = features["realized_vol"] / max(np.mean(list(self._returns)[:5]) + 0.001, 0.001)
         else:
             features["realized_vol"] = 0.0

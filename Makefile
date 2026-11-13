@@ -29,7 +29,7 @@ admin:
 	uvicorn apps.admin.app:admin_app --host 0.0.0.0 --port 8001
 
 worker:
-	python -m jobs.worker
+	python -m apps.worker
 
 # ── Run All Dev Servers ───────────
 dev-all:

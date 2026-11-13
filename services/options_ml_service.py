@@ -16,6 +16,8 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
+
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from numpy.typing import NDArray
 
 from domain.options.probability import expected_move as _analytic_move
@@ -137,7 +139,7 @@ class OptionsMLService:
             raise ValueError("horizon_days must be positive")
         long_var = float(np.var(rets))
         if n < 30 or long_var <= 0:
-            vol = math.sqrt(max(long_var, 0.0)) * math.sqrt(252.0)
+            vol = math.sqrt(max(long_var, 0.0)) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)
             return VolatilityForecast(vol, 0.0, 0.0, 0.0, vol, n)
 
         demeaned = rets - float(np.mean(rets))
@@ -165,8 +167,8 @@ class OptionsMLService:
             horizon_var += var
             var = omega + (alpha + beta) * var
         avg_daily = horizon_var / horizon_days
-        realized = math.sqrt(max(avg_daily, 0.0)) * math.sqrt(252.0)
-        uncond = math.sqrt(max(long_var, 0.0)) * math.sqrt(252.0)
+        realized = math.sqrt(max(avg_daily, 0.0)) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)
+        uncond = math.sqrt(max(long_var, 0.0)) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)
         return VolatilityForecast(realized, omega, alpha, beta, uncond, n)
 
     def touch_probabilities(

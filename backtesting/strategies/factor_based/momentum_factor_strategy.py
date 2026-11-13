@@ -5,11 +5,12 @@ from typing import Any
 from backtesting.strategies.base import BaseStrategy
 from backtesting.types import OrderEvent
 from core.ids import new_id
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from domain.common.enum_types import OrderSide, OrderType
 
 
 class MomentumFactorStrategy(BaseStrategy):
-    def __init__(self, short_lookback: int = 60, long_lookback: int = 252, instrument_id: str = "") -> None:
+    def __init__(self, short_lookback: int = 60, long_lookback: int = TRADING_DAYS_PER_YEAR_GLOBAL, instrument_id: str = "") -> None:
         super().__init__(name=f"MomentumFactor_{short_lookback}_{long_lookback}")
         self.short_lookback = short_lookback
         self.long_lookback = long_lookback

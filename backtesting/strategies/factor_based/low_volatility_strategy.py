@@ -5,6 +5,7 @@ from typing import Any
 from backtesting.strategies.base import BaseStrategy
 from backtesting.types import OrderEvent
 from core.ids import new_id
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from domain.common.enum_types import OrderSide, OrderType
 
 
@@ -32,7 +33,7 @@ class LowVolatilityStrategy(BaseStrategy):
             return []
         recent = self._returns[-self.lookback :]
         vol = statistics.stdev(recent) if len(recent) > 1 else 0.01
-        annual_vol = vol * (252**0.5)
+        annual_vol = vol * (TRADING_DAYS_PER_YEAR_GLOBAL**0.5)
         orders: list[OrderEvent] = []
         if annual_vol < 0.15 and self._position <= 0:
             orders.append(

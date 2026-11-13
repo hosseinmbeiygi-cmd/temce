@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from backtesting.types import BacktestResult
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 
 class ReturnMetrics:
@@ -16,7 +17,7 @@ class ReturnMetrics:
         metrics["total_return_pct"] = ((navs[-1] / navs[0]) - 1) * 100 if navs[0] > 0 else 0.0
         returns = np.diff(navs) / navs[:-1]
         metrics["avg_return"] = float(np.mean(returns)) if len(returns) > 0 else 0.0
-        metrics["avg_return_annual"] = float(np.mean(returns)) * 252 if len(returns) > 0 else 0.0
+        metrics["avg_return_annual"] = float(np.mean(returns)) * TRADING_DAYS_PER_YEAR_GLOBAL if len(returns) > 0 else 0.0
         metrics["cumulative_return"] = float(np.prod(1 + returns) - 1) if len(returns) > 0 else 0.0
         metrics["min_return"] = float(np.min(returns)) if len(returns) > 0 else 0.0
         metrics["max_return"] = float(np.max(returns)) if len(returns) > 0 else 0.0

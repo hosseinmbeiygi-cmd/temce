@@ -3,12 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 @dataclass
 class SidewayMarketScenario:
     name: str = "sideway_market"
     volatility_pct: float = 0.015
-    duration_days: int = 252
+    duration_days: int = TRADING_DAYS_PER_YEAR_GLOBAL
     mean_reversion_strength: float = 0.1
 
     def apply(self, prices: list[float]) -> list[float]:

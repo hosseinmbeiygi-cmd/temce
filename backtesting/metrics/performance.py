@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from backtesting.types import BacktestResult
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 
 class PerformanceMetrics:
@@ -18,8 +19,8 @@ class PerformanceMetrics:
         if len(navs) > 1:
             returns = np.diff(navs) / navs[:-1]
             # BT-M1: sample std (ddof=1) consistent with RiskMetrics
-            metrics["volatility"] = float(np.std(returns, ddof=1) * np.sqrt(252)) if len(returns) > 1 else 0.0
-            avg_return = float(np.mean(returns)) * 252 if len(returns) > 0 else 0.0
+            metrics["volatility"] = float(np.std(returns, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if len(returns) > 1 else 0.0
+            avg_return = float(np.mean(returns)) * TRADING_DAYS_PER_YEAR_GLOBAL if len(returns) > 0 else 0.0
             vol = metrics["volatility"]
             excess_return = avg_return - risk_free_rate
             metrics["sharpe_ratio"] = excess_return / vol if vol > 0 else 0.0

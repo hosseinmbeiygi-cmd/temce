@@ -1,3 +1,2 @@
-from apps.strategy_worker.app import StrategyWorkerApp
-
-__all__ = ["StrategyWorkerApp"]
+# Strategy worker is currently implemented in apps/worker/.
+# This package is reserved for a future dedicated strategy-execution process.

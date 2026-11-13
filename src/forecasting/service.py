@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from statistics import fmean, pstdev
 from typing import Any
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from src.features.fair_value import fair_value_gold_irr, premium_log
 
 MIN_HISTORY_POINTS = 20
@@ -53,7 +54,7 @@ def _round_price(x: float) -> float | int:
 
 
 def _quality_bands(sigma_daily: float) -> tuple[str, str]:
-    annual_vol_pct = sigma_daily * math.sqrt(252) * 100
+    annual_vol_pct = sigma_daily * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) * 100
     if annual_vol_pct < 20:
         return "low", "low"
     if annual_vol_pct < 45:
@@ -121,8 +122,8 @@ def project_from_closes(
         "method": "drift + volatility random-walk (real closes)",
         "mu_daily": round(mu, 6),
         "sigma_daily": round(sigma, 6),
-        "annualized_drift_pct": round((math.exp(mu * 252) - 1) * 100, 2),
-        "annualized_vol_pct": round(sigma * math.sqrt(252) * 100, 2),
+        "annualized_drift_pct": round((math.exp(mu * TRADING_DAYS_PER_YEAR_GLOBAL) - 1) * 100, 2),
+        "annualized_vol_pct": round(sigma * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) * 100, 2),
         "last_close": _round_price(base),
         "history_last_close": _round_price(clean[-2] if anchor is not None else clean[-1]),
         "anchor_used": anchor is not None,
