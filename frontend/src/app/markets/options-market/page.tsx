@@ -175,13 +175,13 @@ function StrategySection({ title, rows }: { title: string; rows: StrategyRow[] }
 export default function OptionsMarketPage() {
   const { data: liveSymbolsResp, isLoading: symLoading } = useQuery({
     queryKey: ["options", "live-symbols"],
-    queryFn: () => apiGet<{ success: boolean; data: LiveSymbol[] }>("/api/v1/options/live/symbols"),
+    queryFn: () => apiGet<{ success: boolean; data: LiveSymbol[] }>("/options/live/symbols"),
     refetchInterval: 30_000,
   });
 
   const { data: statsResp } = useQuery({
     queryKey: ["options", "iran-stats"],
-    queryFn: () => apiGet<{ success: boolean; data: IranOptionsStats }>("/api/v1/options/reference/stats"),
+    queryFn: () => apiGet<{ success: boolean; data: IranOptionsStats }>("/options/reference/stats"),
     staleTime: 300_000,
   });
 

@@ -3,8 +3,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
+
+from core.logging import get_logger
+
+logger = get_logger(__name__)
 
 from core.currency import rial_to_toman_float
 from schemas.api.options import PayoffCalculatorRequest
@@ -176,6 +180,7 @@ async def calculate_greeks(
         vanna_v = float(vanna(S, K, T, float(r), float(sigma)))
         charm_v = float(charm(S, K, T, float(r), float(sigma), option_type))
     except Exception:
+        logger.warning("Higher-order Greeks failed for S=%s K=%s T=%s", S, K, T, exc_info=True)
         vanna_v, charm_v = 0.0, 0.0
     return ApiResponse(success=True, data={
         "price": result.price,
@@ -428,7 +433,7 @@ async def trade_checklist(body: ChecklistRequest) -> ApiResponse[list[dict[str, 
 
 
 @router.get("/live/chain/{underlying}", summary="Live options chain from database")
-async def live_options_chain(underlying: str, limit: int = 50) -> ApiResponse[dict[str, Any]]:
+async def live_options_chain(underlying: str, limit: int = Query(default=50, ge=1, le=500)) -> ApiResponse[dict[str, Any]]:
     """Get live options chain data from brsapi_option_snapshots."""
     from sqlalchemy import text
 
@@ -582,7 +587,7 @@ async def live_commodity_chain(
     forward_price: float | None = None,
     iv: float = 0.30,
     rate: float = 0.25,
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=500),
 ) -> ApiResponse[dict[str, Any]]:
     """Options chain for an IME commodity (gold, saffron/ZR, …) from ``brsapi_ime_options``.
 
@@ -649,6 +654,7 @@ async def live_commodity_chain(
             theo = call_px if side == "call" else put_px
             delta = float(g.delta) if side == "call" else float(g.delta - 1.0)
         except Exception:
+            logger.warning("Black-76 pricing failed for strike=%s side=%s", k, side, exc_info=True)
             theo, delta = 0.0, 0.0
         return {
             "symbol": row[base], "type": side, "strike": k,

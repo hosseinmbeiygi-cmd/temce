@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 
 def validate_option_type(option_type: str) -> bool:
     return option_type.lower() in ("call", "put")
@@ -10,9 +12,19 @@ def validate_strike_price(strike: float) -> bool:
 
 
 def validate_expiration(expiration_date: str | None) -> bool:
-    if expiration_date is None:
-        return True
-    return True
+    """Return True only when expiration_date is a parseable date string."""
+    if expiration_date is None or not isinstance(expiration_date, str):
+        return False
+    value = expiration_date.strip()
+    if not value:
+        return False
+    for fmt in ("%Y-%m-%d", "%Y%m%d"):
+        try:
+            datetime.strptime(value, fmt)
+            return True
+        except ValueError:
+            continue
+    return False
 
 
 def is_itm_call(strike: float, underlying_price: float) -> bool:

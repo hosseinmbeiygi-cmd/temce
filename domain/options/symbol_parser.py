@@ -120,11 +120,20 @@ def parse_option_symbol(ticker: str) -> ParsedOptionSymbol:
 
 
 def is_option_symbol(ticker: str) -> bool:
-    """Cheap check used by ingestion pipelines to route rows."""
+    """Cheap check used by ingestion pipelines to route rows.
+
+    Requires at least one digit group after the type token so that ordinary
+    stock names containing 'ت' (e.g. بتک, بترانس) are not misclassified as
+    PUT options (audit OF8: 15-19% false-positive rate without this guard).
+    """
     if not ticker:
         return False
     cleaned = _fold(ticker)
-    return _split_type(cleaned) is not None
+    split = _split_type(cleaned)
+    if split is None:
+        return False
+    _, _, rest_start = split
+    return bool(re.search(r"\d", cleaned[rest_start:]))
 
 
 def parse_or_none(ticker: str) -> ParsedOptionSymbol | None:
