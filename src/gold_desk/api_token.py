@@ -27,15 +27,25 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
-from dotenv import load_dotenv
-
 from core.time import utc_now_naive
-
-load_dotenv()  # ensure .env is loaded before reading GOLD_API_TOKEN_SALT
 
 logger = logging.getLogger(__name__)
 
-salt_value = os.getenv("GOLD_API_TOKEN_SALT")
+
+def _read_salt() -> str:
+    """Read GOLD_API_TOKEN_SALT from env or .env file without polluting os.environ."""
+    s = os.getenv("GOLD_API_TOKEN_SALT")
+    if s:
+        return s
+    try:
+        from dotenv import dotenv_values
+        s = dotenv_values().get("GOLD_API_TOKEN_SALT", "") or ""
+    except Exception:
+        s = ""
+    return s
+
+
+salt_value = _read_salt()
 if not salt_value:
     # هیچ salt پیش‌فرضی وجود ندارد: بدون آن همهٔ hashها حدس‌زدنی می‌شدند.
     raise RuntimeError(
