@@ -50,7 +50,7 @@ class TestRsi:
         closes = [200.0 - i for i in range(25)]
         score, reasons = _score(closes, tf_days=5)
         assert any("RSI اشباع فروش" in r for r in reasons)
-        assert score == pytest.approx(-0.10)  # -0.25 (mom) + 0.30 (rsi) - 0.15 (trend)
+        assert score == pytest.approx(-0.20)  # -0.25 (mom) + 0.20 (rsi) - 0.15 (trend)
 
     def test_neutral_rsi_gives_small_bonus_and_stays_hold(self):
         # Alternating ±1 → RSI ≈ 50 (in 40-60) → +0.05. Below the buy threshold.
@@ -91,7 +91,7 @@ class TestTrend:
         closes = [200.0 - i * 0.5 for i in range(25)]
         score, reasons = _score(closes, tf_days=5)
         assert any("روند نزولی (MA5<MA20)" in r for r in reasons)
-        assert score == pytest.approx(0.15)  # +0.30 (rsi oversold) - 0.15 (trend)
+        assert score == pytest.approx(0.05)  # +0.20 (rsi oversold) - 0.15 (trend)
 
 
 class TestVolatilityFilter:
@@ -119,7 +119,7 @@ class TestVolatilityFilter:
         lows = [80.0] * 20
         score, reasons = _score(closes, highs, lows, tf_days=1, market="")
         assert not any("نوسان بالا" in r for r in reasons)
-        assert score == pytest.approx(-0.30)  # -0.25 (rsi=100) - 0.05 (volume proxy ↓)
+        assert score == pytest.approx(-0.35)  # -0.25 (rsi=100) - 0.10 (volume proxy ↓)
 
 
 class TestVolume:
@@ -135,7 +135,7 @@ class TestVolume:
         volumes = [2500.0] * 20 + [1000.0] * 5  # short/long ≈ 0.47 → < 0.35
         score, reasons = _score(closes, tf_days=1, volumes=volumes)
         assert any("کاهش حجم/فعالیت" in r for r in reasons)
-        assert score == pytest.approx(-0.30)  # -0.25 (rsi) - 0.05 (volume)
+        assert score == pytest.approx(-0.35)  # -0.25 (rsi) - 0.10 (volume)
 
 
 class TestCombined:
