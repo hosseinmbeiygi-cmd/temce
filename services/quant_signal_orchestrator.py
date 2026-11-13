@@ -1930,19 +1930,24 @@ class QuantSignalOrchestrator:
                             # Range high/low over the full holding period for accurate
                             # stop-out and target hit detection.
                             start_date = generated_at.date() if isinstance(generated_at, datetime) else due_date
+                            # F10: gregorian_date stores fetch timestamp (19 distinct values),
+                            # not trade date.  Use jalali_to_gregorian(date) which converts
+                            # the Jalali string column to a real Gregorian DATE (function
+                            # installed by migration 0109).  Also fix column names:
+                            # price_max/price_min, not price_high/price_low.
                             r2 = await session.execute(text("""
                                 SELECT
-                                    MAX(price_high),
-                                    MIN(price_low),
+                                    MAX(price_max),
+                                    MIN(price_min),
                                     (SELECT price_close
                                      FROM brsapi_historical_daily h2
                                      WHERE h2.symbol = :symbol
-                                       AND h2.gregorian_date >= :due_date
-                                     ORDER BY h2.gregorian_date ASC
+                                       AND jalali_to_gregorian(h2.date) >= :due_date
+                                     ORDER BY jalali_to_gregorian(h2.date) ASC
                                      LIMIT 1) AS exit_close
                                 FROM brsapi_historical_daily
                                 WHERE symbol = :symbol
-                                  AND gregorian_date BETWEEN :start_date AND :due_date
+                                  AND jalali_to_gregorian(date) BETWEEN :start_date AND :due_date
                             """), {"symbol": symbol, "due_date": due_date, "start_date": start_date})
                             pr = r2.fetchone()
                             if pr and pr[2] and float(pr[2]) > 0:
