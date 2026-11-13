@@ -16,6 +16,8 @@ import math
 
 from scipy import stats
 
+from core.trading_constants import CALENDAR_DAYS_PER_YEAR as _CDAYS
+
 
 def _bs_d1(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
@@ -62,10 +64,12 @@ def charm(S: float, K: float, T: float, r: float, sigma: float, option_type: str
     npdf_d1 = stats.norm.pdf(d1)
     sqrt_T = math.sqrt(T)  # noqa: N806
 
+    # Result is dDelta/dT per year → divide by _CDAYS for per calendar day
+    # (consistent with theta convention in pricing.py)
     if option_type == "call":
-        return float(-(npdf_d1 * (r / (sigma * sqrt_T) - d2 / (2 * T))))
+        return float(-(npdf_d1 * (r / (sigma * sqrt_T) - d2 / (2 * T)))) / _CDAYS
     else:
-        return float(npdf_d1 * (r / (sigma * sqrt_T) - d2 / (2 * T)))
+        return float(npdf_d1 * (r / (sigma * sqrt_T) - d2 / (2 * T))) / _CDAYS
 
 
 def vanna(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803
@@ -93,8 +97,10 @@ def vomma(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noq
         return 0.0
     d1 = _bs_d1(S, K, T, r, sigma)
     d2 = d1 - sigma * math.sqrt(T)
-    vega_val = S * stats.norm.pdf(d1) * math.sqrt(T) / 100.0
-    return float(vega_val * d1 * d2 / sigma)
+    # Use unscaled vega in the formula dVega/dSigma; the /100 form would give
+    # a value 100× too small (audit OF7: measured 9878% error).
+    vega_unscaled = S * stats.norm.pdf(d1) * math.sqrt(T)
+    return float(vega_unscaled * d1 * d2 / sigma)
 
 
 def color(S: float, K: float, T: float, r: float, sigma: float) -> float:  # noqa: N803

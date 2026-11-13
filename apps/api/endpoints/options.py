@@ -446,6 +446,13 @@ async def live_options_chain(underlying: str, limit: int = 50) -> ApiResponse[di
             FROM brsapi_option_snapshots
             WHERE underlying_symbol = :underlying
               AND trade_volume > 0 AND price_last > 0
+              AND price_last >= GREATEST(
+                  0,
+                  CASE WHEN option_type = 'call' THEN underlying_price_last - strike_price
+                       WHEN option_type = 'put'  THEN strike_price - underlying_price_last
+                       ELSE 0
+                  END
+              )
             ORDER BY trade_volume DESC
             LIMIT :limit
         """), {"underlying": underlying, "limit": limit})

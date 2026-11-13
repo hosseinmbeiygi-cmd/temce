@@ -501,6 +501,35 @@ class TestHigherOrderGreeks:
         v = vomma(S=100, K=110, T=0.25, r=0.05, sigma=0.30)
         assert isinstance(v, float)
 
+    def test_vomma_uses_unscaled_vega(self):
+        """Vomma = Vega_unscaled * d1 * d2 / sigma (OF7 regression).
+
+        With the old bug, vega_val was divided by 100 before the formula,
+        giving a value ~100x too small.  Verify the ATM case is in the right
+        order of magnitude: for S=100,K=100,T=1,r=0.05,sigma=0.20 the
+        analytical value is S*N'(d1)*sqrt(T)*d1*d2/sigma ≈ 9.84.
+        """
+        import math
+        from scipy import stats
+
+        S, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.20
+        d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        expected = S * stats.norm.pdf(d1) * math.sqrt(T) * d1 * d2 / sigma
+        got = vomma(S=S, K=K, T=T, r=r, sigma=sigma)
+        assert abs(got - expected) < 1e-6, f"vomma={got:.6f}, expected≈{expected:.6f}"
+        # Must be in the tens range, not hundredths (old bug was ~0.09 for this case)
+        assert got > 1.0, f"vomma={got:.4f} suspiciously small; likely using scaled vega"
+
+    def test_charm_per_calendar_day(self):
+        """Charm must be per calendar day — same scale convention as theta (OF7 regression)."""
+        from domain.options.higher_order_greeks import charm
+
+        c = charm(S=100, K=100, T=0.5, r=0.05, sigma=0.20, option_type="call")
+        # Per-day charm should be small (order 1e-3 or smaller), not order 1 (per year)
+        assert isinstance(c, float)
+        assert abs(c) < 0.01, f"charm={c:.6f} looks like per-year value, not per-day"
+
     def test_compute_all(self):
         greeks = compute_all_higher_order_greeks(S=100, K=100, T=0.25, r=0.05, sigma=0.30)
         assert "speed" in greeks
