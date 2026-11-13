@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 @dataclass
 class AlphaEvaluation:
@@ -56,7 +58,7 @@ class AlphaEvaluationEngine:
         signals: np.ndarray,
         forward_returns: np.ndarray,
         alpha_id: str = "",
-        trading_days: int = 252,
+        trading_days: int = TRADING_DAYS_PER_YEAR_GLOBAL,
     ) -> AlphaEvaluation:
         """Evaluate an alpha signal.
 

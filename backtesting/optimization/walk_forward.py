@@ -27,6 +27,7 @@ from backtesting.metrics.deflated_sharpe import deflated_sharpe_ratio
 from backtesting.metrics.trade_metrics import round_trip_pnls
 from backtesting.strategies.registry import get_strategy_registry
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 logger = get_logger(__name__)
 
@@ -70,7 +71,7 @@ def _compute_metrics(equity: list[float], trades: list[Any]) -> dict[str, Any]:
     n_r = len(returns)
     # WF-M1: sample std (ddof=1) consistent with RiskMetrics
     std_r = math.sqrt(sum((r - avg_r) ** 2 for r in returns) / (n_r - 1)) if n_r > 1 else 1
-    sharpe = (avg_r / std_r) * math.sqrt(252) if std_r > 0 else 0
+    sharpe = (avg_r / std_r) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) if std_r > 0 else 0
 
     peak = equity[0]
     max_dd = 0.0

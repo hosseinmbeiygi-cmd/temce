@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 @dataclass
 class CorrelationResult:
@@ -67,7 +69,7 @@ def compute_correlation(
     cov = sum((ar[i] - sum(ar) / len(ar)) * (br[i] - sum(br) / len(br)) for i in range(len(ar))) / len(ar)
     var_b = sum((b - sum(br) / len(br)) ** 2 for b in br) / len(br)
     beta2 = cov / var_b if var_b > 0 else 0.0
-    alpha2 = (sum(ar) / len(ar) - risk_free_rate / 252) - beta2 * (sum(br) / len(br) - risk_free_rate / 252)
+    alpha2 = (sum(ar) / len(ar) - risk_free_rate / TRADING_DAYS_PER_YEAR_GLOBAL) - beta2 * (sum(br) / len(br) - risk_free_rate / TRADING_DAYS_PER_YEAR_GLOBAL)
     ss_res = sum((ar[i] - (alpha2 + beta2 * br[i])) ** 2 for i in range(len(ar)))
     ss_tot = sum((a - sum(ar) / len(ar)) ** 2 for a in ar)
     r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0

@@ -9,6 +9,8 @@ source, only this file needs updating.
 
 from dataclasses import dataclass
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 @dataclass(frozen=True)
 class DataSourceSpec:
@@ -29,7 +31,7 @@ DATA_SOURCE_REGISTRY: dict[str, DataSourceSpec] = {
         fallback_source="tsetmc",
         requires_adjustment=True,
         requires_delisting_check=True,
-        min_history_days=252,
+        min_history_days=TRADING_DAYS_PER_YEAR_GLOBAL,
         notes="TSETMC + Codal for corporate actions",
     ),
     "gold": DataSourceSpec(

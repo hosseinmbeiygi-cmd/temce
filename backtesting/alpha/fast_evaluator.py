@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 @dataclass
 class AlphaMetrics:
@@ -72,7 +74,7 @@ class FastAlphaEvaluator:
         pnl_mean = float(np.mean(pnl))
         pnl_std = float(np.std(pnl, ddof=1)) if n > 1 else 0.0
         if pnl_std > 0:
-            metrics.sharpe = pnl_mean / pnl_std * np.sqrt(252)
+            metrics.sharpe = pnl_mean / pnl_std * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)
             metrics.t_stat = pnl_mean / pnl_std * np.sqrt(n)
 
         # Information Coefficient (correlation between signal and forward returns)

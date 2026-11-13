@@ -183,7 +183,7 @@ class OptionsMLService:
         """PoP (expire beyond breakeven) + touch probabilities from full paths."""
         if days_to_expiry <= 0:
             raise ValueError("days_to_expiry must be positive")
-        steps = min(max(days_to_expiry, 1), 252)
+        steps = min(max(days_to_expiry, 1), TRADING_DAYS_PER_YEAR_GLOBAL)
         dt = (days_to_expiry / 365.0) / steps
         shocks = self._rng.standard_normal((self._n_paths, steps))
         drift = (risk_free - 0.5 * sigma * sigma) * dt

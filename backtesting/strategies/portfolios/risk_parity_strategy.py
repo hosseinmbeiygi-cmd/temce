@@ -6,10 +6,11 @@ import numpy as np
 
 from backtesting.strategies.base import BaseStrategy
 from backtesting.types import OrderEvent
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 
 class RiskParityStrategy(BaseStrategy):
-    def __init__(self, instrument_ids: list[str] | None = None, lookback: int = 252) -> None:
+    def __init__(self, instrument_ids: list[str] | None = None, lookback: int = TRADING_DAYS_PER_YEAR_GLOBAL) -> None:
         super().__init__(name="RiskParity")
         self.instrument_ids = instrument_ids or []
         self.lookback = lookback

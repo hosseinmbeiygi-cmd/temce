@@ -23,6 +23,7 @@ from typing import Any
 import numpy as np
 
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 logger = get_logger(__name__)
 
@@ -87,7 +88,7 @@ class AttributionEngine:
 
         # Tracking error
         active = port - bench
-        result.tracking_error = float(np.std(active, ddof=1) * np.sqrt(252)) if len(active) > 1 else 0.0
+        result.tracking_error = float(np.std(active, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if len(active) > 1 else 0.0
 
         # Information ratio
         if result.tracking_error > 0:
@@ -133,8 +134,8 @@ class AttributionEngine:
         if len(x) < 2 or len(y) < 2:
             return 0.0, 0.0, 0.0
 
-        excess_y = y - rf / 252
-        excess_x = x - rf / 252
+        excess_y = y - rf / TRADING_DAYS_PER_YEAR_GLOBAL
+        excess_x = x - rf / TRADING_DAYS_PER_YEAR_GLOBAL
 
         mean_x = np.mean(excess_x)
         mean_y = np.mean(excess_y)
@@ -147,7 +148,7 @@ class AttributionEngine:
 
         beta = cov_xy / var_x
         alpha_daily = mean_y - beta * mean_x
-        alpha_annual = alpha_daily * 252
+        alpha_annual = alpha_daily * TRADING_DAYS_PER_YEAR_GLOBAL
 
         # R-squared
         ss_res = np.sum((excess_y - (alpha_daily + beta * excess_x)) ** 2)

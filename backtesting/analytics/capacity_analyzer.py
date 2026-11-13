@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 logger = get_logger(__name__)
 
@@ -76,7 +77,7 @@ class CapacityAnalyzer:
             for cap in capital_levels:
                 rets = strategy_returns_by_capital.get(cap, [])
                 if len(rets) > 1:
-                    sharpe = float(np.mean(rets) / np.std(rets, ddof=1) * np.sqrt(252)) if np.std(rets) > 0 else 0
+                    sharpe = float(np.mean(rets) / np.std(rets, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if np.std(rets) > 0 else 0
                     sharpes.append((cap, sharpe))
 
             if len(sharpes) >= 2:

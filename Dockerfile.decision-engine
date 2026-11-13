@@ -11,7 +11,7 @@
 #   docker build -t decision-engine -f Dockerfile.decision-engine .
 #
 # Run:
-#   docker run -p 8002:8002 --env-file .env decision-engine
+#   docker run -p 8003:8003 --env-file .env decision-engine
 #
 # With docker compose (add to docker-compose.yml):
 #   decision-engine:
@@ -25,9 +25,9 @@
 #       redis:
 #         condition: service_started
 #     ports:
-#       - "8002:8002"
+#       - "8003:8003"
 #     environment:
-#       - DECISION_ENGINE_PORT=8002
+#       - DECISION_ENGINE_PORT=8003
 #     restart: always
 
 FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce AS builder
@@ -92,11 +92,11 @@ COPY --chown=app:app storage/ ./storage/
 COPY --chown=app:app tabdeal/ ./tabdeal/
 COPY --chown=app:app *.py ./
 
-EXPOSE 8002
+EXPOSE 8003
 
 USER app
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=5)" || exit 1
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8003/health', timeout=5)" || exit 1
 
-CMD ["uvicorn", "apps.decision_engine.app:app", "--host", "0.0.0.0", "--port", "8002"]
+CMD ["uvicorn", "apps.decision_engine.app:app", "--host", "0.0.0.0", "--port", "8003"]

@@ -222,7 +222,7 @@ class PhaseRunner:
 
         total_return = ((equity[-1] / initial_capital) - 1) * 100
         trading_days = len(equity)
-        years = trading_days / 252
+        years = trading_days / TRADING_DAYS_PER_YEAR_GLOBAL
         ann_return = ((equity[-1] / initial_capital) ** (1 / max(years, 0.01)) - 1) * 100
 
         returns = [(equity[i] / equity[i - 1]) - 1 for i in range(1, len(equity))]

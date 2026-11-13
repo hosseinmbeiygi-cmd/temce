@@ -6,6 +6,7 @@ from typing import Any
 
 from backtesting.metrics.trade_metrics import profit_factor
 from backtesting.types import BacktestResult
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 
 @dataclass
@@ -32,7 +33,7 @@ class AnalyticsResult:
 
 
 class AnalyticsEngine:
-    def compute(self, result: BacktestResult, trading_days: int = 252, risk_free_rate: float = 0.0) -> AnalyticsResult:
+    def compute(self, result: BacktestResult, trading_days: int = TRADING_DAYS_PER_YEAR_GLOBAL, risk_free_rate: float = 0.0) -> AnalyticsResult:
         ar = AnalyticsResult()
         navs = [p.nav for p in result.equity_curve]
 

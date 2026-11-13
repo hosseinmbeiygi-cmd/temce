@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from backtesting.types import BacktestResult
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 
 class ObjectiveFunctions:
@@ -17,7 +18,7 @@ class ObjectiveFunctions:
         vol = np.std(returns, ddof=1)
         if vol == 0:
             return 0.0
-        return float(np.mean(returns) / vol * np.sqrt(252))
+        return float(np.mean(returns) / vol * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL))
 
     @staticmethod
     def minimize_drawdown(result: BacktestResult) -> float:
@@ -40,7 +41,7 @@ class ObjectiveFunctions:
         returns = np.diff(navs) / navs[:-1]
         running_max = np.maximum.accumulate(navs)
         dd = float(np.min((np.array(navs) - running_max) / running_max))
-        ann_return = float(np.mean(returns)) * 252
+        ann_return = float(np.mean(returns)) * TRADING_DAYS_PER_YEAR_GLOBAL
         return ann_return / abs(dd) if dd != 0 else 0.0
 
     @staticmethod
@@ -54,7 +55,7 @@ class ObjectiveFunctions:
         downside_vol = np.std(downside, ddof=1) if len(downside) > 1 else 1.0
         if downside_vol == 0:
             return 0.0
-        return float(np.mean(returns) / downside_vol * np.sqrt(252))
+        return float(np.mean(returns) / downside_vol * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL))
 
     @staticmethod
     def combined_score(result: BacktestResult, weights: dict[str, float] | None = None) -> float:
