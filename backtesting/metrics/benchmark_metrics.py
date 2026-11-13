@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from backtesting.types import BacktestResult
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 
 class BenchmarkMetrics:
@@ -19,11 +20,12 @@ class BenchmarkMetrics:
         cov = np.cov(strat_returns, bm_returns)
         bm_var = np.var(bm_returns)
         metrics["beta"] = float(cov[0, 1] / bm_var) if bm_var > 0 else 1.0
-        metrics["alpha"] = float(np.mean(strat_returns) - metrics["beta"] * np.mean(bm_returns)) * 252
-        te = np.std(strat_returns - bm_returns) * np.sqrt(252)
-        metrics["tracking_error"] = float(te)
+        metrics["alpha"] = float(np.mean(strat_returns) - metrics["beta"] * np.mean(bm_returns)) * TRADING_DAYS_PER_YEAR_GLOBAL
+        active = strat_returns - bm_returns
+        te = float(np.std(active, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if len(active) > 1 else 0.0
+        metrics["tracking_error"] = te
         metrics["information_ratio"] = (
-            float(np.mean(strat_returns - bm_returns) / np.std(strat_returns - bm_returns) * np.sqrt(252))
+            float(np.mean(active) / np.std(active, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL))
             if te > 0
             else 0.0
         )

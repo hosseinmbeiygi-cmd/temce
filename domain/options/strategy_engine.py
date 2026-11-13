@@ -423,6 +423,7 @@ class GreeksAggregator:
         price_max: float,
         step: float,
         sigma_by_leg: dict[int, float] | None = None,
+        contract_size: int = 1000,
     ) -> list[dict[str, float]]:
         """Expiry payoff (broken line) + current value (smooth curve)."""
         from domain.options.payoff import calculate_payoff_at_price
@@ -444,7 +445,7 @@ class GreeksAggregator:
             curve.append(
                 {
                     "price": round(price, 6),
-                    "payoff": round(calculate_payoff_at_price(payoff_legs, price), 6),
+                    "payoff": round(calculate_payoff_at_price(payoff_legs, price, contract_size), 6),
                     "current_value": round(current, 6),
                 }
             )
@@ -452,7 +453,7 @@ class GreeksAggregator:
         curve.append(
             {
                 "price": round(price_max, 6),
-                "payoff": round(calculate_payoff_at_price(payoff_legs, price_max), 6),
+                "payoff": round(calculate_payoff_at_price(payoff_legs, price_max, contract_size), 6),
                 "current_value": round(current, 6),
             }
         )

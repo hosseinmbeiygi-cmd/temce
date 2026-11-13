@@ -245,12 +245,17 @@ class TestRiskMetricsCalmar:
     """BUG FIX #9 — max_drawdown in metrics is already a percentage."""
 
     def test_calmar_uses_percentage_drawdown_directly(self):
-        # navs: peak 120 → trough 100 → drawdown = 16.67%
-        result = _result([100.0, 120.0, 100.0, 120.0], metrics={"max_drawdown": 16.6667})
+        # navs: peak 120 → trough 100 → drawdown = 100/6 % (exact, not 16.6667 rounded)
+        # BT-H3: RiskMetrics now computes max_drawdown directly from navs, ignoring
+        # any pre-populated metrics dict, so the expected value must use the same exact
+        # arithmetic: (120-100)/120 * 100 = 100/6.
+        navs = [100.0, 120.0, 100.0, 120.0]
+        result = _result(navs, metrics={"max_drawdown": 16.6667})
         metrics = RiskMetrics.compute(result)
-        returns = np.diff([100.0, 120.0, 100.0, 120.0]) / np.array([100.0, 120.0, 100.0, 120.0])[:-1]
+        returns = np.diff(navs) / np.array(navs[:-1])
         avg_ret = float(np.mean(returns)) * 252
-        assert metrics["calmar_ratio"] == pytest.approx(avg_ret / 16.6667, rel=1e-6)
+        exact_dd_pct = (120.0 - 100.0) / 120.0 * 100.0  # = 100/6
+        assert metrics["calmar_ratio"] == pytest.approx(avg_ret / exact_dd_pct, rel=1e-6)
 
     def test_calmar_zero_drawdown_returns_zero(self):
         result = _result([100.0, 110.0, 120.0], metrics={"max_drawdown": 0.0})

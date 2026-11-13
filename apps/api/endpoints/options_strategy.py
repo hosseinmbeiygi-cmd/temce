@@ -107,6 +107,7 @@ class DualPayoffRequest(BaseModel):
     price_max: float = Field(gt=0)
     step: float = Field(gt=0)
     sigma_by_leg: dict[str, float] = Field(default_factory=dict)
+    contract_size: int = Field(default=1000, ge=1)
 
 
 class TransitionRequest(BaseModel):
@@ -237,6 +238,7 @@ async def dual_payoff(body: DualPayoffRequest) -> ApiResponse[dict[str, Any]]:
             price_max=body.price_max,
             step=body.step,
             sigma_by_leg={int(k): v for k, v in body.sigma_by_leg.items()},
+            contract_size=body.contract_size,
         )
     except ValueError as exc:
         return ApiResponse(success=False, error={"message": str(exc)})

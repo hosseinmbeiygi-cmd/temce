@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 
 from backtesting.types import BacktestResult, EquityPoint, FillEvent
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from domain.common.enum_types import OrderSide
 
 
@@ -171,9 +172,9 @@ class VisualizationEngine:
         for i in range(window, len(returns)):
             chunk = returns[i - window:i]
             mu = float(np.mean(chunk))
-            sigma = float(np.std(chunk))
-            excess_return = mu - risk_free_rate / 252.0  # Convert annual RF to daily
-            sharpe = excess_return / sigma * np.sqrt(252) if sigma > 0 else 0.0
+            sigma = float(np.std(chunk, ddof=1)) if len(chunk) > 1 else 0.0
+            excess_return = mu - risk_free_rate / TRADING_DAYS_PER_YEAR_GLOBAL  # Convert annual RF to daily
+            sharpe = excess_return / sigma * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) if sigma > 0 else 0.0
             rolling.append({
                 "timestamp": str(points[i + 1].timestamp) if i + 1 < len(points) else "",
                 "sharpe": sharpe,
@@ -188,7 +189,7 @@ class VisualizationEngine:
         rolling: list[dict[str, Any]] = []
         for i in range(window, len(returns)):
             chunk = returns[i - window:i]
-            vol = float(np.std(chunk) * np.sqrt(252) * 100)
+            vol = float(np.std(chunk, ddof=1) * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) * 100) if len(chunk) > 1 else 0.0
             rolling.append({
                 "timestamp": str(points[i + 1].timestamp) if i + 1 < len(points) else "",
                 "volatility_pct": vol,

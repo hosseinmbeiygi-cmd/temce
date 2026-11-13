@@ -67,7 +67,9 @@ def _compute_metrics(equity: list[float], trades: list[Any]) -> dict[str, Any]:
     total_return = ((equity[-1] / equity[0]) - 1) * 100
     returns = [(equity[i] / equity[i - 1]) - 1 for i in range(1, len(equity))]
     avg_r = sum(returns) / len(returns) if returns else 0
-    std_r = math.sqrt(sum((r - avg_r) ** 2 for r in returns) / len(returns)) if returns else 1
+    n_r = len(returns)
+    # WF-M1: sample std (ddof=1) consistent with RiskMetrics
+    std_r = math.sqrt(sum((r - avg_r) ** 2 for r in returns) / (n_r - 1)) if n_r > 1 else 1
     sharpe = (avg_r / std_r) * math.sqrt(252) if std_r > 0 else 0
 
     peak = equity[0]

@@ -70,13 +70,13 @@ class FastAlphaEvaluator:
 
         # Sharpe ratio
         pnl_mean = float(np.mean(pnl))
-        pnl_std = float(np.std(pnl))
+        pnl_std = float(np.std(pnl, ddof=1)) if n > 1 else 0.0
         if pnl_std > 0:
             metrics.sharpe = pnl_mean / pnl_std * np.sqrt(252)
             metrics.t_stat = pnl_mean / pnl_std * np.sqrt(n)
 
         # Information Coefficient (correlation between signal and forward returns)
-        if np.std(lagged_signal) > 0 and np.std(forward_returns) > 0:
+        if np.std(lagged_signal, ddof=1) > 0 and np.std(forward_returns, ddof=1) > 0:
             corr = np.corrcoef(lagged_signal, forward_returns)
             metrics.information_coefficient = float(corr[0, 1]) if corr.shape == (2, 2) else 0.0
 

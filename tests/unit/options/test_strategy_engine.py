@@ -199,11 +199,11 @@ class TestGreeksAggregator:
             TemplateLeg("stock", "buy", None, 100.0, 1.0),
             TemplateLeg("call", "sell", 110.0, 2.0, 1.0),
         ]
-        curve = agg.dual_payoff_curve(legs, spot=100.0, days_to_expiry=30, price_min=80, price_max=130, step=5)
+        curve = agg.dual_payoff_curve(legs, spot=100.0, days_to_expiry=30, price_min=80, price_max=130, step=5, contract_size=1)
         assert len(curve) == 11
         first = curve[0]
         assert {"price", "payoff", "current_value"} <= set(first)
-        # Expiry payoff of covered call at 80: 80-100 + 2 = -18
+        # Expiry payoff of covered call at 80: 80-100 + 2 = -18 (per-unit, contract_size=1)
         assert math.isclose(first["payoff"], -18.0, rel_tol=1e-6)
 
 

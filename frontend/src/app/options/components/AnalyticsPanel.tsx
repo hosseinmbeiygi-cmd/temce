@@ -182,11 +182,11 @@ export default function AnalyticsPanel() {
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="bg-surface-800/40 rounded-xl p-3 text-center">
                   <p className="text-surface-500 text-[10px]">IV</p>
-                  <p className="text-lg font-bold text-surface-200 font-mono" dir="ltr">{fmtPct(volatilityMutation.data.data.implied_volatility / 100)}</p>
+                  <p className="text-lg font-bold text-surface-200 font-mono" dir="ltr">{fmtPct(volatilityMutation.data.data.average_iv / 100)}</p>
                 </div>
                 <div className="bg-surface-800/40 rounded-xl p-3 text-center">
                   <p className="text-surface-500 text-[10px]">HV</p>
-                  <p className="text-lg font-bold text-surface-200 font-mono" dir="ltr">{fmtPct(volatilityMutation.data.data.historical_volatility / 100)}</p>
+                  <p className="text-lg font-bold text-surface-200 font-mono" dir="ltr">{fmtPct(volatilityMutation.data.data.historical_vol / 100)}</p>
                 </div>
               </div>
               <div className="bg-surface-800/30 rounded-xl p-3 text-xs text-surface-300 leading-relaxed">

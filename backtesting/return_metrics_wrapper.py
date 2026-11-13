@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 class ReturnMetrics:
     """Return metrics for backtesting performance calculations."""
@@ -23,9 +25,10 @@ class ReturnMetrics:
             return None
         returns_arr = np.array(returns)
         excess_returns = returns_arr - risk_free_rate
-        if np.std(excess_returns) == 0:
+        _std = np.std(excess_returns, ddof=1)
+        if _std == 0:
             return None
-        sharpe = np.mean(excess_returns) / np.std(excess_returns) * np.sqrt(252)
+        sharpe = np.mean(excess_returns) / _std * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)
         return float(sharpe)
 
     def calculate_max_drawdown(self, equity: list[float]) -> float:
@@ -42,7 +45,10 @@ class ReturnMetrics:
         returns_arr = np.array(returns)
         excess_returns = returns_arr - risk_free_rate
         downside = excess_returns[excess_returns < 0]
-        if len(downside) == 0 or np.std(downside) == 0:
+        if len(downside) < 2:
             return None
-        sortino = np.mean(excess_returns) / np.std(downside) * np.sqrt(252)
+        _dstd = np.std(downside, ddof=1)
+        if _dstd == 0:
+            return None
+        sortino = np.mean(excess_returns) / _dstd * np.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)
         return float(sortino)
