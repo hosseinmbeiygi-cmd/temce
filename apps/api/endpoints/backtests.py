@@ -801,18 +801,21 @@ async def scan_indicators(
     batch_size = body.batch_size
     max_concurrent = body.max_concurrent
 
-    asyncio.create_task(
-        scanner.scan_all(
-            symbols=symbols,
-            indicator_ids=indicator_ids,
-            filters=filters,
-            start_date=date.fromisoformat(start_date) if start_date else None,
-            end_date=date.fromisoformat(end_date) if end_date else None,
-            capital=capital,
-            batch_size=batch_size,
-            max_concurrent=max_concurrent,
-        )
+    _coro = scanner.scan_all(
+        symbols=symbols,
+        indicator_ids=indicator_ids,
+        filters=filters,
+        start_date=date.fromisoformat(start_date) if start_date else None,
+        end_date=date.fromisoformat(end_date) if end_date else None,
+        capital=capital,
+        batch_size=batch_size,
+        max_concurrent=max_concurrent,
     )
+    try:
+        from apps.api.app import _track_background_task
+        _track_background_task(_coro, "indicator-batch-scan")
+    except Exception:
+        asyncio.create_task(_coro)
 
     return ApiResponse[dict[str, Any]](
         success=True, data={"message": "Indicator scan started", "batch_id": scanner._batch_id}
@@ -1164,26 +1167,29 @@ async def cascade_run(body: CascadeRequest) -> ApiResponse[dict[str, Any]]:
     start = date.fromisoformat(body.start_date) if body.start_date else None
     end = date.fromisoformat(body.end_date) if body.end_date else None
 
-    asyncio.create_task(
-        engine.run(
-            symbols=body.symbols,
-            strategies=body.strategies,
-            features=body.features,
-            start_date=start,
-            end_date=end,
-            capital=body.capital,
-            filters=body.filters,
-            use_genetic=body.use_genetic,
-            genetic_generations=body.genetic_generations,
-            population_size=body.population_size,
-            use_walk_forward=body.use_walk_forward,
-            walk_forward_windows=body.walk_forward_windows,
-            walk_forward_train_ratio=body.walk_forward_train_ratio,
-            stop_loss=body.stop_loss,
-            trailing_stop=body.trailing_stop,
-            trailing_stop_pct=body.trailing_stop_pct,
-        )
+    _coro = engine.run(
+        symbols=body.symbols,
+        strategies=body.strategies,
+        features=body.features,
+        start_date=start,
+        end_date=end,
+        capital=body.capital,
+        filters=body.filters,
+        use_genetic=body.use_genetic,
+        genetic_generations=body.genetic_generations,
+        population_size=body.population_size,
+        use_walk_forward=body.use_walk_forward,
+        walk_forward_windows=body.walk_forward_windows,
+        walk_forward_train_ratio=body.walk_forward_train_ratio,
+        stop_loss=body.stop_loss,
+        trailing_stop=body.trailing_stop,
+        trailing_stop_pct=body.trailing_stop_pct,
     )
+    try:
+        from apps.api.app import _track_background_task
+        _track_background_task(_coro, "cascade-engine-run")
+    except Exception:
+        asyncio.create_task(_coro)
 
     return ApiResponse[dict[str, Any]](success=True, data={"message": "Cascade engine started"})
 

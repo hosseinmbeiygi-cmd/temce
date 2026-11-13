@@ -58,7 +58,11 @@ async def start_scan(body: ScanRequest) -> ApiResponse[dict[str, Any]]:
             rel_result = await scanner.extract_relations()
             result_container["relations"] = rel_result
 
-    asyncio.create_task(_run())
+    try:
+        from apps.api.app import _track_background_task
+        _track_background_task(_run(), "mass-scan")
+    except Exception:
+        asyncio.create_task(_run())
 
     return ApiResponse(
         success=True,
