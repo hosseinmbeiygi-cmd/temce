@@ -1,144 +1,160 @@
-# معماری نهایی — موتور تحلیل ارزش ذاتی و حباب طلا/ارز (BrsApi)
+# TEMCE Platform Architecture
 
-## ۱. جمع‌بندی و اصول حاکم
-
-این سند، جمع‌بندی نهایی همه‌ی تصمیم‌های معماری گرفته‌شده است — از مدل تحلیلی
-(ارزش ذاتی + حباب)، تا استقرار Native روی ویندوز بدون Docker. سه اصل زیر بر
-کل سیستم حاکم است:
-
-1. **بدون‌وضعیت بودن بک‌اند (Stateless):** هیچ داده‌ی مهمی داخل حافظه‌ی
-   پردازه نگه داشته نمی‌شود. هر چیزی که باید بین درخواست‌ها یا بین چند
-   Instance مشترک بماند (مثل روند EMA حباب)، در Redis نگه داشته می‌شود.
-2. **ایزوله بودن خطا در سطح نماد:** صفحه‌ای که ۲۸ نماد را هم‌زمان نشان
-   می‌دهد نباید با خراب‌شدن یک نماد سفید شود. هر نماد مستقل موفق یا ناموفق
-   می‌شود.
-3. **تک‌منبع حقیقت برای متادیتای نمادها:** اضافه‌کردن یک نماد جدید فقط به
-   معنی اضافه‌کردن یک ردیف در `symbol_registry.py` است؛ هیچ جای دیگر کد
-   (آداپتور، گاردریل، موتور پیش‌بینی) نباید تغییر کند.
-
-## ۲. پشته‌ی فناوری (Tech Stack)
-
-| لایه | فناوری | دلیل انتخاب |
-|---|---|---|
-| بک‌اند | Python 3.11 + FastAPI | Async native، مستندسازی خودکار، سبک |
-| وب‌سرور ASGI | Uvicorn | استاندارد اجرای FastAPI |
-| مدیریت وضعیت/کش | Redis | تنها لایه‌ی State مشترک بین Instanceها |
-| دیتابیس | SQLAlchemy 2.0 (Async) روی SQLite/PostgreSQL | تاریخچه‌ی پایدار قیمت‌ها و پیش‌بینی‌ها |
-| مدیریت سرویس در ویندوز | NSSM | تبدیل Uvicorn به Windows Service با Auto-Restart |
-| Reverse Proxy / LB | Caddy (یا Nginx/IIS) | SSL، توزیع بار بین چند Instance |
-| فرانت‌اند | HTML/CSS/JS خالص | بدون وابستگی به بیلد؛ مستقیم از static سرو می‌شود |
-
-## ۳. ساختار پروژه
-
-```
-BrsApi_Forecasting/
-├── core/
-│   ├── config.py            # ثابت‌ها، گاردریل‌ها، پارامترهای EMA
-│   ├── redis_client.py      # تک‌نقطه‌ی دسترسی به Redis (State)
-│   └── exceptions.py        # سلسله‌مراتب خطاهای دامنه
-│
-├── services/
-│   ├── symbol_registry.py   # منبع تک‌حقیقتی متادیتای هر نماد
-│   ├── query_service.py     # لایه‌ی دیتابیس (SQLAlchemy Async)
-│   ├── forecasting_service.py  # موتور اصلی: ارزش ذاتی + EMA حباب
-│   └── safe_forecast.py     # ایزوله‌سازی خطا در سطح هر نماد
-│
-├── api/
-│   ├── models.py            # قراردادهای Pydantic ورودی/خروجی
-│   └── routes.py            # Endpointها + نگاشت خطای دامنه به HTTP
-│
-├── static/
-│   ├── index.html / app.js / style.css   # داشبورد
-│
-├── deploy/
-│   ├── setup_service.bat    # رجیستر NSSM برای چند Instance
-│   └── Caddyfile             # نمونه‌ی Reverse Proxy + Load Balancing
-│
-├── main.py                  # نقطه‌ی ورود FastAPI
-└── requirements.txt
-```
-
-## ۴. جدایی مفهومی نمادها (چرا سکه با طلای وزنی فرق دارد)
-
-`symbol_registry.py` هفت نوع دارایی را از هم تفکیک می‌کند. نکته‌ی معماری
-مهم این‌جاست: **ارزش ذاتی مستقیم (وزن × عیار) فقط برای `AssetType.GOLD`
-معتبر است.** سکه (`GOLD_COIN`) و صندوق طلا (`GOLD_FUND`) به‌عمد از این
-مسیر خارج نگه داشته شده‌اند، چون حباب آن‌ها به عواملی مثل ضرابخانه،
-محدودیت واردات/صادرات و حجم صندوق وابسته است که با فرمول ساده قابل
-مدل‌کردن نیست.
-
-به همین دلیل موتور پیش‌بینی دو مسیر مجزا دارد:
-
-- **مسیر طلای وزنی:** ارزش ذاتی محاسبه می‌شود → حباب نسبت به آن سنجیده
-  می‌شود → روند حباب با EMA دنبال می‌شود.
-- **مسیر سکه/صندوق/ارز:** ارزش ذاتی تعریف نمی‌شود؛ فقط روند EMA خودِ قیمت
-  دنبال می‌شود (فاز بعدی: فرمول حباب اختصاصی سکه، طبق یادداشت موجود در
-  `symbol_registry.py`).
-
-این تفکیک، همان چیزی است که پیش‌تر در سند مشخص شده بود که «باید بین
-gold و fx sync باشد» — با تعریف `is_fair_value_applicable()` این هماهنگی
-اکنون در یک نقطه‌ی واحد کنترل می‌شود، نه در چند فایل پراکنده.
-
-## ۵. جریان داده (Data Flow)
-
-1. **ورود داده:** یک Worker/آداپتور بیرونی (خارج از اسکوپ این سند)
-   قیمت‌های خام (انس، دلار، هر نماد طلا/سکه) را می‌خواند.
-2. **گاردریل ورودی:** هر قیمت پیش از کش‌شدن، با `VALID_RANGES` تطبیق داده
-   می‌شود؛ داده‌ی پرت هرگز وارد Redis نمی‌شود.
-3. **کش لحظه‌ای:** قیمت معتبر با timestamp در Redis کش می‌شود
-   (`core/redis_client.cache_raw_price`) با TTL هم‌راستا با آستانه‌ی
-   Stale.
-4. **درخواست پیش‌بینی:** فرانت‌اند هر ۱۵ ثانیه `GET /api/forecast` را
-   Poll می‌کند.
-5. **بررسی تازگی:** `forecasting_service` پیش از هر محاسبه‌ای، سن داده‌ی
-   مرجع (انس/دلار) را چک می‌کند؛ اگر قدیمی بود، بدون تولید عدد نادرست،
-   خطای `StaleDataError` برمی‌گردد.
-6. **محاسبه:** بسته به نوع دارایی، مسیر ارزش‌ذاتی+حباب یا مسیر EMA خام
-   اجرا می‌شود؛ نتیجه‌ی EMA در Redis ذخیره می‌شود تا بین درخواست‌های بعدی
-   و بین Instanceهای مختلف مشترک بماند.
-7. **ایزوله‌سازی:** `safe_forecast_many` هر نماد را جدا اجرا می‌کند؛
-   نتیجه‌ی نهایی همیشه HTTP 200 است، حتی اگر بعضی نمادها fail شده باشند —
-   وضعیت هر نماد در بدنه‌ی پاسخ مشخص است.
-8. **ثبت تاریخی:** خروجی موفق در دیتابیس ثبت می‌شود (`record_forecast`)
-   تا بعداً بتوان دقت مدل را با داده‌ی واقعی مقایسه کرد (Backtesting).
-9. **نمایش:** فرانت‌اند هر نماد را در یک کارت مستقل رندر می‌کند؛ نمادهای
-   ناموفق پیام خطای خودشان را نشان می‌دهند، بقیه‌ی صفحه دست‌نخورده می‌ماند.
-
-## ۶. معماری استقرار روی ویندوز (بدون Docker)
-
-```
-اینترنت
-   │
-   ▼
-Caddy / Nginx / IIS  (پورت 443، SSL Termination + Load Balancing)
-   │
-   ├──► BrsApiForecast_1  (Uvicorn، پورت 8001، سرویس NSSM)
-   └──► BrsApiForecast_2  (Uvicorn، پورت 8002، سرویس NSSM)
-              │
-              ▼
-        Redis (State مشترک: EMA حباب، کش قیمت)
-              │
-              ▼
-        SQLite/PostgreSQL (تاریخچه‌ی دائمی)
-```
-
-- هر Instance با NSSM به‌عنوان یک Windows Service ثبت می‌شود؛ در صورت
-  Crash، NSSM آن را خودکار Restart می‌کند.
-- چون State در Redis است نه در حافظه‌ی پردازه، هر دو Instance می‌توانند
-  هم‌زمان به یک نماد سرویس بدهند بدون این‌که EMA حباب دچار ناهماهنگی شود.
-- فایل‌های استاتیک (`static/`) مستقیماً توسط همان FastAPI یا مستقیماً
-  توسط Caddy سرو می‌شوند.
-
-## ۷. مسیر توسعه‌ی بعدی (فاز ۲)
-
-- افزودن فرمول حباب اختصاصی برای سکه (حجم معاملات صندوق طلا، داده‌ی
-  بورس کالا) — چارچوب آن در `AssetType.GOLD_FUND` و یادداشت
-  `symbol_registry.py` از پیش گذاشته شده است.
-- تشخیص آربیتراژ بین بازار فیزیکی و صندوق‌های بورسی.
-- اثرات تقویمی (اعیاد، روزهای تسویه) روی روند حباب.
-- بک‌تست خودکار روی جدول `forecast_records` برای سنجش دقت واقعی مدل در
-  طول زمان (به‌جای تخمین کیفی).
+**Iran Market Data & Analytics Platform**
+FastAPI · Next.js 16 · TimescaleDB/PostgreSQL · Redis · Docker
 
 ---
 
-کدهای اجرایی کامل این معماری در ادامه (و در فایل فشرده‌ی پیوست) آمده‌اند.
+## Overview
+
+TEMCE is a modular, multi-service platform for collecting, storing, analysing, and back-testing
+Iranian capital market data (TSE, IFB, IME, gold, forex, crypto, bonds, derivatives).
+
+---
+
+## Runtime Services (Docker Compose)
+
+| Container | Image / Dockerfile | Port | Role |
+|---|---|---|---|
+| `tse_timescaledb` | `timescale/timescaledb:latest-pg15` | 5432 | Primary datastore (PostgreSQL + TimescaleDB) |
+| `tse_redis` | `redis:7.0-alpine` | 6379 | Cache, job queue, distributed locks |
+| `tse_api` | `Dockerfile.api` | 8000 | Main FastAPI application |
+| `tse_ingestion` | `Dockerfile` | — | Background data-collection engine |
+| `tse_worker` | `Dockerfile.worker` | — | APScheduler + Redis job consumer |
+| `tse_currency` | `Dockerfile.currency` | 8002 | Live FX / gold rate micro-service |
+| `tse_frontend` | `Dockerfile.frontend` | 3000 | Next.js 16 frontend |
+
+---
+
+## Backend Code Layout (`apps/api`)
+
+```
+apps/
+  api/          FastAPI app — app.py, routers, middleware, endpoints/
+  worker/       APScheduler worker process (__main__.py)
+  strategy_worker/  Reserved for future strategy-execution worker
+  admin/        Admin dashboard (Jinja2)
+core/
+  database.py   async SQLAlchemy engine + get_session() generator
+  config.py     Pydantic Settings (env-based)
+  redis_client.py
+  trading_constants.py  TRADING_DAYS_PER_YEAR_* constants
+services/       Business logic layer (~103 files)
+repositories/   Async SQLAlchemy query layer
+domain/         Domain models, value objects, calculation engines
+  options/      Black-Scholes, Greeks, probability
+  common/       Shared value objects
+  instruments/  Instrument definitions
+  ...
+ml/
+  registry.py         Typed production ModelRegistry (ModelArtifactMeta)
+  model_registry.py   DemoModelRegistry — in-memory demo data only
+  global_registry.py  Singleton seeded with demo data for the ML dashboard
+  models/             sklearn / XGBoost / LSTM model wrappers
+backtesting/    Multi-asset back-test engine (~275 files)
+  metrics/      Sharpe, Sortino, drawdown, benchmark
+  strategies/   Factor-based, ML-driven, rule-based
+  scenarios/    Bull/bear/sideways market simulation
+  visualization/
+ingestion/      Data-collection engine (BrsApi.ir client)
+brsapi/         ORM models for BrsApi raw data tables
+src/
+  forecasting/  Drift+vol random-walk price projection
+  features/     Feature engineering helpers
+jobs/           Scheduled job definitions (19 jobs)
+```
+
+---
+
+## API Layer
+
+- **~438 routes** across 60 endpoint files under `apps/api/endpoints/`
+- Versioned prefix: `/api/v1/`
+- JWT authentication (Bearer token) via `core/security.py`
+- CORS configured in `apps/api/app.py`
+- `/metrics` endpoint: Prometheus-compatible, auth-protected
+- OpenAPI docs at `/docs` (SwaggerUI) and `/redoc`
+
+---
+
+## Database
+
+- **TimescaleDB** (PostgreSQL 16 extension) for time-series price data
+- **Alembic** migrations: `alembic/versions/` — head is `0039`, ~122 tables
+- Async driver: `asyncpg` via `sqlalchemy[asyncio]`
+- Session factory: `core/database.py::get_session()` — async generator;
+  commit fires only when the generator resumes after `yield` (callers must
+  not `return` early inside `async for session in get_session()`)
+- TimescaleDB hypertables used for OHLCV and tick data
+
+---
+
+## Job Scheduler
+
+- **APScheduler** `AsyncIOScheduler` runs inside `tse_worker`
+- 19 scheduled jobs under `jobs/` (cron + interval triggers)
+- Job pattern: `BaseJob` → `execute(context: JobContext) → JobResult`
+- Distributed locking via Redis (prevents duplicate runs in multi-replica)
+- Dead-letter queue for failed jobs: see `docs/job-queue.md`
+
+---
+
+## ML Pipeline
+
+- **Production registry** (`ml/registry.py::ModelRegistry`): typed, version-aware,
+  supports stage promotion; exported from `ml/__init__.py`
+- **Demo registry** (`ml/model_registry.py::DemoModelRegistry`): in-memory,
+  uuid-keyed; used only by `ml/global_registry.py` to seed the ML dashboard
+- **Model loader**: lazy + LRU cache; see `docs/ml-model-loader.md`
+- Supported frameworks: XGBoost, scikit-learn, LSTM (PyTorch/Keras wrappers)
+
+---
+
+## Front-end
+
+- **Next.js 16** (`App Router`) under `frontend/src/app/`
+- ~153 pages (`page.tsx`) covering markets, analytics, back-test, ML, admin
+- Communicates with the API at `NEXT_PUBLIC_API_URL` (env-injected at build)
+- Live FX rates from `tse_currency` via `CURRENCY_API_URL`
+- TypeScript strict; Tailwind CSS
+
+---
+
+## Trading-Day Constants (`core/trading_constants.py`)
+
+| Constant | Value | Used for |
+|---|---|---|
+| `TRADING_DAYS_PER_YEAR_TSE` | 250 | Tehran Stock Exchange default |
+| `TRADING_DAYS_PER_YEAR_GLOBAL` | 252 | NYSE / XAU / crypto / USD |
+| `TRADING_DAYS_PER_YEAR_IME` | 240 | Iran Mercantile Exchange |
+| `CALENDAR_DAYS_PER_YEAR` | 365 | Calendar-day annualisation |
+
+---
+
+## Key External Dependencies
+
+| Dependency | Purpose |
+|---|---|
+| `fastapi` + `uvicorn` | HTTP server |
+| `sqlalchemy[asyncio]` + `asyncpg` | Async ORM |
+| `alembic` | DB migrations |
+| `redis-py` | Cache + job queue |
+| `apscheduler` | Scheduled jobs |
+| `pydantic-settings` | Config from env |
+| `python-jose` + `passlib` | JWT auth |
+| `numpy` / `pandas` | Numerical computing |
+| `xgboost` / `scikit-learn` | ML models |
+| `sentry-sdk` | Error tracking (optional) |
+
+---
+
+## Deployment
+
+```
+docker compose up           # development
+docker compose -f docker-compose.yml \
+               -f docker-compose.production.yml up   # production
+```
+
+Secrets are **never** committed. All passwords/tokens are required env vars
+(`:?` syntax in `docker-compose.yml`). See `docs/env-vars.md` for the full list.

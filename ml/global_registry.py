@@ -7,11 +7,11 @@ always has data to display.
 
 from __future__ import annotations
 
-from ml.model_registry import ModelRegistry
+from ml.model_registry import DemoModelRegistry
 
 
-def _create_seeded_registry() -> ModelRegistry:
-    registry = ModelRegistry()
+def _create_seeded_registry() -> DemoModelRegistry:
+    registry = DemoModelRegistry()
 
     m1_id = registry.register("XGBoost Price Predictor", "regression", "xgboost", tags=["price", "featured"])
     registry.add_version(
@@ -53,5 +53,5 @@ def _create_seeded_registry() -> ModelRegistry:
 _registry = _create_seeded_registry()
 
 
-def get_registry() -> ModelRegistry:
+def get_registry() -> DemoModelRegistry:
     return _registry

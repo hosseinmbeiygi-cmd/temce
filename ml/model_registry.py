@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 
-class ModelRegistry:
-    """Model registry for ML model versioning and management."""
+class DemoModelRegistry:
+    """Demo model registry for ML dashboard seeding — not for production use."""
 
     def __init__(self) -> None:
         self._models: dict[str, dict[str, Any]] = {}

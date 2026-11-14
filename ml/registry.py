@@ -49,6 +49,3 @@ class ModelRegistry:
 
     def list_versions(self, model_id: str) -> list[ModelArtifactMeta]:
         return self._entries.get(model_id, [])
-
-
-model_registry_global = ModelRegistry()
