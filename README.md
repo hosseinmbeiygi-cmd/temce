@@ -369,7 +369,7 @@ make migrate
 
 > روی دیتابیس خالی، ریویژن `0004b_core_baseline` جدول‌های هسته، `brsapi_*` و
 > `dual_date_columns` را می‌سازد؛ نیازی به اسکریپت دستی نیست. DSN از `DATABASE_URL`
-> خوانده می‌شود و پس از اجرا `alembic current` باید `0119` را نشان دهد.
+> خوانده می‌شود و پس از اجرا `alembic current` باید با خروجی `alembic heads` یکی باشد (در زمان نگارش `0124`).
 
 ### ۴. اجرای سرور
 
@@ -829,7 +829,7 @@ docker stack deploy -c docker-compose.yml -c docker-compose.production.yml marke
 | CERTIFICATE_VERIFY_FAILED در BrsApi | `BRSAPI_VERIFY_SSL=false` |
 | پیام‌های `job:dead` زیاد | `python scripts/dead_letter_report.py` (گزارش توزیع) سپس `python scripts/replay_dead_letter.py` بعد از رفع مشکل |
 | دقت ML پایین | `POST /api/v1/signal-insights/retrain?market=stock&force=true` یا صبر تا بازآموزی خودکار |
-| مهاجرت اجرا نمی‌شود | `alembic upgrade head` و بررسی زنجیره `0039` |
+| مهاجرت اجرا نمی‌شود | `alembic upgrade head` و بررسی تک‌head بودن زنجیره با `alembic heads` (در زمان نگارش `0124`) |
 | فرانت‌اند build نمی‌شود | `cd frontend && rm -rf node_modules .next && npm install && npm run build` |
 | `value too long for type character varying(30)` در `news_articles` | ✅ رفع‌شده — `published_at` به `VARCHAR(40)` ارتقا یافت (migration `0021`) و ریپازیتوری میکروثانیه‌ها را نرمال می‌کند؛ ستون‌های title/summary/content/url از قبل TEXT بودند |
 | `PendingRollbackError` بعد از خطای ذخیره خبر | ✅ رفع‌شده — `NewsIngestionService.ingest()` بعد از هر خطای ذخیره، سشن را rollback می‌کند تا مقاله‌های بعدی ادامه یابند (بجای مسموم شدن سشن) |

@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import copy
 import os
-import traceback
 from collections import deque
 from collections.abc import AsyncGenerator, AsyncIterator, Coroutine, Sequence
 from contextlib import asynccontextmanager, suppress
@@ -452,9 +451,12 @@ async def _orchestrator_hourly_cron() -> None:
                     else:
                         logger.info("Hourly tick already running on another worker — skipping")
 
-        except Exception:
+        except Exception as exc:
+            # Full traceback goes to the log only; shared cron state is served
+            # by the status/history endpoints, so it keeps a one-line summary
+            # instead of file paths and stack frames (EX-11).
             logger.exception("Hourly orchestrator cron failed")
-            _error = traceback.format_exc()
+            _error = f"{type(exc).__name__}: {exc}"
             try:
                 await _commit_cron_run(success=False, error=_error)
             except Exception:

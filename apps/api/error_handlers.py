@@ -71,7 +71,14 @@ def error_payload(
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-    payload = error_payload(message=exc.message, code=exc.code, request=request)
+    # 4xx messages are written for the client. A 5xx AppError usually wraps an
+    # internal failure (driver/provider text), so it goes through the same
+    # non-leaking filter as every other handler (EX-07).
+    message = exc.message
+    if exc.status_code >= 500:
+        logger.error("AppError %s on %s %s: %s", exc.code, request.method, request.url.path, exc.message)
+        message = safe_error_detail(exc.message, default_message="Internal server error")
+    payload = error_payload(message=message, code=exc.code, request=request)
     return JSONResponse(status_code=exc.status_code, content=payload, headers={"X-Trace-Id": _trace_id(request)})
 
 

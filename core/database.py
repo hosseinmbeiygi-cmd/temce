@@ -183,13 +183,17 @@ async def _try_connect(url: str) -> bool:
 
 
 async def _create_all_tables() -> None:
-    """Import all models and create tables (used for SQLite fallback)."""
+    """Import all models and run ``create_all`` (opt-in, non-production only).
+
+    Bypasses the Alembic history, so it is only for throwaway local databases;
+    ``init_database`` refuses it in production/staging (DB-09).
+    """
     import models  # noqa: F401 — triggers registration of all model classes
     from models.base import Base
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("SQLite tables created")
+    logger.info("Tables created from ORM metadata (no Alembic history)")
 
 
 async def init_database() -> None:
@@ -197,7 +201,7 @@ async def init_database() -> None:
     if engine is not None:
         return
 
-    # Ensure data directory exists for SQLite fallback
+    # Ensure the local data directory exists
     Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
 
     url = settings.database_url_async
@@ -258,10 +262,15 @@ async def init_database() -> None:
             replica_engine = None
             replica_session_factory = None
 
-    # Auto-create tables only when explicitly enabled (SQLite dev mode).
+    # Auto-create tables only when explicitly enabled (local scratch DBs).
     # Production uses Alembic migrations — running ``create_all`` on
     # PostgreSQL would race with (and bypass) the migration history.
     if settings.database_auto_create_tables:
+        if settings.environment in {"production", "staging"}:
+            raise RuntimeError(
+                "DATABASE_AUTO_CREATE_TABLES is not allowed in production/staging; "
+                "run `alembic upgrade head` instead"
+            )
         await _create_all_tables()
         logger.info("Auto-created tables (database_auto_create_tables=True)")
 

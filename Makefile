@@ -64,8 +64,16 @@ restore:
 migrate:
 	alembic upgrade head
 
+# Migrations here are hand-written (raw SQL, hypertables, IF NOT EXISTS), so
+# Base.metadata cannot reproduce the schema and --autogenerate would propose
+# dropping live tables (DB-04/DB-14). This creates an empty revision to fill in.
 migrate-new:
-	alembic revision --autogenerate -m "$(name)"
+	alembic revision -m "$(name)"
+
+# Advisory only: prints the metadata-vs-database diff for manual review.
+# Never apply its output blindly.
+migrate-diff:
+	alembic check || true
 
 # ── Production check ──────────────
 prod-check:

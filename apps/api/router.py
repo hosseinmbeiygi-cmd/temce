@@ -220,8 +220,8 @@ class Router:
 
         # ── Lazy imports: all endpoint routers ─────────────────────────
         # These are imported here (not at module level) so that importing
-        # the Router class (~300ms) doesn't trigger loading all 45 endpoint
-        # files (~45s cumulative).  Each endpoint loads only when setup()
+        # the Router class (~300ms) doesn't trigger loading every endpoint
+        # module (tens of seconds cumulative).  Each endpoint loads only when setup()
         # is called, which happens once at app creation time.
         from apps.admin.dashboard import router as admin_dashboard_router
         from apps.api.endpoints.alerts import router as alerts_router

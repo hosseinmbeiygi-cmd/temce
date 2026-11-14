@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from core.config import _ENV_FILE
+
 
 class StorageSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="STORAGE_", env_file=".env", extra="ignore")
+    # Same repository-anchored .env as core.config.Settings, so the values do
+    # not change with the process working directory (CFG-06).
+    model_config = SettingsConfigDict(env_prefix="STORAGE_", env_file=str(_ENV_FILE), extra="ignore")
 
     backend: str = "local"
     local_path: str = "./data/storage"

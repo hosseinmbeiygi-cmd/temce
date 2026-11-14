@@ -14,6 +14,7 @@ from urllib.parse import parse_qsl, urlencode
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+from starlette.routing import Match
 
 from core.config import settings as app_settings
 from core.logging import get_logger
@@ -524,6 +525,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._limiter = get_rate_limiter()
         # Build endpoint -> max_calls map from config
         self._endpoint_limits: dict[str, int] = dict(app_settings.endpoint_rate_limits)
+        self._pattern_cache: dict[tuple[str, str], str] = {}
 
     def _get_limit_for_path(self, path: str) -> int:
         """Find the rate limit for a path, checking exact match then prefix match."""
@@ -548,15 +550,50 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """
         return f"api:{client_ip}:{path}"
 
-    @staticmethod
-    def _route_pattern(request: Request) -> str:
-        """Return the matched route pattern or fall back to the decoded path."""
+    # (method, path) -> route pattern. Bounded so an attacker cycling through
+    # unique URLs cannot grow it without limit.
+    _PATTERN_CACHE_MAX = 4096
+
+    def _route_pattern(self, request: Request) -> str:
+        """Return the route pattern this request will match (HTTP-02).
+
+        This middleware runs *before* routing, so ``scope["route"]`` is not
+        populated yet; reading it always fell back to the raw path and gave
+        every ``/symbols/{id}`` value its own bucket. Resolve the pattern here
+        against the app's route table instead. Unmatched paths (404s) share a
+        single bucket so probing random URLs cannot mint unlimited keys.
+        """
         route = request.scope.get("route")
         if route is not None and hasattr(route, "path"):
             return route.path
-        from urllib.parse import unquote
 
-        return unquote(request.url.path)
+        cache_key = (request.method, request.url.path)
+        cached = self._pattern_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        pattern = "<unmatched>"
+        app = request.scope.get("app")
+        routes = getattr(getattr(app, "router", None), "routes", None) or []
+        partial: str | None = None
+        for candidate in routes:
+            try:
+                match, _ = candidate.matches(request.scope)
+            except Exception:  # noqa: BLE001 — a broken route must not break rate limiting
+                continue
+            if match == Match.FULL:
+                pattern = getattr(candidate, "path", pattern)
+                partial = None
+                break
+            if match == Match.PARTIAL and partial is None:
+                partial = getattr(candidate, "path", None)
+        if partial is not None:
+            pattern = partial
+
+        if len(self._pattern_cache) >= self._PATTERN_CACHE_MAX:
+            self._pattern_cache.clear()
+        self._pattern_cache[cache_key] = pattern
+        return pattern
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if app_settings.environment == "test" or request.url.path.startswith(
