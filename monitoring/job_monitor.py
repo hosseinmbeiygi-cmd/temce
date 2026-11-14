@@ -12,7 +12,6 @@ logger = get_logger(__name__)
 # shared across workers. Move to a `job_runs` table when cross-restart
 # failure-rate trends are needed.
 MAX_RUNS = 1000
-_DEAD_QUEUE_KEY = "job:dead"
 
 
 class JobMonitor:
@@ -50,23 +49,27 @@ class JobMonitor:
         Logs a WARNING when dead jobs are present so alerting picks it up.
         Returns 0 (fail-open) when Redis is unreachable so callers never crash.
         """
+        from core.config import settings
+
+        # Same key the queue consumer writes to (JOB_QUEUE_DEAD_LETTER).
+        key = settings.job_queue_dead_letter
         try:
             from core.cache import get_cache
 
             client = get_cache().client
             if client is None:
                 return 0
-            length: int = await client.llen(_DEAD_QUEUE_KEY)
+            length = int(await client.llen(key) or 0)
             self._dead_queue_length = length
             if length:
                 logger.warning(
                     "%s dead-letter queue contains %d unprocessed job(s)",
-                    _DEAD_QUEUE_KEY,
+                    key,
                     length,
                 )
             return length
         except Exception:
-            logger.exception("Failed to query %s dead-letter queue", _DEAD_QUEUE_KEY)
+            logger.exception("Failed to query %s dead-letter queue", key)
             return 0
 
     def report(self) -> dict[str, Any]:
