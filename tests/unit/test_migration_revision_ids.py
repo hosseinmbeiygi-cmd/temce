@@ -1,9 +1,10 @@
 """Alembic revision ids must be unique across every migration tree.
 
-Audit DB-01. ``brsapi/migrations/001_create_brsapi_tables.py`` reused revision
-``0022`` (already used by ``migrations/versions/0022_add_user_mfa_columns.py``).
-Alembic only scans ``migrations/`` today, so the collision is latent — pointing
-``version_locations`` at the second tree forks the heads immediately.
+The former collision (brsapi ``0022`` vs main ``0022``) was resolved; brsapi
+now uses ``brsapi_0001``.  The test still guards against future regressions.
+Note: migrations_backup_20261030/ is intentionally excluded from TREES because
+it is an archived snapshot — adding it would generate ~90 false conflicts with
+the live tree (DB-07).
 """
 
 from __future__ import annotations
