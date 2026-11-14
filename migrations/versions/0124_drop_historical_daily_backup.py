@@ -10,7 +10,7 @@ from __future__ import annotations
 from alembic import op
 
 revision = "0124"
-down_revision = "0123_ingestion_core_tables"
+down_revision = "0123"
 branch_labels = None
 depends_on = None
 

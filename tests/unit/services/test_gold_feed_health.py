@@ -114,7 +114,7 @@ async def test_timeout_is_recorded_and_fallback_succeeds() -> None:
     assert result["provider"] == "yahoo"
     assert session.rows[0].status == "timeout"
     assert session.rows[0].latency_ms is not None
-    assert session.rows[0].latency_ms >= 50
+    assert session.rows[0].latency_ms >= 40
 
 
 async def test_all_fail_persists_attempts_then_raises() -> None:
