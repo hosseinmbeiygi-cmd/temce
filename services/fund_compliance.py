@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from core.database import AsyncSession, text
@@ -48,7 +48,7 @@ def assess_movement(
 
 def str_due_at(created_at: datetime | None = None) -> datetime:
     """مهلت گزارش مشکوک: پایان همان روز کاری (تقریب +۸ ساعت)."""
-    base = created_at or datetime.utcnow()
+    base = created_at or datetime.now(UTC).replace(tzinfo=None)
     return base + timedelta(hours=STR_DEADLINE_HOURS)
 
 
@@ -291,7 +291,7 @@ class FundComplianceService:
         await self._enqueue(
             "AML_STR_SUBMITTED",
             row[1],
-            {"str_id": int(row[0]), "submitted_at": str(datetime.utcnow())},
+            {"str_id": int(row[0]), "submitted_at": str(datetime.now(UTC).replace(tzinfo=None))},
         )
         await self.session.commit()
         return {"str_id": int(row[0]), "fund_id": row[1], "status": "SUBMITTED"}

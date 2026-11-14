@@ -71,6 +71,12 @@ services:
       - "8000:8000"
     volumes:
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     restart: always
 
   # Collection engine (`python -m ingestion.main`). It has no HTTP surface, so
@@ -167,8 +173,10 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: tse_frontend
     depends_on:
-      - api
-      - currency
+      api:
+        condition: service_healthy
+      currency:
+        condition: service_started
     ports:
       - "3000:3000"
     environment:

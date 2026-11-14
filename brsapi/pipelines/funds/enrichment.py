@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 logger = get_logger(__name__)
 
@@ -58,11 +59,11 @@ def calculate_fund_metrics(nav_history: list[dict[str, Any]]) -> dict[str, Any]:
     trading_days = len(returns)
     annualized_return = 0.0
     if trading_days > 0 and len(sorted_nav) >= 2:
-        annualized_return = total_return * (252 / max(trading_days, 1))
+        annualized_return = total_return * (TRADING_DAYS_PER_YEAR_GLOBAL / max(trading_days, 1))
 
     mean_return = sum(returns) / len(returns) if returns else 0.0
     variance = sum((r - mean_return) ** 2 for r in returns) / len(returns) if returns else 0.0
-    volatility = variance**0.5 * (252**0.5) if variance > 0 else 0.0
+    volatility = variance**0.5 * (TRADING_DAYS_PER_YEAR_GLOBAL**0.5) if variance > 0 else 0.0
 
     sharpe = 0.0
     if volatility > 0:

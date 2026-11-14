@@ -70,7 +70,7 @@ def notify_subscribers(session, signal_id: str, symbol: str, status: str, price:
             session.execute(_text(
                 "UPDATE alerts SET triggered_count=COALESCE(triggered_count,0)+1,"
                 " last_triggered=:now WHERE id=:aid"),
-                {"now": _dt.datetime.utcnow(), "aid": aid})
+                {"now": _dt.datetime.now(_dt.UTC).replace(tzinfo=None), "aid": aid})
         session.commit()
         return len(rows)
     except Exception:

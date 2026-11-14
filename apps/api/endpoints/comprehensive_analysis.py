@@ -9,6 +9,7 @@ from apps.api.dependencies import get_brsapi_query_service
 from apps.api.error_handlers import safe_error_message
 from core.logging import get_logger
 from core.time import utc_now_naive
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 logger = get_logger(__name__)
 
@@ -309,8 +310,8 @@ async def comprehensive_analysis(
         }
 
         # ── 3. ADVANCED VALUATION ──
-        high_52w = max(highs[-252:]) if len(highs) >= 252 else max(highs) if highs else current_price
-        low_52w = min(lows[-252:]) if len(lows) >= 252 else min(lows) if lows else current_price
+        high_52w = max(highs[-TRADING_DAYS_PER_YEAR_GLOBAL:]) if len(highs) >= TRADING_DAYS_PER_YEAR_GLOBAL else max(highs) if highs else current_price
+        low_52w = min(lows[-TRADING_DAYS_PER_YEAR_GLOBAL:]) if len(lows) >= TRADING_DAYS_PER_YEAR_GLOBAL else min(lows) if lows else current_price
         position_pct = round((current_price - low_52w) / (high_52w - low_52w) * 100, 1) if high_52w > low_52w else 50
 
         valuation = {

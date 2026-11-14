@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_session
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from schemas.common.responses import ApiResponse
 
 logger = get_logger(__name__)
@@ -30,10 +31,10 @@ def _compute_alpha_metrics(prices: list[float]) -> dict[str, Any]:
     avg_r = sum(returns) / len(returns)
     variance = sum((r - avg_r) ** 2 for r in returns) / len(returns)
     daily_vol = math.sqrt(variance)
-    annual_vol = daily_vol * math.sqrt(252) * 100
+    annual_vol = daily_vol * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) * 100
 
     # Sharpe ratio (risk-free = 0)
-    sharpe = (avg_r / daily_vol * math.sqrt(252)) if daily_vol > 0 else 0.0
+    sharpe = (avg_r / daily_vol * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if daily_vol > 0 else 0.0
 
     # Max drawdown
     peak = prices[0]

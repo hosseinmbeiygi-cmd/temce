@@ -1070,13 +1070,6 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
     app.add_middleware(SecurityMiddleware)
     app.add_middleware(CSRFMiddleware)
     app.add_middleware(InputSanitizationMiddleware)
@@ -1084,6 +1077,15 @@ def create_app() -> FastAPI:
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(RateLimitMiddleware)
+    # CORSMiddleware second-to-outermost so error responses (429/403/401) always
+    # carry CORS headers, letting the browser read the error body cross-origin.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     # RequestContextMiddleware LAST → OUTERMOST layer so every downstream
     # middleware/handler can read request.state.trace_id.
     app.add_middleware(RequestContextMiddleware)
@@ -1096,7 +1098,7 @@ def create_app() -> FastAPI:
 
     # ── Prometheus metrics ──
     @app.get(settings.metrics_path, include_in_schema=False)
-    async def metrics():
+    async def metrics(_user: dict = Depends(require_roles("admin"))):
         """Prometheus text exposition of in-process metrics."""
         return PlainTextResponse(
             get_prometheus_exporter().export_prometheus(),
@@ -1104,7 +1106,7 @@ def create_app() -> FastAPI:
         )
 
     # ── Orchestrator cron status endpoint ──
-    @app.get("/api/v1/orchestrator-cron-status")
+    @app.get(f"{settings.api_prefix}/orchestrator-cron-status")
     async def orchestrator_cron_status(_user: dict = Depends(get_current_active_user)):
         """Get the status of the hourly orchestrator cron."""
         from schemas.common.responses import ApiResponse
@@ -1123,7 +1125,7 @@ def create_app() -> FastAPI:
         }
         return ApiResponse(success=True, data=data)
 
-    @app.get("/api/v1/orchestrator-cron-history")
+    @app.get(f"{settings.api_prefix}/orchestrator-cron-history")
     async def orchestrator_cron_history(_user: dict = Depends(get_current_active_user)):
         """Get the rotating history of the last 100 cron runs.
 
@@ -1135,7 +1137,7 @@ def create_app() -> FastAPI:
         await _load_cron_state_from_store()
         return ApiResponse(success=True, data=list(_cron_state["history"]))
 
-    @app.post("/api/v1/orchestrator-cron/toggle")
+    @app.post(f"{settings.api_prefix}/orchestrator-cron/toggle")
     async def orchestrator_cron_toggle(
         _user: dict = Depends(require_roles("admin")),
     ):
@@ -1150,7 +1152,7 @@ def create_app() -> FastAPI:
 
         return ApiResponse(success=True, data={"enabled": enabled})
 
-    @app.post("/api/v1/orchestrator-cron/run-now")
+    @app.post(f"{settings.api_prefix}/orchestrator-cron/run-now")
     async def orchestrator_cron_run_now(
         _user: dict = Depends(require_roles("admin")),
     ):
@@ -1186,7 +1188,7 @@ def create_app() -> FastAPI:
         return ApiResponse(success=True, data=d)
 
     # ── Rate limit status endpoint ──
-    @app.get("/api/v1/rate-limits")
+    @app.get(f"{settings.api_prefix}/rate-limits")
     async def rate_limit_status(_user: dict = Depends(require_roles("admin"))):
         """Check BrsApi rate limit status (daily, 5min, per-endpoint)."""
         from brsapi.rate_limiter import get_rate_limiter
@@ -1195,7 +1197,7 @@ def create_app() -> FastAPI:
         return ApiResponse(success=True, data=get_rate_limiter().status())
 
     # ── Cache health / stats endpoint ──
-    @app.get("/api/v1/cache-stats")
+    @app.get(f"{settings.api_prefix}/cache-stats")
     async def cache_stats(_user: dict = Depends(require_roles("admin"))):
         """Expose screener cache health metrics for the admin dashboard.
 

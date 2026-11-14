@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from core.database import AsyncSession, text
@@ -572,7 +572,7 @@ class FundNavReconciliationService:
                     "rid": recon_id,
                     "fid": fund_id,
                     "sev": severity,
-                    "sla": datetime.utcnow() + timedelta(days=sla_days),
+                    "sla": datetime.now(UTC).replace(tzinfo=None) + timedelta(days=sla_days),
                     "ev": evidence,
                 },
             )
@@ -681,7 +681,7 @@ class FundNavReconciliationService:
             raise LookupError("پرونده مغایرت یافت نشد")
         current = row[2]
         next_lifecycle(current, lifecycle)
-        resolved = datetime.utcnow() if lifecycle in ("RESOLVED", "ACCEPTED") else None
+        resolved = datetime.now(UTC).replace(tzinfo=None) if lifecycle in ("RESOLVED", "ACCEPTED") else None
         await self.session.execute(
             text(
                 """

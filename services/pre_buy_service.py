@@ -20,7 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from core.database import AsyncSession, select
@@ -294,7 +294,7 @@ class PreBuySheetService:
             verdict="not_started", completion_pct=0, input_hash=_input_hash(kind, {}, evidence),
             instrument_type=kind, instrument_basis=basis[:240],
             instrument_name=str(name.value) if name and name.value else None,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(UTC).replace(tzinfo=None),
         )
         self.session.add(row)
         await self.session.flush()
@@ -327,7 +327,7 @@ class PreBuySheetService:
         sheet.verdict = evaluation.verdict
         sheet.completion_pct = evaluation.completion_pct
         sheet.input_hash = _input_hash(instrument_type, kept, evidence)
-        sheet.updated_at = now or datetime.utcnow()
+        sheet.updated_at = now or datetime.now(UTC).replace(tzinfo=None)
         await self.session.flush()
         return sheet, dropped
 
@@ -352,7 +352,7 @@ class PreBuySheetService:
         old draft readable after the bank changes.
         """
 
-        now = now or datetime.utcnow()
+        now = now or datetime.now(UTC).replace(tzinfo=None)
         if sheet.status != "DRAFT":
             raise ValueError(READ_ONLY)
         rb = self.bank_for(sheet)
@@ -394,7 +394,7 @@ class PreBuySheetService:
     async def submit(self, sheet: PreBuySheet, statement: str | None) -> PreBuyReview:
         """Freeze the current answers + evidence into an append-only review row."""
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC).replace(tzinfo=None)
         if sheet.status == "SUBMITTED":
             raise ValueError(ALREADY_ARCHIVED)
         review = PreBuyReview(
@@ -417,7 +417,7 @@ class PreBuySheetService:
 
         sheet.status = "DRAFT"
         sheet.submitted_at = None
-        sheet.updated_at = datetime.utcnow()
+        sheet.updated_at = datetime.now(UTC).replace(tzinfo=None)
         await self.session.flush()
         return sheet
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from .helpers import (
     beta_to_market,
     calmar_ratio,
@@ -48,8 +49,8 @@ def compute_layer2(
     out["max_drawdown"] = mdd
     out["recovery_days"] = rec
 
-    if len(nav_series) >= 252:
-        cagr = (nav_series[-1] / nav_series[0]) ** (252 / (len(nav_series) - 1)) - 1
+    if len(nav_series) >= TRADING_DAYS_PER_YEAR_GLOBAL:
+        cagr = (nav_series[-1] / nav_series[0]) ** (TRADING_DAYS_PER_YEAR_GLOBAL / (len(nav_series) - 1)) - 1
         out["calmar"] = calmar_ratio(cagr, mdd)
 
     if market_returns and len(market_returns) == len(rets):

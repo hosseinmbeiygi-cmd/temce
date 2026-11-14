@@ -126,6 +126,8 @@ async def full_health() -> ApiResponse[dict[str, Any]]:
         "latency_ms": round((time.monotonic() - cache_start) * 1000, 2),
         "detail": cache_detail,
     }
+    if cache_status != "ok":
+        overall = "degraded"
 
     # ── BrsAPI check ─────────────────────────────────
     brsapi_start = time.monotonic()
@@ -149,6 +151,8 @@ async def full_health() -> ApiResponse[dict[str, Any]]:
         "latency_ms": round((time.monotonic() - brsapi_start) * 1000, 2),
         "detail": brsapi_detail,
     }
+    if brsapi_status != "ok":
+        overall = "degraded"
 
     return ApiResponse[dict[str, Any]](
         success=overall == "ok",

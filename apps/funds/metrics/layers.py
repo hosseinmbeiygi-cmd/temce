@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 def compute_layer1(
     *,
@@ -56,7 +58,7 @@ def compute_layer1(
         out["return_1m"] = pct_ago(21)
         out["return_3m"] = pct_ago(63)
         out["return_6m"] = pct_ago(126)
-        out["return_1y"] = pct_ago(252)
+        out["return_1y"] = pct_ago(TRADING_DAYS_PER_YEAR_GLOBAL)
         out["return_3y"] = pct_ago(756)
 
     if market_price is not None and nav_redeem is not None and nav_redeem > 0:

@@ -12,11 +12,13 @@ logger = get_logger(__name__)
 # shared across workers. Move to a `job_runs` table when cross-restart
 # failure-rate trends are needed.
 MAX_RUNS = 1000
+_DEAD_QUEUE_KEY = "job:dead"
 
 
 class JobMonitor:
     def __init__(self, maxlen: int = MAX_RUNS) -> None:
         self._runs: deque[dict[str, Any]] = deque(maxlen=maxlen)
+        self._dead_queue_length: int = 0
 
     def record_run(self, job_name: str, status: str, duration_s: float, error: str | None = None) -> None:
         self._runs.append(
@@ -42,13 +44,41 @@ class JobMonitor:
             return 0.0
         return sum(r["duration_s"] for r in relevant) / len(relevant)
 
+    async def check_dead_queue(self) -> int:
+        """Return the number of jobs in the job:dead dead-letter queue.
+
+        Logs a WARNING when dead jobs are present so alerting picks it up.
+        Returns 0 (fail-open) when Redis is unreachable so callers never crash.
+        """
+        try:
+            from core.cache import get_cache
+
+            client = get_cache().client
+            if client is None:
+                return 0
+            length: int = await client.llen(_DEAD_QUEUE_KEY)
+            self._dead_queue_length = length
+            if length:
+                logger.warning(
+                    "%s dead-letter queue contains %d unprocessed job(s)",
+                    _DEAD_QUEUE_KEY,
+                    length,
+                )
+            return length
+        except Exception:
+            logger.exception("Failed to query %s dead-letter queue", _DEAD_QUEUE_KEY)
+            return 0
+
     def report(self) -> dict[str, Any]:
         jobs = {r["job_name"] for r in self._runs}
         return {
-            job: {
-                "total_runs": sum(1 for r in self._runs if r["job_name"] == job),
-                "failure_rate": self.failure_rate(job),
-                "avg_duration_s": self.avg_duration(job),
-            }
-            for job in jobs
+            "jobs": {
+                job: {
+                    "total_runs": sum(1 for r in self._runs if r["job_name"] == job),
+                    "failure_rate": self.failure_rate(job),
+                    "avg_duration_s": self.avg_duration(job),
+                }
+                for job in jobs
+            },
+            "dead_queue_length": self._dead_queue_length,
         }

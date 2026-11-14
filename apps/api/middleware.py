@@ -47,27 +47,29 @@ _SANITIZE_RAW_FIELDS = {
 }
 
 
+_API_PREFIX: str = app_settings.api_prefix
+
 # Paths that are exempt from security header enforcement
-_EXEMPT_PATHS = ("/docs", "/redoc", "/openapi.json", "/api/v1/health")
+_EXEMPT_PATHS = ("/docs", "/redoc", "/openapi.json", f"{_API_PREFIX}/health")
 
 # Sensitive write endpoints that require auth (defense-in-depth at middleware level)
 _SENSITIVE_WRITE_PREFIXES = (
     # GoldDesk personal surface. The trailing slash matters: it keeps
     # ``/api/v1/golddesk/...`` (SaaS, its own scoped-token auth) out of this
     # JWT check while every ``/api/v1/gold/...`` write needs a real token.
-    "/api/v1/gold/",
-    "/api/v1/backtests/run",
-    "/api/v1/backtests/generate",
-    "/api/v1/backtests/cascade",
-    "/api/v1/backtests/adaptive",
-    "/api/v1/ml/train",
-    "/api/v1/ml/predict",
-    "/api/v1/portfolios",
-    "/api/v1/alerts",
-    "/api/v1/watchlist",
-    "/api/v1/trades",
-    "/api/v1/data-import",
-    "/api/v1/signal-insights",
+    f"{_API_PREFIX}/gold/",
+    f"{_API_PREFIX}/backtests/run",
+    f"{_API_PREFIX}/backtests/generate",
+    f"{_API_PREFIX}/backtests/cascade",
+    f"{_API_PREFIX}/backtests/adaptive",
+    f"{_API_PREFIX}/ml/train",
+    f"{_API_PREFIX}/ml/predict",
+    f"{_API_PREFIX}/portfolios",
+    f"{_API_PREFIX}/alerts",
+    f"{_API_PREFIX}/watchlist",
+    f"{_API_PREFIX}/trades",
+    f"{_API_PREFIX}/data-import",
+    f"{_API_PREFIX}/signal-insights",
 )
 
 
@@ -213,7 +215,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if not app_settings.enable_csrf:
             return await call_next(request)
 
-        exempt = request.url.path.startswith(("/docs", "/openapi.json", "/api/v1/health"))
+        exempt = request.url.path.startswith(("/docs", "/openapi.json", f"{_API_PREFIX}/health"))
         if request.method in self._UNSAFE_METHODS and not exempt:
             origin = request.headers.get("origin") or request.headers.get("referer")
             sec_fetch_site = request.headers.get("sec-fetch-site", "").lower()
@@ -537,7 +539,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if app_settings.environment == "test" or request.url.path.startswith(
-            ("/docs", "/openapi.json", "/api/v1/health", "/metrics")
+            ("/docs", "/openapi.json", f"{_API_PREFIX}/health", "/metrics")
         ):
             return await call_next(request)
 

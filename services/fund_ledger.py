@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from core.database import AsyncSession, text
@@ -154,7 +154,7 @@ class FundLedgerService:
     ) -> dict[str, Any]:
         """ثبت سند متوازن (idempotent) + Outbox در همان تراکنش."""
         validate_balanced(lines)
-        effective_at = effective_at or datetime.utcnow()
+        effective_at = effective_at or datetime.now(UTC).replace(tzinfo=None)
         idem = idempotency_key or f"{fund_id}:{event_type}:{source_ref_id or uuid.uuid4().hex}"
 
         row = (
