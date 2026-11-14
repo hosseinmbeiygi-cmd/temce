@@ -9,7 +9,7 @@ Usage:
 import sqlite3
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -73,7 +73,7 @@ async def migrate_transactions():
                 values = [
                     {
                         "symbol": row[0],
-                        "trade_date": row[1],
+                        "trade_date": datetime.strptime(row[1], "%Y-%m-%d").date() if isinstance(row[1], str) else row[1],
                         "seq_no": row[2],
                         "time": row[3],
                         "volume": row[4],
