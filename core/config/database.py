@@ -17,7 +17,7 @@ class DatabaseSettings(BaseSettings):
     statement_timeout: int = 30
     migration_dir: str = "./migrations"
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
-    redis_default_ttl: int = 300
+    redis_default_ttl: int = 900
     redis_max_connections: int = 20
 
     @property

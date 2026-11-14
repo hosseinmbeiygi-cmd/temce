@@ -1782,6 +1782,35 @@ class QuantSignalOrchestrator:
 
                         record_id = new_id("sacc")
                         sig_id = new_id("sig")
+                        now_naive = datetime.now(UTC).replace(tzinfo=None)
+
+                        # F3: insert into `signals` first so signal_accuracy.signal_id
+                        # has a real parent row (100% orphan rate before this fix).
+                        await session.execute(text("""
+                            INSERT INTO signals (
+                                id, symbol, signal_type, direction, source,
+                                timeframe, market, entry, confidence, strength,
+                                generated_at, status, schema_version
+                            ) VALUES (
+                                :id, :symbol, :signal_type, :direction, :source,
+                                :timeframe, :market, :entry, :confidence, :strength,
+                                :generated_at, 'pending', 1
+                            )
+                            ON CONFLICT (id) DO NOTHING
+                        """), {
+                            "id": sig_id,
+                            "symbol": sig.symbol,
+                            "signal_type": sig.direction,
+                            "direction": sig.direction,
+                            "source": sig.source or "quant",
+                            "timeframe": sig.timeframe,
+                            "market": sig.market,
+                            "entry": sig.price,
+                            "confidence": sig.confidence,
+                            "strength": sig.boosted_score / 100.0,
+                            "generated_at": now_naive,
+                        })
+
                         stmt = text("""
                             INSERT INTO signal_accuracy (
                                 id, signal_id, symbol, market, source,
@@ -1810,7 +1839,7 @@ class QuantSignalOrchestrator:
                             "signal_confidence": sig.confidence,
                             "ml_score": sig.ml_score,
                             "rule_score": sig.rule_score,
-                            "generated_at": datetime.now(UTC).replace(tzinfo=None),
+                            "generated_at": now_naive,
                         })
                         inserted += 1
                     except Exception as ins_err:

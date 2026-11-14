@@ -123,6 +123,24 @@ async def _run_snapshot(session) -> JobResult:
     except Exception as exc:
         logger.warning("MonitoringSnapshotJob: signal_performance eval failed: %s", exc)
 
+    # 4. F7: ANALYZE the high-volume tables so PostgreSQL planner stats stay
+    # accurate. ANALYZE can run inside a transaction; it updates pg_statistic
+    # atomically without locking the table for reads/writes.
+    _ANALYZE_TABLES = [
+        "brsapi_historical_daily",
+        "brsapi_candlesticks",
+        "brsapi_symbol_snapshots",
+        "brsapi_option_snapshots",
+        "signal_accuracy",
+        "ml_predictions",
+    ]
+    for tbl in _ANALYZE_TABLES:
+        try:
+            await session.execute(text(f"ANALYZE {tbl}"))
+        except Exception as exc:
+            logger.debug("ANALYZE %s failed: %s", tbl, exc)
+    await session.commit()
+
     logger.info(
         "MonitoringSnapshotJob: freshness=%d quality_events=%d signal_perf_evaluated=%d",
         freshness_updated, quality_events, perf_evaluated,
