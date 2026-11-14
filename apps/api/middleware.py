@@ -563,9 +563,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         against the app's route table instead. Unmatched paths (404s) share a
         single bucket so probing random URLs cannot mint unlimited keys.
         """
-        route = request.scope.get("route")
+        # Duck-typed requests (unit-test fakes) carry no ASGI scope.
+        scope = getattr(request, "scope", None) or {}
+        route = scope.get("route")
         if route is not None and hasattr(route, "path"):
             return route.path
+
+        app = scope.get("app")
+        routes = getattr(getattr(app, "router", None), "routes", None)
+        if not routes:
+            # No route table to resolve against — keep the decoded raw path.
+            from urllib.parse import unquote
+
+            return unquote(request.url.path)
 
         cache_key = (request.method, request.url.path)
         cached = self._pattern_cache.get(cache_key)
@@ -573,12 +583,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return cached
 
         pattern = "<unmatched>"
-        app = request.scope.get("app")
-        routes = getattr(getattr(app, "router", None), "routes", None) or []
         partial: str | None = None
         for candidate in routes:
             try:
-                match, _ = candidate.matches(request.scope)
+                match, _ = candidate.matches(scope)
             except Exception:  # noqa: BLE001 — a broken route must not break rate limiting
                 continue
             if match == Match.FULL:
