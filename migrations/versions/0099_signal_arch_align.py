@@ -37,4 +37,7 @@ def upgrade():
     op.create_table("data_gaps", sa.Column("id",sa.Integer(),primary_key=True),
         sa.Column("symbol",sa.String(50),index=True), sa.Column("start",sa.DateTime()),
         sa.Column("end",sa.DateTime()), sa.Column("reason",sa.String(100)))
-def downgrade(): pass
+def downgrade() -> None:
+    # DB-04: dropping data_quality_log / data_gaps would destroy monitoring
+    # history and is intentionally omitted from automated rollback.
+    pass

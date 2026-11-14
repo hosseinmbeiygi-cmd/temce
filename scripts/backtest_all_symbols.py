@@ -41,6 +41,7 @@ from backtesting.strategies.signal_strategy import SignalStrategy
 from core.db_utils import safe_row_str
 from core.logging import get_logger
 from core.time import now_utc
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from services.backtest_service import BacktestService
 from services.strategy_generator import (
     _apply_6stage_filter,
@@ -174,13 +175,13 @@ def _compute_indicator_metrics(equity: list[float], trades: list[float], capital
 
     total_return = ((equity[-1] / capital) - 1) * 100
     trading_days = len(equity)
-    years = max(trading_days / 252, 0.01)
+    years = max(trading_days / TRADING_DAYS_PER_YEAR_GLOBAL, 0.01)
     ann_return = ((equity[-1] / capital) ** (1 / years) - 1) * 100
 
     returns = [(equity[i] / equity[i - 1]) - 1 for i in range(1, len(equity))]
     avg_r = sum(returns) / len(returns) if returns else 0
     std_r = math.sqrt(sum((r - avg_r) ** 2 for r in returns) / len(returns)) if returns else 1e-6
-    sharpe = (avg_r / std_r) * math.sqrt(252) if std_r > 1e-6 else 0
+    sharpe = (avg_r / std_r) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) if std_r > 1e-6 else 0
 
     peak = equity[0]
     max_dd = 0.0
@@ -197,7 +198,7 @@ def _compute_indicator_metrics(equity: list[float], trades: list[float], capital
 
     downside = [r for r in returns if r < 0]
     downside_vol = math.sqrt(sum(r**2 for r in downside) / len(downside)) if downside else 1e-6
-    sortino = (avg_r / downside_vol) * math.sqrt(252) if downside_vol > 1e-6 else 0
+    sortino = (avg_r / downside_vol) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) if downside_vol > 1e-6 else 0
     calmar = ann_return / (max_dd * 100 + 0.01) if max_dd > 0 else 0
 
     return {

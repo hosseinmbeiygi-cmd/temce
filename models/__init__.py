@@ -113,3 +113,47 @@ from models.stock_enterprise import (
 )
 from models.trade import TradeModel
 from models.user import UserModel
+
+# DB-03: modules below were absent from this file so their tables never reached
+# Base.metadata — Alembic --autogenerate would have proposed dropping them.
+from models.alert_hub import SymbolAlertModel, SymbolAssessmentSnapshotModel
+from models.approval_gateway import ProposalModel, ProposalAuditModel
+from models.codal_analysis import (
+    AccountMapping,
+    AnalysisReport,
+    AuditTrail,
+    DataLineage,
+    DimAccount,
+    DimCompany,
+    DimDate,
+    DimDocument,
+    DimReportType,
+    FactFinancials,
+    FactGrowth,
+    FactQualitySignals,
+    FactRatios,
+    FactTextAnalytics,
+)
+from models.codal_financial import CodalFinancialStatementModel
+from models.decision_engine import DecisionArchitecture, DecisionResult
+from models.generated_strategy import GeneratedStrategyModel, GenerationBatchModel
+from models.gold import (
+    GoldFuturesPositionModel,
+    GoldKillSwitchEventModel,
+    GoldPortfolioHoldingModel,
+)
+from models.gold_feed_health import GoldFeedHealthAttemptModel
+from models.news_items import NewsItemModel, NewsTagModel
+from models.option import (
+    OpenInterestHistoryModel,
+    OptionContractModel,
+    OptionSnapshotModel,
+    OptionTradeModel,
+    VolatilitySurfaceModel,
+    CorporateActionModel as OptionCorporateActionModel,
+)
+from models.queue_analysis import QueueAnalysisResult
+from models.reference_db import ContractModel, MarketSnapshotModel
+from models.saved_filter import SavedFilter
+from models.signal_accuracy import SignalAccuracyModel
+from models.symbol_relation import SymbolRelationModel
