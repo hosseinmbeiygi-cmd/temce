@@ -175,9 +175,7 @@ class SignalBacktestEngine:
                 for signal in signals:
                     symbol = signal.get("symbol", "")
                     market_type = signal.get("market", "stock")
-                    signal.get("direction", "hold")
                     signal_price = signal.get("price", 0)
-                    signal.get("timeframe", "daily")
 
                     if not symbol or not signal_price:
                         continue

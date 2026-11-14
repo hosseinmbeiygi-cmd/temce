@@ -36,7 +36,7 @@ def evaluate(signal: dict, bars: list[dict], halted_days: set | None = None) -> 
     else:
         px = bars[-1]["close"] if bars else entry
     fee = FEES.get(signal.get("market","stock"),0.01)
-    gross = (px-entry)/entry if direction=="buy" else (entry-px)/entry if direction=="sell" else 0.0
+    gross = (px-entry)/entry if direction=="buy" and entry else (entry-px)/entry if direction=="sell" and entry else 0.0
     net = gross - fee
     if hit_tp:
         status="hit_target"
