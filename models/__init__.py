@@ -159,3 +159,4 @@ from models.reference_db import ContractModel, MarketSnapshotModel
 from models.saved_filter import SavedFilter
 from models.signal_accuracy import SignalAccuracyModel
 from models.symbol_relation import SymbolRelationModel
+from models.transaction import TransactionModel
