@@ -19,7 +19,7 @@ def sharpe(rets):
     if len(rets)<2:
         return 0.0
     m=statistics.mean(rets)
-    s=statistics.pstdev(rets)
+    s=statistics.stdev(rets) if len(rets) > 1 else 0.0
     if s==0:
         return 0.0
     return m/s*(TRADING_DAYS_PER_YEAR_GLOBAL**0.5)

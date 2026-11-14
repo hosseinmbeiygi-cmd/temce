@@ -31,7 +31,7 @@ def fold_metrics(closes: list[float], positions: list[int]) -> dict:
         r = closes[t + 1] / closes[t] - 1 if closes[t] else 0.0
         rets.append(positions[t] * r)
     rets = rets[: len(positions)]
-    vol = statistics.pstdev(rets) if len(rets) > 1 else 0.0
+    vol = statistics.stdev(rets) if len(rets) > 1 else 0.0
     sharpe = (sum(rets) / len(rets) / vol * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if vol > 0 else 0.0
     eq, peak, mdd = 1.0, 1.0, 0.0
     for r in rets:

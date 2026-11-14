@@ -32,7 +32,7 @@ def _ema(window: np.ndarray, size: int) -> float:
 
 def _std(window: np.ndarray, _: int = 0) -> float:
     """Standard deviation of window array."""
-    return float(np.std(window))
+    return float(np.std(window, ddof=1)) if len(window) > 1 else 0.0
 
 
 @dataclass
@@ -224,7 +224,7 @@ class FeatureDAGEngine:
                         FeatureType.DERIVED, window=5,
                         description="5-period EMA of mid price"),
             FeatureNode("realized_volatility_10", ["returns"],
-                        lambda w, _: float(np.std(w)),
+                        lambda w, _: float(np.std(w, ddof=1)) if len(w) > 1 else 0.0,
                         FeatureType.DERIVED, window=10,
                         description="10-period realized volatility"),
         ]

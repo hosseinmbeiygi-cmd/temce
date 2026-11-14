@@ -114,12 +114,12 @@ class AlphaSelection:
             for i in range(len(arr) - window):
                 window_returns = arr[i:i + window]
                 mean_r = np.mean(window_returns)
-                std_r = np.std(window_returns)
+                std_r = np.std(window_returns, ddof=1) if len(window_returns) > 1 else 0.0
                 if std_r > 0:
                     rolling_sharpes.append(mean_r / std_r)
 
             if rolling_sharpes:
-                std_sharpe = float(np.std(rolling_sharpes))
+                std_sharpe = float(np.std(rolling_sharpes, ddof=1) if len(rolling_sharpes) > 1 else 0.0)
                 stability[alpha_id] = 1.0 / (1.0 + std_sharpe)
             else:
                 stability[alpha_id] = 0.0

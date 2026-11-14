@@ -206,7 +206,7 @@ def compute_metrics(equity, fills) -> dict:
 
     navs = [e.nav for e in equity]
     rets = [navs[i] / navs[i - 1] - 1 for i in range(1, len(navs)) if navs[i - 1]]
-    vol = statistics.pstdev(rets) if len(rets) > 1 else 0.0
+    vol = statistics.stdev(rets) if len(rets) > 1 else 0.0
     sharpe = (sum(rets) / len(rets) / vol * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if vol > 0 else 0.0
     peak, mdd = navs[0], 0.0
     for v in navs:
@@ -281,7 +281,7 @@ def run_backtest(symbol, bars, timing, market, rates="1405") -> dict:
     bh_ret = (closes[-1] / closes[0] - 1) * 100 if closes[0] else 0.0
     import statistics as _st
     bh_rets = [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes)) if closes[i - 1]]
-    bh_vol = _st.pstdev(bh_rets) if len(bh_rets) > 1 else 0.0
+    bh_vol = _st.stdev(bh_rets) if len(bh_rets) > 1 else 0.0
     bh_sharpe = (sum(bh_rets) / len(bh_rets) / bh_vol * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if bh_vol > 0 else 0.0
     out.update({
         "initial_capital": r.initial_capital,
