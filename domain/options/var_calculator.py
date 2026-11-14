@@ -24,6 +24,8 @@ import numpy as np
 from numpy.typing import NDArray as _NDArray
 from scipy import stats
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 @dataclass
 class VaRResult:
@@ -217,7 +219,7 @@ class VaRCalculator:
         rng = np.random.default_rng(seed)
 
         # Simulate returns
-        daily_returns = rng.normal(mu / 252, sigma / math.sqrt(252), (n_sims, holding_period))
+        daily_returns = rng.normal(mu / TRADING_DAYS_PER_YEAR_GLOBAL, sigma / math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL), (n_sims, holding_period))
         cumulative_returns = np.prod(1 + daily_returns, axis=1) - 1
 
         var_95_ratio = float(-np.percentile(cumulative_returns, 5))

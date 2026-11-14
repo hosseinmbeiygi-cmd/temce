@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, cast
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from domain.options.payoff import LegAction, LegType, OptionLeg
 from domain.options.pricing import black_scholes_price
 
@@ -67,7 +68,7 @@ class ChainLookup:
 class InMemoryChainLookup(ChainLookup):
     """Simple sorted-snapshot implementation of :class:`ChainLookup`."""
 
-    def __init__(self, quotes: Iterable[ChainQuote], spot: float, trading_days: int = 252):
+    def __init__(self, quotes: Iterable[ChainQuote], spot: float, trading_days: int = TRADING_DAYS_PER_YEAR_GLOBAL):
         self._quotes = sorted(quotes, key=lambda q: (q.expiry, q.option_type, q.strike))
         self.spot = spot
         self._trading_days = trading_days

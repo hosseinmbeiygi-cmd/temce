@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import timedelta
 from enum import StrEnum
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 
 class Timeframe(StrEnum):
     M5 = "5m"
@@ -39,7 +41,7 @@ HORIZONS = {"5m": timedelta(days=1), "15m": timedelta(days=1), "1h": timedelta(d
 def eval_due_at(created, timeframe: str, trading_calendar=None):
     """Compute eval_due_at. Uses trading calendar (trading days) for TSE markets if provided."""
     if trading_calendar is not None and hasattr(trading_calendar, "add_trading_days"):
-        n = {"5m":1,"15m":1,"1h":1,"4h":1,"1d":1,"1w":5,"1mo":21,"3mo":63,"6mo":126,"1y":252}.get(timeframe,1)
+        n = {"5m":1,"15m":1,"1h":1,"4h":1,"1d":1,"1w":5,"1mo":21,"3mo":63,"6mo":126,"1y":TRADING_DAYS_PER_YEAR_GLOBAL}.get(timeframe,1)
         try:
             return trading_calendar.add_trading_days(created, n)
         except Exception:

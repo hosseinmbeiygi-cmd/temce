@@ -2,6 +2,8 @@
 import math
 import statistics as st
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 UNK = 'نامشخص'
 
 # ---------- 2.1 indicators (daily OHLC rows sorted ascending) ----------
@@ -149,7 +151,7 @@ def backtest(rows, commission=0.005):
     strat_total = (eq - 1) * 100
     mean_r = st.mean(daily) if daily else 0
     sd_r = st.pstdev(daily) if len(daily) > 1 else 0
-    sharpe = (mean_r - 0.30 / 252) / sd_r * math.sqrt(252) if sd_r > 0 else None
+    sharpe = (mean_r - 0.30 / TRADING_DAYS_PER_YEAR_GLOBAL) / sd_r * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) if sd_r > 0 else None
     years = n_days / 365
     cagr = ((eq) ** (1 / years) - 1) * 100 if years > 0 and eq > 0 else None
     bh_eq = closes[-1] / closes[50]

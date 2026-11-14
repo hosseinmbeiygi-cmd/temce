@@ -13,6 +13,8 @@ Uses:
 """
 from __future__ import annotations
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 import math
 
 import numpy as np
@@ -74,7 +76,7 @@ def probability_of_touch_monte_carlo(
     sigma: float,
     q: float = 0.0,
     n_paths: int = 50000,
-    n_steps: int = 252,
+    n_steps: int = TRADING_DAYS_PER_YEAR_GLOBAL,
     seed: int = 42,
 ) -> float:
     """Monte Carlo simulation for probability of touch.

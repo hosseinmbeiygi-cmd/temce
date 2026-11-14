@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from scipy.stats import norm
 
 # ── European (GBSM with continuous carry q) ──────────────────────────────────
@@ -43,7 +45,7 @@ def monte_carlo_european(
     sigma: float,
     q: float = 0.0,
     n_paths: int = 10_000,
-    n_steps: int = 252,
+    n_steps: int = TRADING_DAYS_PER_YEAR_GLOBAL,
     seed: int = 42,
     option_type: str = "call",
     antithetic: bool = True,
