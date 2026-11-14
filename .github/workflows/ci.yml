@@ -375,6 +375,18 @@ jobs:
           DATABASE_URL: postgresql://market:market@localhost:5432/market_test
           ENV: test
 
+      # DB-06: nothing else in the repo ever runs the downgrade path. One step
+      # down and back up proves the head revision is re-runnable and that
+      # Alembic's downgrade machinery works against this chain.
+      - name: Migration round-trip (downgrade -1, upgrade head)
+        run: |
+          alembic downgrade -1
+          alembic upgrade head
+          alembic current
+        env:
+          DATABASE_URL: postgresql://market:market@localhost:5432/market_test
+          ENV: test
+
       - name: Run needs_db tests
         run: |
           pytest -m needs_db \

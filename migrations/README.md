@@ -89,25 +89,27 @@ def downgrade() -> None: ...
 
 - **`revision`** — شناسه یکتای ریویژن (مهم: باید دقیقاً با `down_revision` فایل بعدی یکی باشد).
 - **`down_revision`** — ریویژن والد؛ `None` فقط برای اولین فایل.
-- **`env.py`** — پیکربندی Alembic؛ مسیر پروژه را به `sys.path` اضافه می‌کند و بسته به نوع دیتابیس (sqlite/async postgres) موتور مناسب را می‌سازد.
+- **`env.py`** — پیکربندی Alembic؛ مسیر پروژه را به `sys.path` اضافه می‌کند و موتور async PostgreSQL را می‌سازد (شاخه sqlite فقط برای تولید SQL آفلاین/تست باقی مانده و رانتایم آن را نمی‌پذیرد).
 
 ---
 
 ## نحوه اجرا
 
 ```bash
-# توسعه محلی (sqlite یا postgres با DATABASE_URL در .env)
+# توسعه محلی (فقط PostgreSQL + TimescaleDB با DATABASE_URL در .env؛ SQLite در رانتایم رد می‌شود)
 alembic upgrade head
 
 # DB خالی: baseline 0004b خودکار جدول‌های هسته، brsapi_* و dual_date_columns را می‌سازد؛
-# نیازی به scripts/install_dual_dates.py یا create_all نیست. انتظار: current = 0119.
+# نیازی به scripts/install_dual_dates.py یا create_all نیست. انتظار: current = head فعلی (`alembic heads`؛ در زمان نگارش 0124).
 alembic current
 
 # CI — fund-service.yml و decision-engine.yml
 alembic upgrade head --raiseerr
 
-# ساخت مهاجرت جدید (بعد از تغییر مدل‌ها)
-alembic revision --autogenerate -m "describe change"
+# ساخت مهاجرت جدید — ریویژن خالی و دست‌نویس (make migrate-new name="...").
+# از --autogenerate استفاده نکنید: اسکیما عمدتاً با SQL خام ساخته شده و metadata
+# نمی‌تواند آن را بازسازی کند، پس خروجی‌اش حذف جدول‌های زنده را پیشنهاد می‌دهد (DB-04/DB-14).
+alembic revision -m "describe change"
 ```
 
 ---
@@ -137,4 +139,4 @@ alembic revision --autogenerate -m "describe change"
    (بین `0004` و `0005`) این جدول‌ها را با DDL فریز‌شده و `IF NOT EXISTS` می‌سازد.
    هم‌زمان `0006`/`0099` به `ADD COLUMN IF NOT EXISTS`، `0011` به cast `::text`،
    `0012` به حذف ایندکس تکراری، و `env.py` به عرض `VARCHAR(255)` برای `alembic_version`
-   و commit صریح اصلاح شدند. نتیجه: `upgrade head` روی DB خالی exit 0 و `current = 0119`.
+   و commit صریح اصلاح شدند. نتیجه: `upgrade head` روی DB خالی exit 0 و `current = 0119` (head آن زمان؛ head فعلی را با `alembic heads` ببینید).
