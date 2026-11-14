@@ -117,3 +117,22 @@ class HealthCheckJob(BaseJob):
         except Exception as e:
             checks["config"] = str(e)
         return JobResult.success_result(job_name=self.name, data={"checks": checks})
+
+
+class DeadQueueMonitorJob(BaseJob):
+    """Hourly check of the job:dead dead-letter queue.
+
+    Calls JobMonitor.check_dead_queue() which logs a WARNING when unprocessed
+    jobs are present. This wires the previously orphaned method into the
+    scheduler so dead-letter queue build-up is surfaced automatically.
+    """
+
+    async def execute(self, context: JobContext) -> JobResult:
+        from monitoring.job_monitor import JobMonitor
+
+        monitor = JobMonitor()
+        length = await monitor.check_dead_queue()
+        return JobResult.success_result(
+            job_name=self.name,
+            data={"dead_queue_length": length},
+        )

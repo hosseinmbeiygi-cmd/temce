@@ -369,6 +369,18 @@ class SchedulerApp:
             replace_existing=True,
         )
 
+        # ── Dead-letter queue monitor: alert on job:dead build-up ─────────────
+        # check_dead_queue() was defined in JobMonitor but never called, so DLQ
+        # build-up was silently invisible. This hourly job surfaces it via log
+        # WARNING so alerting (Sentry/log aggregation) picks it up.
+        self.add_job(
+            "DeadQueueMonitorJob",
+            trigger="interval",
+            hours=1,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         # ── Normalize raw options into canonical schema (OF6) ─────────────────
         # Runs after BrsApiOptionsJob (18:50) so that today's raw data is
         # already present before the upsert into option_contracts / option_snapshots.
