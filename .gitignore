@@ -242,3 +242,8 @@ json/brsapi/symbol_details.json
 
 # Local AI-assistant workspace state
 /.workbuddy-ai/
+
+# Docker secrets — never commit plaintext credentials (CFG-02)
+/secrets/*.txt
+/secrets/*.key
+/secrets/*.pem

@@ -139,13 +139,47 @@ async def _normalize(session) -> JobResult:
 
     await session.commit()
 
+    # ── 3. OF4 quality check: flag options trading below intrinsic value ──────
+    # Intrinsic: call = max(0, underlying - strike), put = max(0, strike - underlying).
+    # We approximate underlying price from the most recent brsapi_symbol_snapshots
+    # close for the underlying_symbol.  Rows without a matching underlying are skipped.
+    below_intrinsic_query = text("""
+        SELECT COUNT(*) AS n
+        FROM option_snapshots os
+        JOIN option_contracts oc ON oc.id = os.contract_id
+        JOIN (
+            SELECT DISTINCT ON (symbol)
+                symbol, price_close
+            FROM brsapi_symbol_snapshots
+            WHERE price_close > 0
+            ORDER BY symbol, time DESC NULLS LAST
+        ) ul ON ul.symbol = oc.underlying_symbol
+        WHERE os.date = :today::date
+          AND os.last_price > 0
+          AND (
+              (oc.option_type = 'call' AND os.last_price < GREATEST(0, ul.price_close - oc.strike_price))
+           OR (oc.option_type = 'put'  AND os.last_price < GREATEST(0, oc.strike_price - ul.price_close))
+          )
+    """)
+    row = (await session.execute(below_intrinsic_query, {"today": today})).scalar_one_or_none()
+    n_below = row or 0
+    if n_below > 0:
+        await session.execute(text("""
+            INSERT INTO market_data_quality_events
+                (source, instrument, severity, reason, details)
+            VALUES ('OptionsNormalizeJob', 'option_snapshots', 'warning',
+                    'below_intrinsic_value', :det::jsonb)
+        """), {"det": f'{{"date":"{today}","count":{n_below}}}'})
+        await session.commit()
+        logger.warning("OptionsNormalizeJob: %d snapshots below intrinsic value on %s (OF4)", n_below, today)
+
     logger.info(
-        "OptionsNormalizeJob: contracts=%d snapshots=%d date=%s",
-        n_contracts, n_snapshots, today,
+        "OptionsNormalizeJob: contracts=%d snapshots=%d below_intrinsic=%d date=%s",
+        n_contracts, n_snapshots, n_below, today,
     )
     return JobResult.success_result(
         job_name="OptionsNormalizeJob",
-        data={"contracts_upserted": n_contracts, "snapshots_upserted": n_snapshots},
+        data={"contracts_upserted": n_contracts, "snapshots_upserted": n_snapshots, "below_intrinsic": n_below},
     )
 
 
