@@ -71,7 +71,9 @@ def migrate():
         # Parse Jalali dates and insert
         for row in rows:
             # Convert Jalali (شمسی) to Gregorian
-            jdate = JalaliDate.parse(row['trade_date'])
+            # trade_date format: "1390-02-31"
+            parts = row['trade_date'].split('-')
+            jdate = JalaliDate(int(parts[0]), int(parts[1]), int(parts[2]))
             gregorian_date = jdate.to_gregorian()
 
             pg_cursor.execute(insert_sql, (
