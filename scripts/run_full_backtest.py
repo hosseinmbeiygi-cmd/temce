@@ -41,6 +41,7 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 import core.database as _db
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from backtesting.composer.indicator_registry import REGISTRY as INDICATOR_REGISTRY
 from backtesting.composer.indicator_registry import IndicatorSpec
 from backtesting.engine.simulator import BacktestSimulator
@@ -238,13 +239,13 @@ def compute_metrics(equity: list[float], trades_pnl: list[float], capital: float
         }
 
     total_return = ((equity[-1] / capital) - 1) * 100
-    years = max(len(equity) / 252, 0.01)
+    years = max(len(equity) / TRADING_DAYS_PER_YEAR_GLOBAL, 0.01)
     ann_return = ((equity[-1] / capital) ** (1 / years) - 1) * 100
 
     returns = [(equity[i] / equity[i - 1]) - 1 for i in range(1, len(equity))]
     avg_r = sum(returns) / len(returns) if returns else 0
     std_r = math.sqrt(sum((r - avg_r) ** 2 for r in returns) / len(returns)) if returns else 1
-    sharpe = (avg_r / std_r) * math.sqrt(252) if std_r > 0 else 0
+    sharpe = (avg_r / std_r) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) if std_r > 0 else 0
 
     peak = equity[0]
     max_dd = 0.0
@@ -261,7 +262,7 @@ def compute_metrics(equity: list[float], trades_pnl: list[float], capital: float
 
     downside = [r for r in returns if r < 0]
     downside_vol = math.sqrt(sum(r ** 2 for r in downside) / len(downside)) if downside else 1
-    sortino = (avg_r / downside_vol) * math.sqrt(252) if downside_vol > 0 else 0
+    sortino = (avg_r / downside_vol) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) if downside_vol > 0 else 0
     calmar = ann_return / (max_dd * 100) if max_dd > 0 else 0
 
     return {

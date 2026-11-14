@@ -18,6 +18,7 @@ import statistics
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from scripts.compare_backtest import load_crypto, load_tse_ticks  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,7 +32,7 @@ def fold_metrics(closes: list[float], positions: list[int]) -> dict:
         rets.append(positions[t] * r)
     rets = rets[: len(positions)]
     vol = statistics.pstdev(rets) if len(rets) > 1 else 0.0
-    sharpe = (sum(rets) / len(rets) / vol * math.sqrt(252)) if vol > 0 else 0.0
+    sharpe = (sum(rets) / len(rets) / vol * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if vol > 0 else 0.0
     eq, peak, mdd = 1.0, 1.0, 0.0
     for r in rets:
         eq *= 1 + r

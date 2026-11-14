@@ -1,5 +1,8 @@
 import json
 import pathlib
+import sys
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 
 # Edge-case simulation: pure-math sanity (no app mutation)
@@ -19,7 +22,7 @@ def sharpe(rets):
     s=statistics.pstdev(rets)
     if s==0:
         return 0.0
-    return m/s*(252**0.5)
+    return m/s*(TRADING_DAYS_PER_YEAR_GLOBAL**0.5)
 cases=[
  ("bull",[100+i for i in range(100)]),
  ("bear",[100-i*0.5 for i in range(100)]),

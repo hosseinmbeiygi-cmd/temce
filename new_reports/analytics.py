@@ -359,7 +359,7 @@ def risk_metrics(closes):
     rets = [(closes[i] / closes[i - 1] - 1) for i in range(1, len(closes))]
     if len(rets) < 2:
         return None
-    sd_annual = st.pstdev(rets) * math.sqrt(252) * 100
+    sd_annual = st.pstdev(rets) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) * 100
     peak = closes[0]
     mdd = 0.0
     for c in closes:

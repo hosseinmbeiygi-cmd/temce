@@ -24,6 +24,8 @@ import warnings
 from datetime import date, datetime
 from pathlib import Path
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
+
 import numpy as np
 import pandas as pd
 
@@ -427,11 +429,11 @@ def compute_technical(df: pd.DataFrame) -> dict:
     res["hist_low"] = float(d["low"].min())
     res["hist_low_date"] = d.loc[imin, "date"]
     res["dist_to_high_pct"] = (close.iloc[-1] / res["hist_high"] - 1) * 100
-    for n, key in [(5, "ret_1w"), (21, "ret_1m"), (63, "ret_3m"), (252, "ret_12m")]:
+    for n, key in [(5, "ret_1w"), (21, "ret_1m"), (63, "ret_3m"), (TRADING_DAYS_PER_YEAR_GLOBAL, "ret_12m")]:
         if len(d) > n:
             res[key] = float((close.iloc[-1] / close.iloc[-1 - n] - 1) * 100)
     ret = close.pct_change().dropna()
-    res["annual_vol"] = float(ret.std(ddof=1) * math.sqrt(252) * 100) if len(ret) > 30 else None
+    res["annual_vol"] = float(ret.std(ddof=1) * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL) * 100) if len(ret) > 30 else None
     peak = close.cummax()
     dd = (peak - close) / peak
     res["max_dd_hist"] = float(dd.max() * 100) if len(dd) else None
@@ -487,7 +489,7 @@ def backtest_segment(df: pd.DataFrame, fee: float = 0.005) -> dict:
     dd = (peak - equity) / peak
     max_dd = float(dd.max()) if len(dd) else None
     sd = np.std(strat, ddof=1) if len(strat) > 1 else 0.0
-    sharpe = float(np.mean(strat) / sd * math.sqrt(252)) if sd > 0 else None
+    sharpe = float(np.mean(strat) / sd * math.sqrt(TRADING_DAYS_PER_YEAR_GLOBAL)) if sd > 0 else None
     trades = []
     entry_px = None
     entry_dt = None
