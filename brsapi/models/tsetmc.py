@@ -397,10 +397,12 @@ class IntradayTradeModel(InstrumentRefMixin, BrsApiBase):
     price: Mapped[float | None] = mapped_column(Float)
     canceled: Mapped[bool | None] = mapped_column(BooleanDefaultFalse, default=False, server_default="false")
     trade_date: Mapped[str | None] = mapped_column(String(20), index=True)
+    gregorian_date: Mapped[date | None] = mapped_column(Date, index=True, comment="Gregorian date derived from trade_date (Jalali)")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     __table_args__ = (
         Index("idx_trade_symbol_date", "symbol", "trade_date"),
+        Index("idx_trade_symbol_gregorian", "symbol", "gregorian_date"),
     )
 
 

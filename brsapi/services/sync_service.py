@@ -20,7 +20,7 @@ import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date as datetime_date, datetime
 from logging import getLogger
 from typing import Any, Literal
 
@@ -1090,6 +1090,16 @@ class BrsApiSyncService:
         if date:
             params["date"] = _to_jalali_date(date)
 
+        jalali_date_str = params.get("date") or ""
+        gregorian_date_val: datetime_date | None = None
+        if jalali_date_str and len(jalali_date_str) == 10:
+            try:
+                import jdatetime as _jdt
+                y, m, d = map(int, jalali_date_str.split("-"))
+                gregorian_date_val = _jdt.date(y, m, d).togregorian()
+            except Exception:
+                pass
+
         def _parse_with_ins_id(data: Any) -> list[dict[str, Any]]:
             records = TsetmcParser.parse_transactions(data)
             for r in records:
@@ -1100,7 +1110,10 @@ class BrsApiSyncService:
                 r.pop("id", None)
                 r["symbol"] = symbol
                 # The requested date (Jalali) is what the trades belong to.
-                r["trade_date"] = params.get("date") or ""
+                r["trade_date"] = jalali_date_str
+                # gregorian_date is the TimescaleDB partition key — must be set
+                # explicitly; the trigger cannot fill it before TS partitioning.
+                r["gregorian_date"] = gregorian_date_val
                 if ins_id:
                     r["ins_id"] = ins_id
             return records
