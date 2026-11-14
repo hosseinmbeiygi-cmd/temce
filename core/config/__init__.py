@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Generator
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -491,7 +492,7 @@ class Settings(BaseSettings):
         if self.environment not in {"production", "staging"}:
             return
         errors: list[str] = []
-        if not self.secret_key.strip() or self.secret_key == "change-me-in-production":
+        if not self.secret_key.strip() or self.secret_key.startswith("change-me-in-production"):
             errors.append("SECRET_KEY must be changed from default in production")
         if self.auth_disabled:
             errors.append("AUTH_DISABLED must be false in production/staging")
@@ -550,4 +551,26 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+
+@contextmanager
+def patch_settings(**overrides: Any) -> Generator[Settings, None, None]:
+    """Temporarily override settings fields in tests (CFG-13).
+
+    Usage::
+
+        with patch_settings(environment="test", debug=True) as s:
+            assert s.is_production is False
+
+    Restores every field on exit so test isolation is guaranteed even when
+    ``settings`` is a module-level singleton accessed directly.
+    """
+    original: dict[str, Any] = {k: getattr(settings, k) for k in overrides}
+    try:
+        for k, v in overrides.items():
+            object.__setattr__(settings, k, v)
+        yield settings
+    finally:
+        for k, v in original.items():
+            object.__setattr__(settings, k, v)
 

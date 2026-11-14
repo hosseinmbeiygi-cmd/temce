@@ -312,10 +312,14 @@ def current_user_id(current_user: dict[str, Any]) -> str:
     """Stable identity for ownership checks.
 
     Access tokens carry ``sub``; the test fixtures and a few legacy payloads
-    use ``user_id``. Both are accepted so a missing field cannot quietly widen
-    an owner filter to the empty string.
+    use ``user_id``. Both are accepted. Raises 403 (not 401) when neither field
+    is present so callers that use this as an ownership filter cannot silently
+    widen the filter to match the empty string "" in the database (HTTP-09).
     """
-    return str(current_user.get("sub") or current_user.get("user_id") or "")
+    uid = str(current_user.get("sub") or current_user.get("user_id") or "")
+    if not uid:
+        raise HTTPException(status_code=403, detail="Missing user identity in token")
+    return uid
 
 
 def owned_scope(current_user: dict[str, Any]) -> str | None:

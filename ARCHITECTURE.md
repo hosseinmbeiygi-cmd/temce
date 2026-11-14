@@ -61,7 +61,7 @@ brsapi/         ORM models for BrsApi raw data tables
 src/
   forecasting/  Drift+vol random-walk price projection
   features/     Feature engineering helpers
-jobs/           Scheduled job definitions (19 jobs)
+jobs/           Scheduled job definitions (32 jobs)
 ```
 
 ---
@@ -80,7 +80,7 @@ jobs/           Scheduled job definitions (19 jobs)
 ## Database
 
 - **TimescaleDB** (PostgreSQL 16 extension) for time-series price data
-- **Alembic** migrations: `alembic/versions/` — head is `0039`, ~122 tables
+- **Alembic** migrations: `migrations/versions/` — head is `0124`, 95 revisions, ~149 ORM entities
 - Async driver: `asyncpg` via `sqlalchemy[asyncio]`
 - Session factory: `core/database.py::get_session()` — async generator;
   commit fires only when the generator resumes after `yield` (callers must

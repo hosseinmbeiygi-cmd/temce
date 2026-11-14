@@ -21,7 +21,7 @@ from core.rate_limit import get_rate_limiter
 from core.security.client_ip import get_client_ip
 from core.security.saas import TIERS, get_tier_limiter, tier_subject_from_request
 from core.security.sanitizers import strip_html
-from core.security.tokens import decode_access_token, is_token_revoked
+from core.security.tokens import decode_access_token, is_token_revoked, is_user_session_revoked
 
 logger = get_logger(__name__)
 
@@ -169,6 +169,11 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                             return JSONResponse(
                                 status_code=401,
                                 content={"success": False, "error": "Token has been revoked", "code": "TOKEN_REVOKED"},
+                            )
+                        if await is_user_session_revoked(payload.get("sub"), payload.get("iat")):
+                            return JSONResponse(
+                                status_code=401,
+                                content={"success": False, "error": "Session has been revoked", "code": "SESSION_REVOKED"},
                             )
                     except Exception:
                         return JSONResponse(

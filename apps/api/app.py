@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import os
 import traceback
 from collections import deque
 from collections.abc import AsyncGenerator, AsyncIterator, Coroutine, Sequence
@@ -202,7 +203,7 @@ def _record_cron_run(
         "run": _cron_state["run_count"],
         "timestamp": _cron_state["last_run"],
         "signals": signals,
-        "accuracy": (accuracy or {}).get("overall", 0),
+        "accuracy": (accuracy or {}).get("overall"),  # None when not computed; avoids false in_crisis=True at 0%
         "retrain_count": retrain_count,
         "success": success,
         "source": source,
@@ -309,9 +310,9 @@ def _plan_cron_alerts(now_ts: float | None = None) -> list[tuple[str, str, str]]
 
     # ═══ 2. Overall accuracy dropped below 50% ═══
     if latest_ok:
-        acc = latest.get("accuracy", 100)
+        acc = latest.get("accuracy")  # None means accuracy wasn't computed this run
 
-        if acc < 50:
+        if acc is not None and acc < 50:
             # Mark that accuracy is in trouble
             if _alert_state["was_accuracy_below_50"] == 0.0:
                 _alert_state["was_accuracy_below_50"] = now_ts
@@ -328,7 +329,7 @@ def _plan_cron_alerts(now_ts: float | None = None) -> list[tuple[str, str, str]]
                 _alert_state["accuracy_drop"] = now_ts
 
         # ── Recovery: accuracy climbed back above 50% ──
-        elif acc >= 50 and _alert_state["was_accuracy_below_50"] > 0.0:
+        elif acc is not None and acc >= 50 and _alert_state["was_accuracy_below_50"] > 0.0:
             alerts.append((
                 "بازگشت دقت به بالای ۵۰٪",
                 f"دقت کل سیگنال‌ها به {acc:.1f}٪ بازگشته است (بالای آستانه ۵۰٪).\n"
@@ -911,11 +912,14 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
             raise
         logger.warning("Production validation skipped (development mode)", exc_info=True)
 
-    # Database: resilient init
+    # Database: fail fast in production; resilient in dev
     try:
         await init_database()
     except Exception:
-        logger.exception("Database init failed, continuing without DB")
+        logger.exception("Database init failed")
+        if settings.is_production:
+            raise  # DB unavailable is not recoverable in production
+        logger.warning("Continuing without DB (development mode only)")
 
     # ML models: optional
     try:
@@ -966,15 +970,20 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("Rate limiter notification setup failed")
 
     # ── Start BrsApi scheduler (periodic sync jobs) ──
-    try:
-        from apps.scheduler.app import SchedulerApp
+    # Skip when DISABLE_SCHEDULER_IN_API=1 so the dedicated scheduler container
+    # (Dockerfile.scheduler) is the sole owner of the job triggers. Without this
+    # guard all API replicas AND the scheduler each start the same 29+ APScheduler
+    # jobs, causing every trigger to fire N+1 times per interval (EX-13).
+    if not os.environ.get("DISABLE_SCHEDULER_IN_API"):
+        try:
+            from apps.scheduler.app import SchedulerApp
 
-        scheduler_app = SchedulerApp()
-        scheduler_app.start()
-        job_count = len(scheduler_app.scheduler.get_jobs())
-        logger.info("BrsApi scheduler started with %d periodic jobs", job_count)
-    except Exception:
-        logger.exception("BrsApi scheduler startup failed — periodic syncs disabled")
+            scheduler_app = SchedulerApp()
+            scheduler_app.start()
+            job_count = len(scheduler_app.scheduler.get_jobs())
+            logger.info("BrsApi scheduler started with %d periodic jobs", job_count)
+        except Exception:
+            logger.exception("BrsApi scheduler startup failed — periodic syncs disabled")
 
     # ── Initial full sync (ALL endpoints, ordered) ──
     _track_background_task(_brsapi_startup_sync(), "brsapi-startup-sync")
@@ -1173,16 +1182,43 @@ def create_app() -> FastAPI:
         from schemas.common.responses import ApiResponse
         from services.quant_signal_orchestrator import QuantSignalOrchestrator
 
-        orchestrator = QuantSignalOrchestrator()
-        report = await orchestrator.generate(
-            market_filter="all",
-            timeframe_filter="all",
-            min_confidence=0.35,
-            limit=100,
-            use_ml=True,
-            use_voting=True,
-            use_confidence_calibration=True,
-        )
+        # Acquire the same distributed lock the hourly tick uses so a manual
+        # run cannot overlap an in-progress cron tick on any worker.
+        from fastapi import HTTPException as _HTTPException
+
+        locker = _get_job_locker()
+        if locker is not None:
+            async with locker.hold(
+                _HOURLY_CRON_LOCK,
+                _distributed_owner("run-now"),
+                ttl=_HOURLY_CRON_LOCK_TTL,
+            ) as acquired:
+                if not acquired:
+                    raise _HTTPException(
+                        status_code=409,
+                        detail="Orchestrator is already running — wait for the current tick to finish",
+                    )
+                orchestrator = QuantSignalOrchestrator()
+                report = await orchestrator.generate(
+                    market_filter="all",
+                    timeframe_filter="all",
+                    min_confidence=0.35,
+                    limit=100,
+                    use_ml=True,
+                    use_voting=True,
+                    use_confidence_calibration=True,
+                )
+        else:
+            orchestrator = QuantSignalOrchestrator()
+            report = await orchestrator.generate(
+                market_filter="all",
+                timeframe_filter="all",
+                min_confidence=0.35,
+                limit=100,
+                use_ml=True,
+                use_voting=True,
+                use_confidence_calibration=True,
+            )
         d = report.to_dict()
 
         # Record the manual run in shared state (same critical section the

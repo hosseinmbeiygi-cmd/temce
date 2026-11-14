@@ -26,6 +26,11 @@ x-app-prod: &app-prod
     # SEC-08b: disable public self-registration in production; admin creates
     # users from the management panel. Set REGISTRATION_OPEN=true to re-enable.
     REGISTRATION_OPEN: "false"
+    # EX-13: each API replica must NOT start the APScheduler job engine; the
+    # dedicated 'scheduler' service (Dockerfile.scheduler) owns all job triggers.
+    # Without this flag every API replica and the scheduler each fire the same
+    # 29+ jobs, multiplying every trigger by (replica_count + 1).
+    DISABLE_SCHEDULER_IN_API: "1"
 
 secrets:
   postgres_password:

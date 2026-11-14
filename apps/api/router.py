@@ -171,11 +171,30 @@ class Router:
 
         @router.get("", summary="API root", description="List all available endpoints")
         async def api_root() -> ApiResponse[dict]:
+            # Build the list dynamically from the actually-mounted routes so it
+            # never drifts from the real API surface (HTTP-05: static list had
+            # only 45 of 80 mounts; duplicated maintenance burden).
+            seen: set[str] = set()
+            endpoints: list[dict[str, str]] = []
+            for route in router.routes:
+                raw_path: str = getattr(route, "path", "") or ""
+                prefix = "/" + raw_path.strip("/").split("/")[0]
+                if prefix == "/" or prefix in seen:
+                    continue
+                seen.add(prefix)
+                tags: list[str] = getattr(route, "tags", []) or []
+                tag = tags[0] if tags else prefix.lstrip("/").replace("-", " ").title()
+                endpoints.append({"path": prefix, "tag": tag})
+            # Preserve documented descriptions from the static catalogue for
+            # entries that exist there; fill the rest with auto-generated names.
+            desc_map = {e["path"]: e.get("description", "") for e in _ENDPOINTS}
+            for ep in endpoints:
+                ep["description"] = desc_map.get(ep["path"], "")
             return ApiResponse[dict](
                 success=True,
                 data={
                     "version": "v1",
-                    "endpoints": _ENDPOINTS,
+                    "endpoints": endpoints,
                 },
             )
 
@@ -751,11 +770,14 @@ class Router:
             dependencies=_require_user,
         )
         # System administration (kill switch + permission check, §15.3 + §19.3).
-        # Auth is enforced per-endpoint via get_current_user/require_roles inside
-        # the router, so no mount-level dependency is added here.
+        # Defence-in-depth: a mount-level _require_user ensures the JWT is valid
+        # on every system route even if a per-endpoint guard is accidentally
+        # omitted in the future (HTTP-13). Per-endpoint require_roles("admin")
+        # still gates the sensitive operations inside the router.
         router.include_router(
             system_router,
             prefix="",
             tags=["System"],
+            dependencies=_require_user,
         )
         return router
