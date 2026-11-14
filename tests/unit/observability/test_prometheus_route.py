@@ -122,12 +122,12 @@ class TestMetricsMiddleware:
 
 
 class TestAppRoute:
-    async def test_app_exposes_valid_metrics_route(self, client: AsyncClient) -> None:
+    async def test_app_exposes_valid_metrics_route(self, admin_client: AsyncClient) -> None:
         exporter = get_prometheus_exporter()
         exporter.reset()
         exporter.inc("http_requests_total", {"method": "GET", "route": "/api/v1/signals"})
 
-        response = await client.get("/metrics")
+        response = await admin_client.get("/metrics")
 
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/plain; version=0.0.4")
