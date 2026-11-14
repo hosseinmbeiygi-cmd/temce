@@ -63,3 +63,6 @@ class DemoModelRegistry:
 
     def list_models(self) -> list[dict[str, Any]]:
         return list(self._models.values())
+
+
+ModelRegistry = DemoModelRegistry
