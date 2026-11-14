@@ -453,7 +453,11 @@ async def _orchestrator_hourly_cron() -> None:
 
         except Exception:
             logger.exception("Hourly orchestrator cron failed")
-            await _commit_cron_run(success=False, error=traceback.format_exc())
+            _error = traceback.format_exc()
+            try:
+                await _commit_cron_run(success=False, error=_error)
+            except Exception:
+                logger.exception("Failed to commit cron failure state")
 
         # Wait 1 hour before next run (drift-corrected)
         elapsed = loop.time() - tick_start
@@ -1094,6 +1098,12 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     async def root():
+        # /docs is disabled in production (docs_url=None); return a minimal
+        # landing payload instead of redirecting to a non-existent URL.
+        if settings.is_production:
+            from fastapi.responses import JSONResponse as _JSONResponse
+
+            return _JSONResponse({"status": "ok", "version": settings.api_version})
         return RedirectResponse(url="/docs")
 
     # ── Prometheus metrics ──
@@ -1107,7 +1117,7 @@ def create_app() -> FastAPI:
 
     # ── Orchestrator cron status endpoint ──
     @app.get(f"{settings.api_prefix}/orchestrator-cron-status")
-    async def orchestrator_cron_status(_user: dict = Depends(get_current_active_user)):
+    async def orchestrator_cron_status(_user: dict = Depends(require_roles("admin"))):
         """Get the status of the hourly orchestrator cron."""
         from schemas.common.responses import ApiResponse
 
@@ -1126,7 +1136,7 @@ def create_app() -> FastAPI:
         return ApiResponse(success=True, data=data)
 
     @app.get(f"{settings.api_prefix}/orchestrator-cron-history")
-    async def orchestrator_cron_history(_user: dict = Depends(get_current_active_user)):
+    async def orchestrator_cron_history(_user: dict = Depends(require_roles("admin"))):
         """Get the rotating history of the last 100 cron runs.
 
         Each entry: {run, timestamp, signals, accuracy, retrain_count, success, error?, source?}

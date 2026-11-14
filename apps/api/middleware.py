@@ -535,8 +535,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return best_limit
 
     def _get_key(self, client_ip: str, path: str) -> str:
-        """Generate a rate limit key for a client+path combination."""
+        """Generate a rate limit key for a client+route-pattern combination.
+
+        Uses the matched route pattern (e.g. ``/api/v1/users/{id}``) so that
+        path-parameter variations and URL-encoding tricks don't create separate
+        buckets and bypass the per-route limit.
+        """
         return f"api:{client_ip}:{path}"
+
+    @staticmethod
+    def _route_pattern(request: Request) -> str:
+        """Return the matched route pattern or fall back to the decoded path."""
+        route = request.scope.get("route")
+        if route is not None and hasattr(route, "path"):
+            return route.path
+        from urllib.parse import unquote
+
+        return unquote(request.url.path)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if app_settings.environment == "test" or request.url.path.startswith(
@@ -547,7 +562,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         client_ip = get_client_ip(request)
         path = request.url.path
         max_calls = self._get_limit_for_path(path)
-        key = self._get_key(client_ip, path)
+        key = self._get_key(client_ip, self._route_pattern(request))
 
         allowed, remaining = await self._limiter.allow_async(
             key,

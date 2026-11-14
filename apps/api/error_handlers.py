@@ -76,17 +76,17 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 
 async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
-    payload = error_payload(message=str(exc), code="NOT_FOUND", request=request)
+    payload = error_payload(message=safe_error_message(exc, default_message="Not found"), code="NOT_FOUND", request=request)
     return JSONResponse(status_code=404, content=payload, headers={"X-Trace-Id": _trace_id(request)})
 
 
 async def validation_error_handler(request: Request, exc: ValidationError) -> JSONResponse:
-    payload = error_payload(message=str(exc), code="VALIDATION_ERROR", request=request)
+    payload = error_payload(message=safe_error_message(exc, default_message="Validation error"), code="VALIDATION_ERROR", request=request)
     return JSONResponse(status_code=422, content=payload, headers={"X-Trace-Id": _trace_id(request)})
 
 
 async def auth_error_handler(request: Request, exc: AuthenticationError) -> JSONResponse:
-    payload = error_payload(message=str(exc), code="AUTH_ERROR", request=request)
+    payload = error_payload(message=safe_error_message(exc, default_message="Authentication required"), code="AUTH_ERROR", request=request)
     return JSONResponse(status_code=401, content=payload, headers={"X-Trace-Id": _trace_id(request)})
 
 
