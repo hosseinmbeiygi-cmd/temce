@@ -1,16 +1,12 @@
 """Historical transaction records from TSE (Tehran Stock Exchange)."""
 from __future__ import annotations
 
-from datetime import date
-from typing import TYPE_CHECKING
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, func, Index
+from sqlalchemy import DateTime, Float, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base
-
-if TYPE_CHECKING:
-    pass
 
 
 class TransactionModel(Base):
