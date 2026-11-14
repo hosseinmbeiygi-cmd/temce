@@ -13,6 +13,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE
+
 logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -41,7 +43,7 @@ def _defaults() -> dict[str, Any]:
             "calibration_rmse_threshold": 0.02,
             "stability_window_days": 20,
         },
-        "cointegration": {"min_series_length": 250},
+        "cointegration": {"min_series_length": TRADING_DAYS_PER_YEAR_TSE},
         "signal_factory": {
             "calendar_arb_ratio_threshold": 0.95,
             "iv_rank_threshold": 0.80,

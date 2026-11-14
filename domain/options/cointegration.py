@@ -26,8 +26,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE
+
 # Minimum trading points per the v5.0 doc (سند §3.4, پیوست ه).
-MIN_SERIES_LENGTH = 250
+MIN_SERIES_LENGTH = TRADING_DAYS_PER_YEAR_TSE
 DEFAULT_Z_THRESHOLD = 2.0
 
 
