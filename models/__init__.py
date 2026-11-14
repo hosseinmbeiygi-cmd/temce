@@ -2,7 +2,7 @@ from models.alert import AlertHistoryModel, AlertModel
 from models.audit_log import AuditLogModel
 from models.backtest import BacktestRunModel, BacktestTradeModel
 from models.base import Base
-from models.codal import CodalReportModel
+from models.codal import CodalAuditSummaryModel, CodalReportModel
 from models.compare import CompareResultModel
 from models.corporate_action import CorporateActionModel, DailyAdjustFactorModel
 
@@ -27,11 +27,13 @@ from models.fund_enterprise import (
     FundCapabilityModel,
     FundHoldingModel,
     FundIngestionQuarantineModel,
+    FundIngestionRunModel,
     FundMarketQuoteCacheModel,
     FundNavHistoryModel,
     FundPortfolioDiffModel,
     FundPortfolioReportModel,
     FundScoreHistoryModel,
+    FundSymbolAliasModel,
 )
 from models.fund_governance import (
     FundDisciplinaryCaseModel,
@@ -87,7 +89,7 @@ from models.market_data import (
     StockOptionModel,
     SymbolModel,
 )
-from models.ml import MlModelModel, MlModelVersionModel, MlTrainingRunModel
+from models.ml import MlModelModel, MlModelVersionModel, MlPredictionModel, MlTrainingRunModel
 from models.news import NewsArticleModel
 from models.orderbook import OrderbookModel
 from models.paper_trading import (
