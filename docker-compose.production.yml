@@ -104,6 +104,7 @@ services:
           memory: "256M"
 
   redis:
+    image: redis:7.2-alpine
     restart: always
     networks:
       - internal
@@ -116,6 +117,7 @@ services:
           memory: "256M"
 
   postgres:
+    image: timescale/timescaledb:2.16-pg15
     restart: always
     networks:
       - internal

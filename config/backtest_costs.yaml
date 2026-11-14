@@ -1,4 +1,5 @@
 # Canonical backtest cost config — single source of truth.
+# last_reviewed: 2026-11-14  next_review: 2027-03-01 (start of 1406 fiscal year)
 # All-in 1405 schedule (buy_pct/sell_pct include every levy; the 0.5% equity
 # transfer tax is INSIDE the sell rates — never add it on top):
 #   tse_equity   buy 0.3712%  sell 0.88%    (RT 1.2512%)  سهام/حق‌تقدم بورس تهران

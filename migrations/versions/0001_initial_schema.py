@@ -70,6 +70,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("symbol_id", "time"),
     )
     op.create_index("idx_symbol_snapshots_time", "symbol_snapshots", ["time"])
+    # DB-02: ensure TimescaleDB extension is loaded before the first hypertable.
+    # This is idempotent — IF NOT EXISTS makes it safe to re-run.
+    op.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE")
     op.execute("SELECT create_hypertable('symbol_snapshots', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)")
 
     # 3. orderbook_snapshots

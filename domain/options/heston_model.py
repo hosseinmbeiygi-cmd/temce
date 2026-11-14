@@ -181,7 +181,7 @@ def heston_price(params: HestonParams) -> OptionPrice:
 def heston_monte_carlo(params: HestonParams, seed: int = 42) -> OptionPrice:
     """Monte Carlo simulation of Heston model.
 
-    Uses QE (Quadratic Exponential) scheme for stability.
+    Uses Milstein scheme for the variance process (not QE — OF14 docstring fix).
     Returns price with standard error.
     """
     rng = np.random.default_rng(seed)
