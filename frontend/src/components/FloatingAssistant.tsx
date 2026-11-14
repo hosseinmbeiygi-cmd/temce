@@ -178,6 +178,7 @@ export default function FloatingAssistant() {
       refresh: "🔄",
       error: "⚠️",
       unknown: "🤔",
+      playbook: "📚",
     };
     return icons[type] || "🤖";
   };
@@ -186,6 +187,7 @@ export default function FloatingAssistant() {
     if (type === "error") return "border-r-accent-rose";
     if (type === "market" || type === "analysis") return "border-r-primary-400";
     if (type === "action") return "border-r-accent-emerald";
+    if (type === "playbook") return "border-r-accent-amber";
     if (type === "navigation") return "border-r-accent-violet";
     if (type === "watchlist" || type === "alerts") return "border-r-accent-amber";
     if (type === "backtest" || type === "ml") return "border-r-accent-cyan";

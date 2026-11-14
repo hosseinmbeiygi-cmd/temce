@@ -941,6 +941,13 @@ def resolve_page(text: str) -> str | None:
 # ── Unified Assistant Service ──────────────────────────────────────────────
 
 
+#: Playbook similarity (0-100) that pre-empts intent routing. Existing commands top out
+#: near 62 against the playbook while reworded playbook questions score 75+.
+PLAYBOOK_PRIORITY_SCORE = 70.0
+#: Looser bar used only when nothing else understood the message.
+PLAYBOOK_FALLBACK_SCORE = 35.0
+
+
 class UnifiedAssistantService:
     """Unified conversational assistant that connects to ALL app services.
 
@@ -1024,6 +1031,13 @@ class UnifiedAssistantService:
 
     async def _route_intent(self, intent: str | None, params: dict[str, str], text: str) -> dict[str, Any]:
         """Route intent to appropriate handler."""
+        # A near-verbatim trading-playbook question («صف فروش شده، میانگین کم کنم؟») is
+        # advice-seeking, not a command; the regex intents misread most of them as
+        # analyze_symbol/compare, so a strong match is answered before routing.
+        playbook = self._handle_playbook(text, PLAYBOOK_PRIORITY_SCORE)
+        if playbook:
+            return playbook
+
         if intent == "greeting":
             return await self._handle_greeting()
 
@@ -1135,6 +1149,11 @@ class UnifiedAssistantService:
         symbol = await self._try_extract_symbol(text)
         if symbol:
             return await self._handle_analysis({"symbol": symbol}, text)
+
+        # ── Looser trading-playbook match beats «متوجه نشدم» ──
+        playbook = self._handle_playbook(text, PLAYBOOK_FALLBACK_SCORE)
+        if playbook:
+            return playbook
 
         # ── Last resort: suggest features ──
         return self._handle_unknown(text)
@@ -1936,6 +1955,34 @@ class UnifiedAssistantService:
             "actions": [{"type": "link", "label": "🌍 صفحه کامودیتی", "url": "/commodities"}],
             "suggestions": ["قیمت طلا", "قیمت نفت", "تحلیل فولاد"],
         }
+
+    def _handle_playbook(self, text: str, min_score: float) -> dict[str, Any] | None:
+        """Answer from the offline trading playbook when the best match clears ``min_score``."""
+        try:
+            from core import trading_playbook
+
+            book = trading_playbook.load()
+            top = book.search(text, top_k=1)
+            if not top or top[0].score < min_score:
+                return None
+            result = trading_playbook.answer(
+                text, buy_price=trading_playbook.buy_price_from_message(text) or 0
+            )
+            best = result.matches[0].entry
+            related = [
+                e.question
+                for e in book.entries
+                if e.category == best.category and e.question != best.question
+            ]
+            return {
+                "text": result.text,
+                "type": "playbook",
+                "data": result.as_dict() | {"category": best.category},
+                "suggestions": related[:3],
+            }
+        except Exception:
+            logger.exception("Trading playbook lookup failed")
+            return None
 
     def _handle_unknown(self, text: str) -> dict[str, Any]:
         return {

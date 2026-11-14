@@ -113,11 +113,6 @@ _ENDPOINTS = [
         "tag": "Unified Assistant",
         "description": "Unified conversational assistant — execute commands across all features",
     },
-    {
-        "path": "/trading-playbook",
-        "tag": "Trading Playbook",
-        "description": "Offline trading-scenario knowledge base — rules, risk reminders, live P&L",
-    },
     {"path": "/tests", "tag": "Tests", "description": "Test runner"},
     {"path": "/portfolios", "tag": "Portfolios", "description": "Portfolio management"},
     {
@@ -294,7 +289,6 @@ class Router:
         from apps.api.endpoints.stock_assistant import router as stock_assistant_router
         from apps.api.endpoints.stocks_v2 import router as stocks_v2_router
         from apps.api.endpoints.symbol_search import router as symbol_search_router
-        from apps.api.endpoints.trading_playbook import router as trading_playbook_router
         from apps.api.endpoints.symbols import router as symbols_router
         from apps.api.endpoints.system import router as system_router
         from apps.api.endpoints.tabdeal import router as tabdeal_router
@@ -625,12 +619,6 @@ class Router:
             assistant_router,
             prefix="/assistant",
             tags=["Unified Assistant"],
-            dependencies=_require_user,
-        )
-        router.include_router(
-            trading_playbook_router,
-            prefix="/trading-playbook",
-            tags=["Trading Playbook"],
             dependencies=_require_user,
         )
         # Running the test-suite spawns a subprocess on the server — admin-only.
