@@ -94,13 +94,16 @@ services:
       redis:
         condition: service_started
     environment:
-      - INGESTION_DB_DSN=postgresql+asyncpg://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
+      # CFG-18: asyncpg.create_pool() requires bare postgresql://, not postgresql+asyncpg://
+      - INGESTION_DB_DSN=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
       - INGESTION_REDIS_URL=redis://:${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}@redis:6379/0
-      # MinIO is NOT provisioned by this compose (see 06_DOCKER report). Default
-      # points at the (absent) `minio` service; override via .env for a real deployment.
-      - LAKE_ENDPOINT=${LAKE_ENDPOINT:-http://minio:9000}
-      - LAKE_ACCESS_KEY=${LAKE_ACCESS_KEY:-minioadmin}
-      - LAKE_SECRET_KEY=${LAKE_SECRET_KEY:-minioadmin}
+      # CFG-17: IngestionConfig uses env_prefix="INGESTION_", so lake vars must
+      # carry that prefix to be read (fields: lake_endpoint, lake_access_key, lake_secret_key).
+      # MinIO is NOT provisioned by this compose. Default points at the absent `minio`
+      # service; override via .env for a real deployment.
+      - INGESTION_LAKE_ENDPOINT=${INGESTION_LAKE_ENDPOINT:-http://minio:9000}
+      - INGESTION_LAKE_ACCESS_KEY=${INGESTION_LAKE_ACCESS_KEY:-minioadmin}
+      - INGESTION_LAKE_SECRET_KEY=${INGESTION_LAKE_SECRET_KEY:-minioadmin}
     volumes:
       - ./logs:/app/logs
     restart: always

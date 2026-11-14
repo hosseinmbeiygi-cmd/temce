@@ -18,6 +18,7 @@ from starlette.responses import JSONResponse
 from core.config import settings as app_settings
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
+from core.security.client_ip import get_client_ip
 from core.security.saas import TIERS, get_tier_limiter, tier_subject_from_request
 from core.security.sanitizers import strip_html
 from core.security.tokens import decode_access_token, is_token_revoked
@@ -543,7 +544,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         ):
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = get_client_ip(request)
         path = request.url.path
         max_calls = self._get_limit_for_path(path)
         key = self._get_key(client_ip, path)

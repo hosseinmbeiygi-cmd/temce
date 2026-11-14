@@ -182,7 +182,7 @@ class Settings(BaseSettings):
     # alembic). Production must use Alembic migrations — never create_all.
     database_auto_create_tables: bool = False
 
-    data_dir: str = str(Path.cwd() / "data")
+    data_dir: str = str(_REPO_ROOT / "data")
     storage_backend: str = "local"
     s3_bucket: str | None = None
 
@@ -264,7 +264,7 @@ class Settings(BaseSettings):
     # the same repository `.env` as every other setting.
     fred_api_key: str = Field(default="", alias="FRED_API_KEY")
 
-    ml_model_dir: str = str(Path.cwd() / "data" / "models")
+    ml_model_dir: str = str(_REPO_ROOT / "data" / "models")
     ml_default_batch_size: int = 2048
     ml_device: str = "cpu"
     ml_random_seed: int = 42

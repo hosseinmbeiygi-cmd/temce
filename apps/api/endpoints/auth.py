@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
@@ -12,6 +11,7 @@ from core.config import settings
 from core.database import get_session
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
+from core.security.client_ip import get_client_ip as _get_client_ip
 from schemas.api.auth import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -62,55 +62,6 @@ _AUTH_LIMITS: dict[str, tuple[float, int]] = {
 }
 
 _limiter = get_rate_limiter()
-
-
-def _peer_ip(request: Request) -> str | None:
-    client = getattr(request, "client", None)
-    host = getattr(client, "host", None) if client else None
-    return host or None
-
-
-def _is_trusted_proxy(peer: str | None) -> bool:
-    """Is the *direct* peer one of the configured proxies (audit SEC-06)?"""
-    if not peer:
-        return False
-    import ipaddress
-
-    try:
-        peer_ip = ipaddress.ip_address(peer)
-    except ValueError:
-        return False
-    for entry in getattr(settings, "trusted_proxies", []) or []:
-        try:
-            if "/" in entry:
-                if peer_ip in ipaddress.ip_network(entry, strict=False):
-                    return True
-            elif peer_ip == ipaddress.ip_address(entry):
-                return True
-        except ValueError:
-            logger.warning("Ignoring invalid TRUSTED_PROXIES entry %r", entry)
-    return False
-
-
-def _get_client_ip(request: Request) -> str:
-    """Rate-limit identity: X-Forwarded-For only from a trusted proxy.
-
-    Trusting the header unconditionally (the old behaviour) let any client
-    pick its own bucket by sending ``X-Forwarded-For: <random>``, defeating
-    the login/OTP limits entirely (audit SEC-06). Without a configured
-    ``TRUSTED_PROXIES`` the socket peer address is authoritative.
-    """
-    peer = _peer_ip(request)
-    with contextlib.suppress(Exception):
-        headers = getattr(request, "headers", None)
-        xff: str | None = headers.get("x-forwarded-for") if headers is not None else None
-        if xff and _is_trusted_proxy(peer):
-            first = xff.split(",")[0].strip()
-            if first:
-                return first
-    if peer:
-        return peer
-    return "unknown"
 
 
 def _rate_limit_auth(request: Request, endpoint: str) -> None:

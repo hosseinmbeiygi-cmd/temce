@@ -8,7 +8,10 @@ from pydantic import PostgresDsn
 
 class DatabaseSession:
     def __init__(self, dsn: PostgresDsn) -> None:
-        self._dsn = str(dsn)
+        # asyncpg.create_pool() does not accept the SQLAlchemy +asyncpg driver
+        # suffix — strip it so both "postgresql+asyncpg://" and "postgresql://"
+        # work (ROOT-002 / CFG-18).
+        self._dsn = str(dsn).replace("postgresql+asyncpg://", "postgresql://", 1)
         self._pool: asyncpg.Pool | None = None
 
     async def start(self, pool_size: int = 10, max_overflow: int = 20) -> None:

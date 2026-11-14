@@ -17,6 +17,9 @@ x-app-prod: &app-prod
   # explicit mapping also lets Swarm-only env injection override it:
   #   docker stack deploy ... (env comes from env_file above)
   environment:
+    # CFG-01: must be set so validate_production() fires its 7 security gates
+    # and settings.is_production=True enables fail-closed guards throughout.
+    ENV: production
     SENTRY_DSN: ${SENTRY_DSN:-}
     SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     GOLD_API_TOKEN_SALT: ${GOLD_API_TOKEN_SALT:?GOLD_API_TOKEN_SALT must be set}
@@ -57,11 +60,12 @@ services:
         delay: 30s
         order: start-first
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)"]
+      # CFG-07: use /ready (503 when DB/Redis unavailable) not /health (always 200)
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
 
   admin:
     <<: *app-prod
