@@ -42,6 +42,12 @@ def test_table_browser_denylist_contains_credentials() -> None:
 
 def test_backtest_collector_rate_limiter_rechecks_after_sleep() -> None:
     """The full-window path must loop, not recurse while holding the lock."""
+    import sys
+    from pathlib import Path
+
+    _scripts = str(Path(__file__).parent.parent.parent / "scripts")
+    if _scripts not in sys.path:
+        sys.path.insert(0, _scripts)
     import backtest_collector
 
     limiter = backtest_collector.RateLimiter(max_requests=1, window_seconds=10)

@@ -532,16 +532,19 @@ class TestParseStopLossPct:
         assert sl == pytest.approx(0.05, abs=0.001)
 
     def test_empty_string_default(self):
+        # SIG-11: returns 0.0 (unknown) so callers apply their own explicit fallback.
         sl = QuantSignalOrchestrator._parse_stop_loss_pct("", price=50000)
-        assert sl == pytest.approx(0.05)
+        assert sl == pytest.approx(0.0)
 
     def test_none_default(self):
+        # SIG-11: None → 0.0 (unknown), not a fabricated 5% default.
         sl = QuantSignalOrchestrator._parse_stop_loss_pct(None, price=50000)
-        assert sl == pytest.approx(0.05)
+        assert sl == pytest.approx(0.0)
 
     def test_zero_price_default(self):
+        # SIG-11: price=0 → 0.0 (unknown); 5% of zero is meaningless.
         sl = QuantSignalOrchestrator._parse_stop_loss_pct("-5%", price=0)
-        assert sl == pytest.approx(0.05)
+        assert sl == pytest.approx(0.0)
 
     def test_large_percentage_unlikely(self):
         """50%+ change normalized to default 5% (heuristic)."""
@@ -550,11 +553,11 @@ class TestParseStopLossPct:
         assert sl == pytest.approx(0.5)
 
     def test_very_large_difference_default(self):
-        """Very large difference > 500% -> returns default 5%."""
+        """Price difference outside 0.1%–50% band → 0.0 (SIG-11: unknown, not fabricated)."""
         sl = QuantSignalOrchestrator._parse_stop_loss_pct("1000", price=50000)
-        # pct = |1000-50000|/50000 = 0.98 > 0.5 → next check: 0.98 <= 5 → True → 0.05
-        # Actually 0.98 > 0.5 but <= 5, so returns 0.05
-        assert sl == pytest.approx(0.05)
+        # pct = |1000-50000|/50000 = 0.98; the range gate is 0.001 <= pct <= 0.5,
+        # so 0.98 fails and returns 0.0 (SIG-11: callers supply their own fallback).
+        assert sl == pytest.approx(0.0)
 
 
 class TestParseTargetPct:

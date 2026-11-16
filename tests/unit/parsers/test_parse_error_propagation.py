@@ -84,24 +84,29 @@ def _worker(parser, *, lake=None) -> IngestionWorker:
 
 
 async def test_worker_raises_parse_error_and_keeps_raw_payload():
+    # ING-05: ParseError is now caught inside _ingest_source (one bad payload
+    # must not stop the remaining payloads for this source in the current tick).
+    # The method completes normally (returns 0); the raw copy is kept for replay.
     lake = FakeLake()
     worker = _worker(FailingParser(), lake=lake)
 
-    with pytest.raises(ParseError):
-        await worker._ingest_source(FakeSource([_payload()]))
+    count = await worker._ingest_source(FakeSource([_payload()]))
 
+    assert count == 0  # no events persisted (parse failed)
     # The raw copy is stored before parsing, so a replay can still recover it.
     assert lake.stored and lake.stored[0]["source"] == "dummy"
 
 
 async def test_worker_ingest_all_marks_parse_failure_as_failed_source():
+    # ING-05: ParseError is caught and continued inside _ingest_source, so
+    # ingest_all() sees 0 events (not an exception) and sets the count to 0.
+    # -1 is reserved for unhandled exceptions at the ingest_all level.
     worker = _worker(FailingParser("html_response"))
     worker.register_source(FakeSource([_payload()]))
 
     results = await worker.ingest_all()
 
-    # -1 is the worker's failure signal; 0 would read as "nothing new".
-    assert results == {"dummy": -1}
+    assert results == {"dummy": 0}
 
 
 async def test_worker_ingest_all_keeps_valid_empty_payload_as_zero():

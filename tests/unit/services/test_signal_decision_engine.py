@@ -727,10 +727,18 @@ class TestGateExecution:
         assert result.verdict == GateVerdict.PASS
 
     @pytest.mark.asyncio
-    async def test_pass_default_min_spread_is_zero(self):
-        """With min_spread_pct=0.0 (default), spread is never checked."""
+    async def test_warn_default_spread_above_threshold(self):
+        """SIG-04: default min_spread_pct=0.005; spread=0.1% > 0.005% → WARN."""
         engine = _make_engine()
         candidate = _make_candidate({"spread_pct": 0.1, "price": 50000})
+        result = await engine._gate_execution(candidate, "stock")
+        assert result.verdict == GateVerdict.WARN
+
+    @pytest.mark.asyncio
+    async def test_pass_spread_below_default_threshold(self):
+        """SIG-04: spread=0.001% < default 0.005% → PASS."""
+        engine = _make_engine()
+        candidate = _make_candidate({"spread_pct": 0.001, "price": 50000})
         result = await engine._gate_execution(candidate, "stock")
         assert result.verdict == GateVerdict.PASS
 
