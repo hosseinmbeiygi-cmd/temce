@@ -38,6 +38,26 @@ from ml.models import register_all_models
 # process refuses to boot instead of failing on the first token request.
 from src.gold_desk.api_token import SALT as _GOLD_TOKEN_SALT  # noqa: F401
 
+# DOM-11 — GoldDesk deployment boundary:
+# src/gold_desk/ is mounted INSIDE this monolith (apps/api), not as a
+# standalone service. It is exposed on two URL surfaces with different auth:
+#   /golddesk  — scoped API token (GOLD_API_TOKEN_SALT), no JWT session
+#   /gold      — standard JWT user session (same token as every other route)
+# apps/currency_service/ is the ONLY sub-app with its own independent
+# deployment path; src/gold_desk/ is NOT independently deployable.
+# Auth policy unification goal: /golddesk endpoints that touch personal data
+# should eventually migrate to the JWT surface; the scoped-token surface is
+# kept for the SaaS (B2B) embedding use-case where no user session exists.
+
+# EX-16: call setup_logging() here so that any module-level logger created
+# during app.py import uses the structured format from the first log call.
+# Previously, setup_logging() was first called inside lifespan(), meaning
+# imports that call get_logger() at module scope produced unformatted output
+# during the boot sequence.  This call is idempotent (structlog.configure is
+# safe to call multiple times) so the lifespan call is kept as the canonical
+# "re-configure if settings changed" path.
+setup_logging()
+
 logger = get_logger(__name__)
 
 
@@ -915,13 +935,17 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("Production validation skipped (development mode)", exc_info=True)
 
     # Database: fail fast in production; resilient in dev
+    # EX-12: track success so DB-dependent startup tasks can be skipped when
+    # the engine is unavailable — prevents cascading failures at every task.
+    _db_ready = False
     try:
         await init_database()
+        _db_ready = True
     except Exception:
         logger.exception("Database init failed")
         if settings.is_production:
             raise  # DB unavailable is not recoverable in production
-        logger.warning("Continuing without DB (development mode only)")
+        logger.warning("Continuing without DB (development mode only); DB-dependent startup tasks will be skipped")
 
     # ML models: optional
     try:
@@ -987,14 +1011,17 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception:
             logger.exception("BrsApi scheduler startup failed — periodic syncs disabled")
 
-    # ── Initial full sync (ALL endpoints, ordered) ──
-    _track_background_task(_brsapi_startup_sync(), "brsapi-startup-sync")
+    if _db_ready:
+        # ── Initial full sync (ALL endpoints, ordered) ──
+        _track_background_task(_brsapi_startup_sync(), "brsapi-startup-sync")
 
-    # Auto-fetch news in background
-    _track_background_task(_fetch_news_on_startup(), "news-startup-ingest")
+        # Auto-fetch news in background
+        _track_background_task(_fetch_news_on_startup(), "news-startup-ingest")
 
-    # Auto-seed Decision Engine architecture data in background
-    _track_background_task(_decision_engine_startup_seed(), "decision-engine-seed")
+        # Auto-seed Decision Engine architecture data in background
+        _track_background_task(_decision_engine_startup_seed(), "decision-engine-seed")
+    else:
+        logger.warning("DB not ready — skipping brsapi-startup-sync, news-startup-ingest, decision-engine-seed")
 
     # ── Start RealtimeService (WebSocket broadcasting) ──
     try:
@@ -1017,27 +1044,30 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         logger.warning("Armor precompute event subscriber failed to start", exc_info=True)
 
-    # ── Hourly orchestrator cron (signal generation + outcome tracking + auto-retrain) ──
-    _track_background_task(_orchestrator_hourly_cron(), "orchestrator-hourly-cron")
-    logger.info("Orchestrator hourly cron started — generating signals every 3600s")
+    if _db_ready:
+        # ── Hourly orchestrator cron (signal generation + outcome tracking + auto-retrain) ──
+        _track_background_task(_orchestrator_hourly_cron(), "orchestrator-hourly-cron")
+        logger.info("Orchestrator hourly cron started — generating signals every 3600s")
 
-    # ── Pre-warm the multi-market signals cache so the first page load is
-    #    instant instead of blocking on a ~60s pipeline rebuild ──
-    try:
-        from apps.api.endpoints.multi_market_signals import warm_signal_cache
+        # ── Pre-warm the multi-market signals cache so the first page load is
+        #    instant instead of blocking on a ~60s pipeline rebuild ──
+        try:
+            from apps.api.endpoints.multi_market_signals import warm_signal_cache
 
-        _track_background_task(warm_signal_cache(), "signal-cache-warmup")
-        logger.info("Signal cache warm-up scheduled at startup")
-    except Exception:
-        logger.exception("Failed to schedule signal cache warm-up")
+            _track_background_task(warm_signal_cache(), "signal-cache-warmup")
+            logger.info("Signal cache warm-up scheduled at startup")
+        except Exception:
+            logger.exception("Failed to schedule signal cache warm-up")
 
-    # ── Fund sync cron (every 15 min during market hours, daily at 2 AM) ──
-    _track_background_task(_fund_sync_cron(), "fund-sync-cron")
-    logger.info("Fund sync cron started — updating fund data every 15 min")
+        # ── Fund sync cron (every 15 min during market hours, daily at 2 AM) ──
+        _track_background_task(_fund_sync_cron(), "fund-sync-cron")
+        logger.info("Fund sync cron started — updating fund data every 15 min")
 
-    # ── Warm the ModelLoader LRU cache for active watchlist/screener symbols ──
-    _track_background_task(_ml_model_preload(), "ml-model-preload")
-    logger.info("ML model preload scheduled at startup — warming cache for active symbols")
+        # ── Warm the ModelLoader LRU cache for active watchlist/screener symbols ──
+        _track_background_task(_ml_model_preload(), "ml-model-preload")
+        logger.info("ML model preload scheduled at startup — warming cache for active symbols")
+    else:
+        logger.warning("DB not ready — skipping orchestrator-cron, signal-cache-warmup, fund-sync-cron, ml-model-preload")
 
     logger.info("Starting %s", settings.app_name)
     yield
@@ -1051,6 +1081,12 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         await get_armor_ws_manager().shutdown()
     with suppress(Exception):
         if scheduler_app is not None:
+            # EX-15: APScheduler.shutdown() is synchronous; wait=False lets the
+            # event loop continue closing its remaining async resources instead
+            # of blocking here. Running jobs may not complete cleanly — the
+            # dedicated 'scheduler' service (Dockerfile.scheduler) owns job
+            # triggers in production, so the API replica carries no long-running
+            # jobs that need a graceful drain.
             scheduler_app.scheduler.shutdown(wait=False)
     with suppress(Exception):
         from services.realtime_service import get_realtime_service

@@ -38,6 +38,11 @@ def upgrade():
         sa.Column("symbol",sa.String(50),index=True), sa.Column("start",sa.DateTime()),
         sa.Column("end",sa.DateTime()), sa.Column("reason",sa.String(100)))
 def downgrade() -> None:
-    # DB-04: dropping data_quality_log / data_gaps would destroy monitoring
-    # history and is intentionally omitted from automated rollback.
+    # DB-04/DB-17: data_freshness / data_quality_log / data_gaps are intentionally
+    # NOT dropped on downgrade — removing monitoring history would silence any
+    # data-quality signals accumulated during the period.  This creates a
+    # permanent create_table imbalance (+3 creates, 0 drops) visible when
+    # counting op.create_table vs op.drop_table across all migrations.
+    # To reverse this migration, drop the tables manually:
+    #   DROP TABLE IF EXISTS data_freshness, data_quality_log, data_gaps;
     pass

@@ -38,8 +38,16 @@ class SchedulerApp:
             if published is not None:
                 logger.info("Scheduler queued job: %s", job_name)
                 return
+            # JOB-11: Redis publish failed — fail-open by design.  In-process
+            # dispatch means this scheduler replica runs the job directly instead
+            # of a worker replica, skipping the dedup/retry/dead-letter guarantees
+            # the queue provides.  Under sustained Redis failures, all triggered
+            # jobs run in-process and may overlap if max_instances=1 is not
+            # enforced by APScheduler.  Set JOB_QUEUE_ENABLED=false explicitly
+            # to run always in-process, or investigate Redis connectivity.
             logger.warning(
-                "Scheduler could not enqueue %s — falling back to in-process dispatch",
+                "Scheduler could not enqueue %s (Redis down?) — falling back to in-process dispatch;"
+                " queue guarantees (dedup, retry, dead-letter) are bypassed for this run",
                 job_name,
             )
         logger.info("Scheduler running job in-process: %s", job_name)
@@ -70,10 +78,12 @@ class SchedulerApp:
         brsapi_registry.register_with_apscheduler(self.scheduler)
 
         # ── Legacy sync jobs (now proper BaseJob classes with DB sessions) ──
-        self.add_job("SyncInstrumentsJob", trigger="interval", hours=24)
-        self.add_job("SyncQuotesJob", trigger="interval", minutes=2)
-        self.add_job("SyncSnapshotsToQuotesJob", trigger="interval", minutes=2)
-        self.add_job("SyncCodalJob", trigger="interval", hours=6)
+        # JOB-10: max_instances=1 prevents overlap when a tick overruns its interval.
+        # APScheduler default is 1, but explicit is clearer and defensively correct.
+        self.add_job("SyncInstrumentsJob", trigger="interval", hours=24, max_instances=1, replace_existing=True)
+        self.add_job("SyncQuotesJob", trigger="interval", minutes=2, max_instances=1, replace_existing=True)
+        self.add_job("SyncSnapshotsToQuotesJob", trigger="interval", minutes=2, max_instances=1, replace_existing=True)
+        self.add_job("SyncCodalJob", trigger="interval", hours=6, max_instances=1, replace_existing=True)
         self.add_job(
             "CodalAttachmentDownloadJob",
             trigger="interval",
@@ -87,7 +97,7 @@ class SchedulerApp:
         # and otherwise acts as a same-day retry.
         self.add_job("SyncNavAllJob", trigger="cron", hour="9,18", minute=0, max_instances=1, replace_existing=True)
         # Audit SCH-06: without max_instances a slow feed lets the next 10-minute
-        # tick overlap the still-running ingest (APScheduler default is 3).
+        # tick overlap the still-running ingest (APScheduler default is 1, but explicit is clearer).
         self.add_job(
             "NewsIngestionJob",
             trigger="interval",
@@ -401,10 +411,13 @@ class SchedulerApp:
         logger.info("Scheduler started with %d BrsApi jobs", len(register_all_brsapi_jobs().enabled))
 
     async def run_forever(self) -> None:
-        # Init Redis cache in the background so JobLocking uses the
-        # distributed (Redis) lock in this process instead of the
-        # single-process in-memory fallback. Non-blocking: until the
-        # connection is ready, JobLocking degrades to in-memory locking.
+        # JOB-12: Redis init is intentionally non-blocking (create_task, not
+        # await).  Jobs triggered before Redis is ready use in-memory locking
+        # (single-process fallback), which means two scheduler replicas can
+        # dispatch the same job simultaneously during the brief startup window.
+        # In production a single scheduler replica is deployed
+        # (docker-compose.production.yml), so the overlap risk is low, but
+        # callers must not assume distributed locking is guaranteed at startup.
         try:
             from core.cache import get_cache
 

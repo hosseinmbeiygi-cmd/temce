@@ -54,6 +54,7 @@ class IngestionEngine:
         self._scheduler: MarketScheduler | None = None
         self._worker: IngestionWorker | None = None
         self._parsers = ParserRegistry()
+        self._replay: ReplayEngine | None = None  # ING-13: cached, not re-created per access
 
     async def start(self) -> None:
         logger.info("Starting IngestionEngine...")
@@ -135,15 +136,20 @@ class IngestionEngine:
 
     @property
     def replay(self) -> ReplayEngine:
-        assert self._lake is not None
-        from .identity import IdentityResolver
+        # ING-13: cache the instance; re-creating ReplayEngine on every access
+        # was wasteful and caused inconsistent state if the engine held internal
+        # caches or connections.
+        if self._replay is None:
+            assert self._lake is not None
+            from .identity import IdentityResolver
 
-        return ReplayEngine(
-            lake=self._lake,
-            parser_registry=self._parsers,
-            storage=StorageLayer(self._db) if self._db else None,
-            identity_resolver=IdentityResolver(self._db) if self._db else None,
-        )
+            self._replay = ReplayEngine(
+                lake=self._lake,
+                parser_registry=self._parsers,
+                storage=StorageLayer(self._db) if self._db else None,
+                identity_resolver=IdentityResolver(self._db) if self._db else None,
+            )
+        return self._replay
 
 
 async def run_ingestion() -> None:

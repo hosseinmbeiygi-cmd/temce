@@ -436,11 +436,15 @@ class Router:
             tags=["Codal Audit"],
             dependencies=_public_read,
         )
+        # DOM-10: /codal-professional hosts computationally heavy ISA/IFRS
+        # endpoints (risk-assessment, materiality, forensic, audit-program,
+        # going-concern). These are GET-only but require significant CPU. Scope
+        # them to authenticated users to prevent anonymous abuse.
         router.include_router(
             codal_professional_router,
             prefix="/codal-professional",
             tags=["Codal Professional"],
-            dependencies=_public_read,
+            dependencies=_require_user,
         )
         router.include_router(data_import_router,
             prefix="/data-import",
@@ -730,6 +734,12 @@ class Router:
             dependencies=_require_user,
         )
         # WebSocket for real-time market data
+        # HTTP-13: no mount-level dependencies here by design — browsers cannot
+        # attach an Authorization header to a WebSocket handshake, so auth is
+        # handled per-endpoint via a signed one-time ticket query parameter
+        # (see /ws/ticket).  A mount-level Depends would run before the upgrade
+        # and reject unauthenticated connections before they can present their
+        # ticket, breaking the two-step (HTTP → WS) auth flow.
         router.include_router(
             websocket_router,
             prefix="/ws",
@@ -738,6 +748,7 @@ class Router:
         # Armor Precompute WS (separate from market WS) — /ws/precompute
         from apps.api.endpoints.precompute_ws import router as precompute_ws_router
 
+        # HTTP-13: same ticket-based auth rationale as /ws above.
         router.include_router(
             precompute_ws_router,
             prefix="/ws",

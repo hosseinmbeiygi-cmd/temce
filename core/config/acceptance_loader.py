@@ -387,9 +387,18 @@ def walk_forward_metrics(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def _json_scalar(value: Any) -> Any:
-    """JSON-safe scalar: non-finite numbers become ``None``, never ``Infinity``."""
-    if isinstance(value, float) and not math.isfinite(value):
-        return None
+    """JSON-safe scalar: NaN → None; ±∞ → string marker (not null).
+
+    BT-15: using None for a legitimately infinite profit factor (no losing
+    trades) produces {"value": null, "passed": true} which looks contradictory.
+    Use "∞" / "-∞" so the reader knows the threshold was met, not missing.
+    NaN stays None because it represents an unknown, not a large value.
+    """
+    if isinstance(value, float):
+        if math.isnan(value):
+            return None
+        if math.isinf(value):
+            return "∞" if value > 0 else "-∞"
     return value
 
 
@@ -520,6 +529,14 @@ def evaluate_walk_forward_result(result: dict[str, Any]) -> dict[str, Any]:
     authority — while ``thresholds`` carries one row per ``acceptance.yaml``
     threshold naming the raw field it was judged against, the observed value and
     the configured limit, so the verdict can be audited against the raw output.
+
+    BT-14 — scope note: ``acceptance.yaml`` declares ``asset_class: "gold"`` and
+    its thresholds (min_wfe=0.50, min_oos_sharpe=1.0, max_drawdown=0.20,
+    min_profit_factor=1.30) were calibrated against Iranian gold instruments.
+    They are applied to ALL backtests regardless of asset class.  For non-gold
+    assets, treat the verdict as an indicative check rather than a certified
+    acceptance gate until asset-class-specific threshold sections are added to
+    ``acceptance.yaml``.
     """
     config = get_acceptance_config()
     metrics = walk_forward_metrics(result)

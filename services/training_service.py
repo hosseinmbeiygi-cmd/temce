@@ -38,6 +38,10 @@ class TrainingService:
         self.price_features = PriceFeatures(window_sizes=[5, 10, 20])
         self.technical_features = TechnicalFeatures()
         self.metrics_calc = MetricsCalculator()
+        # MLD-16: in-process dict — not shared across replicas, lost on restart.
+        # Run data should be persisted to Redis or the DB for a multi-replica
+        # deployment.  Until then, callers must not rely on cross-process run
+        # visibility or run history surviving a process restart.
         self._runs: dict[str, dict[str, Any]] = {}
 
     def _synthetic_ohlcv(self, start_date: str, end_date: str) -> Result[pd.DataFrame]:
@@ -68,9 +72,26 @@ class TrainingService:
         })
         return Result.ok(df)
 
+    def _is_production(self) -> bool:
+        try:
+            from core.config import settings as _s
+            return _s.is_production
+        except Exception:
+            return False
+
     async def _fetch_ohlcv(self, symbol: str, start_date: str, end_date: str) -> Result[pd.DataFrame]:
-        """Load daily OHLCV data for a symbol from the database."""
+        """Load daily OHLCV data for a symbol from the database.
+
+        MLD-02: In production, fail-closed when real data is unavailable instead
+        of silently falling back to synthetic random OHLCV.  The synthetic path
+        remains available in dev/test environments only.
+        """
         if not self.quote_repo:
+            if self._is_production():
+                return Result.fail(
+                    f"No quote_repo injected — cannot train on symbol '{symbol}' without real data "
+                    "(MLD-02: synthetic fallback disabled in production)"
+                )
             return self._synthetic_ohlcv(start_date, end_date)
 
         try:
@@ -83,10 +104,20 @@ class TrainingService:
 
         try:
             result = await self.quote_repo.get_range(symbol, sd, ed, timeframe="1d")
-        except Exception:
+        except Exception as exc:
+            if self._is_production():
+                return Result.fail(
+                    f"DB query failed for symbol '{symbol}': {exc} "
+                    "(MLD-02: synthetic fallback disabled in production)"
+                )
             return self._synthetic_ohlcv(start_date, end_date)
 
         if not result.success or not result.value:
+            if self._is_production():
+                return Result.fail(
+                    f"No OHLCV data for symbol '{symbol}' between {start_date} and {end_date} "
+                    "(MLD-02: synthetic fallback disabled in production)"
+                )
             return self._synthetic_ohlcv(start_date, end_date)
 
         quotes = result.value
@@ -238,12 +269,17 @@ class TrainingService:
             feature_names=X.feature_names,
             stage="development",
         )
+        artifact_save_error: str | None = None
         try:
             artifact_path = self.artifact_manager.save_model(model, meta)
             logger.info("Model saved to %s", artifact_path)
         except Exception as e:
+            # MLD-15: save failure must NOT silently become status="completed".
+            # Record the error so callers can distinguish "trained but unsaved"
+            # from a fully persisted model.
             logger.warning("Could not save model artifact: %s", e)
             artifact_path = ""
+            artifact_save_error = str(e)
 
         # 6b. Auto-refresh the ModelLoader cache so the freshly-trained
         #     artifact is picked up without a restart.
@@ -256,10 +292,11 @@ class TrainingService:
             "model_type": model_type,
             "symbol": symbol,
             "symbols": [symbol],
-            "status": "completed",
+            "status": "artifact_save_failed" if artifact_save_error else "completed",
             "metrics": metrics,
             "feature_names": X.feature_names,
             "artifact_path": artifact_path,
+            "artifact_save_error": artifact_save_error,
             "train_samples": X_train.shape[0],
             "val_samples": X_val.shape[0],
             "start_date": start_date,

@@ -209,13 +209,34 @@ class BrsApiBudgetGovernor:
                         self._backend = "redis"
                         await self._load_block_redis()
                     else:
-                        self._backend = "file" if self._try_load_file() else "memory"
+                        # ING-07: Redis unavailable — budget counters will reset on
+                        # restart.  Emit ERROR so ops notices before a 302-block.
+                        if self._try_load_file():
+                            self._backend = "file"
+                            logger.error(
+                                "BrsApi budget governor: Redis unavailable — using FILE "
+                                "fallback (%s).  Counters survive restart only if this "
+                                "path is on a writable persistent volume.",
+                                self._state_file,
+                            )
+                        else:
+                            self._backend = "memory"
+                            logger.error(
+                                "BrsApi budget governor: Redis unavailable AND file "
+                                "fallback failed — using MEMORY backend.  Budget "
+                                "counters will RESET on every restart; risk of "
+                                "re-triggering a 302 provider block.",
+                            )
                 else:
                     self._backend = "memory"
             except Exception as exc:  # noqa: BLE001
                 self._init_error = str(exc)
                 self._backend = "memory"
-                logger.warning("BrsApi budget governor init failed (%s) — memory only", exc)
+                logger.error(
+                    "BrsApi budget governor init failed (%s) — MEMORY only. "
+                    "Budget counters will reset on restart.",
+                    exc,
+                )
             await self._seed_limiter_from_persisted()
             self._initialized = True
 
@@ -354,6 +375,11 @@ class BrsApiBudgetGovernor:
             logger.debug("BrsApi budget governor: block load failed (%s)", exc)
 
     async def _persist_block(self) -> None:
+        # ING-14: "memory" backend has no persistence — block state is in-process
+        # only and is lost on restart.  A 302 cooldown active at process exit will
+        # not be restored on the next start, allowing the new process to make live
+        # calls immediately even if the server is still over-quota.  To preserve
+        # block state across restarts, configure Redis (preferred) or file backend.
         if self._backend == "redis" and self._redis is not None:
             try:
                 key = f"{self._redis_prefix}:block"

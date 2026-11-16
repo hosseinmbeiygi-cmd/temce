@@ -186,7 +186,7 @@ jobs:
     needs: [build, release]
     environment:
       name: production
-      url: https://your-domain.com
+      url: ${{ vars.DEPLOY_URL }}
     if: needs.validate.outputs.prerelease == 'false'
     steps:
       - uses: actions/checkout@v4

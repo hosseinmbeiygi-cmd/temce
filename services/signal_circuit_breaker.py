@@ -17,6 +17,16 @@ The tracker writes outcomes; this module reads them and produces
 *operational* decisions. Splitting reads from writes keeps the
 tracker pure and avoids the breaker being pulled into the hot
 path of every outcome write.
+
+SIG-16 — wiring status (2026-11-16): this module has zero production
+callers.  ``QuantSignalOrchestrator.generate()`` and
+``MultiMarketSignalEngine`` do not invoke ``check_circuit_breaker()``
+or ``evaluate_circuit_breaker()``.  The module is complete and tested,
+but its verdict is never actually consulted before signals are
+dispatched.  To activate the circuit breaker, call
+``check_circuit_breaker()`` near the top of
+``QuantSignalOrchestrator.generate()`` and return an empty report when
+the breaker is open.
 """
 
 from __future__ import annotations

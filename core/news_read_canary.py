@@ -320,12 +320,17 @@ async def evaluate_auto_halt() -> dict[str, Any]:
         # are scarce (failed requests never reach parity accounting).
         result["reason"] = f"not enough samples ({compared} < {min_samples})"
     elif parity is not None and parity < floor:
+        # DOM-15: "parity" here is regression_parity_percent — raw parity is
+        # parity_percent; both are in the returned stats so callers can see the
+        # difference.  The floor is checked against regression-only parity
+        # (superset-divergences excluded) so alias-coverage improvements never
+        # trigger auto-halt.
         await _trip_halt(parity, floor, compared, mode_reason="parity")
         if await resolve_mode() == "off":
             result["halted"] = True
-            result["reason"] = f"parity {parity}% below floor {floor}%"
+            result["reason"] = f"regression_parity {parity}% below floor {floor}%"
     else:
-        result["reason"] = "parity within floor"
+        result["reason"] = "regression_parity within floor"
     # Second leg — HTTP error-rate tripwire. INDEPENDENT of the parity
     # sample gate: a burst of 5xx can hit while compared counts are still
     # low (failed requests never reach parity accounting), so it uses its

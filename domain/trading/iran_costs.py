@@ -7,6 +7,21 @@ explicit parameter but is already INCLUDED in sell_pct — never add it on top:
     round_trip == buy_pct + sell_fee_pct + sell_tax_pct
 
 All cost modules must delegate to these helpers — no local fee formulas.
+
+BT-16 — fee schedule cross-reference: a SECOND fee schedule lives in
+``acceptance.yaml`` under ``fee_schedule`` for gold/silver instruments
+(commodity_fund, coin_certificate, bullion_certificate, futures, option).
+The two tables serve different purposes:
+
+  * ``MARKET_RATES`` here — runtime cost calculation for the backtesting
+    simulator and signal engine (covering TSE, IFB, ETF, commodity markets).
+  * ``acceptance.yaml:fee_schedule`` — governance record with provenance
+    metadata for the Gold Engine acceptance gate.
+
+There is no automated cross-parity test between the two; ``etf_commodity``
+(0.0012 per side) vs ``commodity_fund: fee_per_side: 0.0012`` should stay
+consistent.  Add a test in ``tests/unit/core/test_acceptance_and_gold_rules.py``
+if either table changes.
 """
 from __future__ import annotations
 

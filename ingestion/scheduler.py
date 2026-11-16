@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 from typing import Any
 
 from core.logging import get_logger
@@ -35,7 +36,9 @@ class MarketScheduler:
         logger.info("Scheduler stopped")
 
     async def _run_loop(self) -> None:
+        import time as _time
         while self._running:
+            tick_start = _time.monotonic()
             if self._in_market_hours():
                 for cb in self._callbacks:
                     try:
@@ -44,12 +47,27 @@ class MarketScheduler:
                         logger.exception("Scheduler callback failed")
             else:
                 logger.debug("Outside market hours, skipping tick")
-            await asyncio.sleep(self._config.scheduler_interval_seconds)
+            # ING-03: sleep only the REMAINING portion of the interval so that
+            # slow callbacks do not cause ticks to drift further and further
+            # apart.  When callbacks exceed the interval, sleep is 0 (no
+            # negative sleep) and the next tick fires immediately.
+            elapsed = _time.monotonic() - tick_start
+            remaining = max(0.0, self._config.scheduler_interval_seconds - elapsed)
+            if elapsed > self._config.scheduler_interval_seconds:
+                logger.warning(
+                    "Scheduler tick took %.1fs (interval=%ds) — next tick fires immediately",
+                    elapsed,
+                    self._config.scheduler_interval_seconds,
+                )
+            await asyncio.sleep(remaining)
 
     def _in_market_hours(self) -> bool:
         if not self._config.market_hours_enabled:
             return True
-        tz = timezone(timedelta(hours=3, minutes=30))
+        # ING-11: ZoneInfo handles DST transitions and leap-second corrections;
+        # a fixed UTC+3:30 offset silently drifts during Iran's daylight-saving
+        # period (last Wednesday of Farvardin through last Wednesday of Shahrivar).
+        tz = ZoneInfo("Asia/Tehran")
         now = datetime.now(tz).time()
         open_t = time.fromisoformat(self._config.market_open)
         close_t = time.fromisoformat(self._config.market_close)

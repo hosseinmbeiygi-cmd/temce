@@ -18,6 +18,9 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -774,8 +777,12 @@ class QuantSignalOrchestrator:
         enriched = enriched[:limit]
 
         # ── Stage 6.5: Persist to DB for future outcome evaluation ──
+        # SIG-06: only persist "release" signals — watchlist signals are not
+        # actionable and must not accumulate accuracy rows with no real outcome.
         _t7 = time.monotonic()
-        await self._persist_pending_signals(enriched)
+        await self._persist_pending_signals(
+            [s for s in enriched if s.decision_verdict == "release"]
+        )
         logger.info("[pipeline] stage6.5 persist: %.2fs", time.monotonic() - _t7)
 
         # ── Summary ──
@@ -1020,11 +1027,19 @@ class QuantSignalOrchestrator:
                     strategy="weighted",
                 )
 
-                # Compute ML boost
-                boost = connector.get_signal_boost(
-                    ml_pred or {"ml_score": 0.5, "confidence": 0.0, "direction": "hold"},
-                    sig.score / 100.0,
-                )
+                # SIG-05: only call ML boost when a real prediction exists; a
+                # missing prediction contributes nothing (ml_score=0.0,
+                # influence=0%) rather than a phantom 0.5 neutral score.
+                if ml_pred is not None:
+                    boost = connector.get_signal_boost(ml_pred, sig.score / 100.0)
+                    ml_score_val = boost.get("ml_contribution", ml_pred.get("ml_score", 0.0))
+                    ml_influence_val = boost.get("ml_influence_pct", 0.0)
+                    boosted_score_val = boost.get("boosted_score", sig.score)
+                else:
+                    boost = {}
+                    ml_score_val = 0.0
+                    ml_influence_val = 0.0
+                    boosted_score_val = sig.score
 
                 enriched.append(EnrichedSignal(
                     symbol=sig.symbol,
@@ -1044,9 +1059,9 @@ class QuantSignalOrchestrator:
                     price=sig.price,
                     change_pct=sig.change_pct,
                     rule_score=sig.score,
-                    ml_score=boost.get("ml_contribution", ml_pred.get("ml_score", 0.5) if ml_pred else 0.5),
-                    boosted_score=boost.get("boosted_score", sig.score),
-                    ml_influence_pct=boost.get("ml_influence_pct", 0.0),
+                    ml_score=ml_score_val,
+                    boosted_score=boosted_score_val,
+                    ml_influence_pct=ml_influence_val,
                     confidence=vote.final_confidence,
                     calibration_level="medium",  # will be calibrated in next stage
                     confidence_factors={},
@@ -1056,7 +1071,7 @@ class QuantSignalOrchestrator:
                     created_at=sig.created_at,
                 ))
             except Exception as e:
-                logger.debug("Voting failed for %s: %s — falling back to rule-based", sig.symbol, e)
+                logger.warning("Voting failed for %s: %s — falling back to rule-based", sig.symbol, e)
                 enriched.append(self._basic_enrich_single(sig))
 
         return enriched
@@ -1091,7 +1106,7 @@ class QuantSignalOrchestrator:
                     sig.confidence_factors = result.factors.to_dict()
                     sig.confidence_notes = result.notes
                 except Exception as e:
-                    logger.debug("Confidence calibration failed for %s: %s", sig.symbol, e)
+                    logger.warning("Confidence calibration failed for %s: %s", sig.symbol, e)
                 calibrated.append(sig)
 
             return calibrated
@@ -1136,7 +1151,7 @@ class QuantSignalOrchestrator:
                         sig.confidence_notes.extend(result.notes)
 
                 except Exception as e:
-                    logger.debug("Probability calibration failed for %s/%s: %s", sig.symbol, sig.market, e)
+                    logger.warning("Probability calibration failed for %s/%s: %s", sig.symbol, sig.market, e)
                     sig.calibrated_probability = raw
                     sig.calibration_method = "none"
 
@@ -1307,7 +1322,7 @@ class QuantSignalOrchestrator:
                         released.append(sig)
 
                 except Exception as inner_e:
-                    logger.debug("Decision engine failed for %s: %s — rejecting signal", sig.symbol, inner_e)
+                    logger.warning("Decision engine failed for %s: %s — rejecting signal", sig.symbol, inner_e)
                     sig.decision_verdict = "reject"
                     sig.decision_grade = "REJECTED_ON_ERROR"
                     rejected.append(sig)
@@ -1474,9 +1489,13 @@ class QuantSignalOrchestrator:
 
     @staticmethod
     def _parse_stop_loss_pct(sl_str: str, price: float) -> float:
-        """Parse stop loss string to percentage. Returns 0.05 (5%) as default."""
+        """Parse stop loss string to percentage. Returns 0.0 when unresolvable.
+
+        SIG-11: Callers must treat 0.0 as "unknown/missing" and apply their
+        own explicit fallback rather than receiving a fabricated 5% default.
+        """
         if not sl_str or price <= 0:
-            return 0.05
+            return 0.0
         normalized = QuantSignalOrchestrator._normalize_digits(sl_str)
         cleaned = re.sub(r",(\d{3})(?!\d)", r"\1", normalized)
         cleaned = cleaned.replace(",", ".")
@@ -1490,11 +1509,9 @@ class QuantSignalOrchestrator:
                 pct = abs(val - price) / max(price, 0.001)
                 if 0.001 <= pct <= 0.5:  # 0.1% to 50%
                     return pct
-                if 0.5 < pct <= 5:  # 50% to 500% — likely wrong, use default
-                    return 0.05
             except (ValueError, IndexError):
                 pass
-        return 0.05
+        return 0.0
 
     @staticmethod
     def _parse_target_pct(target_str: str, price: float) -> float:
@@ -1520,12 +1537,23 @@ class QuantSignalOrchestrator:
         return 0.0    # ── DB Table Checks ──────────────────────────────────────────────────
 
     @staticmethod
+    # SIG-14: guard so DDL runs at most once per process lifetime.
+    # _ensure_db_tables() is called at the top of every generate() invocation;
+    # issuing CREATE TABLE + CREATE INDEX + multiple commits on every pipeline
+    # run wastes round-trips and serialises concurrent callers.  Alembic is the
+    # canonical way to create these tables; this fallback exists only as a
+    # cold-start safety net for environments that run without migrations.
+    _tables_ensured: bool = False
+
+    @staticmethod
     async def _ensure_db_tables() -> None:
         """Ensure that all required signal-system tables exist in the DB.
 
         Called at the start of each generate() run to prevent silent failures
         caused by missing tables (fix #8: cold-start table checks).
         """
+        if QuantSignalOrchestrator._tables_ensured:
+            return
         try:
             from core.database import async_session_factory
 
@@ -1612,6 +1640,7 @@ class QuantSignalOrchestrator:
                     logger.debug("Ensured calibration_models table exists")
                 except Exception as e:
                     logger.debug("Could not create calibration_models: %s", e)
+            QuantSignalOrchestrator._tables_ensured = True
         except Exception as e:
             logger.warning("Failed to ensure DB tables: %s", e)
 
@@ -1758,10 +1787,14 @@ class QuantSignalOrchestrator:
                 # Only one PENDING (unevaluated) row is kept per
                 # (symbol, market, direction, timeframe); once it is evaluated
                 # (outcome_set_at IS NOT NULL) a fresh signal can be inserted.
+                # SIG-07: cap staleness at 30 days — rows older than that
+                # will never be evaluated and permanently block new inserts
+                # for the same (symbol, market, direction, timeframe) key.
                 r = await session.execute(text("""
                     SELECT DISTINCT symbol, market, direction, timeframe
                     FROM signal_accuracy
                     WHERE outcome_set_at IS NULL
+                      AND generated_at > NOW() - INTERVAL '30 days'
                 """))
                 pending_keys = {
                     (row[0], row[1], row[2], row[3]) for row in r.fetchall()
@@ -1810,36 +1843,61 @@ class QuantSignalOrchestrator:
                             "generated_at": now_naive,
                         })
 
+                        # SIG-01: compute numeric target/stop prices from signal
+                        # string fields at INSERT time so the evaluator can read them
+                        # back instead of using hardcoded 5%/10%/3% percentages.
+                        _sl_pct = QuantSignalOrchestrator._parse_stop_loss_pct(sig.stop_loss, sig.price)
+                        _t_pct = QuantSignalOrchestrator._parse_target_pct(sig.targets, sig.price)
+                        if sig.direction == "buy":
+                            _t1 = sig.price * (1 + _t_pct) if _t_pct else sig.price * 1.05
+                            _t2 = sig.price * (1 + _t_pct * 2) if _t_pct else sig.price * 1.10
+                            _sl = sig.price * (1 - _sl_pct) if _sl_pct else sig.price * 0.97
+                        else:
+                            _t1 = sig.price * (1 - _t_pct) if _t_pct else sig.price * 0.95
+                            _t2 = sig.price * (1 - _t_pct * 2) if _t_pct else sig.price * 0.90
+                            _sl = sig.price * (1 + _sl_pct) if _sl_pct else sig.price * 1.03
+
                         stmt = text("""
                             INSERT INTO signal_accuracy (
                                 id, signal_id, symbol, market, source,
                                 direction, timeframe,
                                 signal_price, signal_strength, signal_confidence,
                                 ml_score, rule_score,
+                                target1_price, target2_price, stop_loss_price,
                                 generated_at
                             ) VALUES (
                                 :id, :signal_id, :symbol, :market, :source,
                                 :direction, :timeframe,
                                 :signal_price, :signal_strength, :signal_confidence,
                                 :ml_score, :rule_score,
+                                :target1_price, :target2_price, :stop_loss_price,
                                 :generated_at
                             )
                         """)
-                        await session.execute(stmt, {
-                            "id": record_id,
-                            "signal_id": sig_id,
-                            "symbol": sig.symbol,
-                            "market": sig.market,
-                            "source": sig.source,
-                            "direction": sig.direction,
-                            "timeframe": sig.timeframe,
-                            "signal_price": sig.price,
-                            "signal_strength": sig.confidence * (sig.boosted_score / 100.0),
-                            "signal_confidence": sig.confidence,
-                            "ml_score": sig.ml_score,
-                            "rule_score": sig.rule_score,
-                            "generated_at": now_naive,
-                        })
+                        # SIG-15: use a savepoint so a single INSERT failure does
+                        # not abort the entire outer transaction.  PostgreSQL
+                        # aborts the connection on any error; without a savepoint
+                        # the `continue` on the except branch leaves the session in
+                        # an error state and all subsequent inserts fail silently.
+                        async with session.begin_nested():
+                            await session.execute(stmt, {
+                                "id": record_id,
+                                "signal_id": sig_id,
+                                "symbol": sig.symbol,
+                                "market": sig.market,
+                                "source": sig.source,
+                                "direction": sig.direction,
+                                "timeframe": sig.timeframe,
+                                "signal_price": sig.price,
+                                "signal_strength": sig.confidence * (sig.boosted_score / 100.0),
+                                "signal_confidence": sig.confidence,
+                                "ml_score": sig.ml_score,
+                                "rule_score": sig.rule_score,
+                                "target1_price": _t1,
+                                "target2_price": _t2,
+                                "stop_loss_price": _sl,
+                                "generated_at": now_naive,
+                            })
                         inserted += 1
                     except Exception as ins_err:
                         logger.debug("Failed to persist signal %s: %s", sig.symbol, ins_err)
@@ -1915,7 +1973,8 @@ class QuantSignalOrchestrator:
                     SELECT sa.id, sa.signal_id, sa.symbol, sa.market,
                            sa.source, sa.direction, sa.timeframe,
                            sa.signal_price, sa.signal_strength, sa.signal_confidence,
-                           sa.ml_score, sa.rule_score, sa.generated_at
+                           sa.ml_score, sa.rule_score, sa.generated_at,
+                           sa.target1_price, sa.target2_price, sa.stop_loss_price
                     FROM signal_accuracy sa
                     WHERE sa.outcome_set_at IS NULL
                       AND sa.generated_at >= :cutoff_start
@@ -2044,12 +2103,20 @@ class QuantSignalOrchestrator:
                             "ml_score": safe_row_float(row, idx=10),
                             "rule_score": safe_row_float(row, idx=11),
                         }
-                        # Derive numeric target / stop estimates from signal price
-                        # (5% target, 3% stop — conservative defaults when the
-                        # signal_accuracy row stores no explicit price levels).
-                        target1_est = signal_price * 1.05 if direction == "buy" else signal_price * 0.95
-                        target2_est = signal_price * 1.10 if direction == "buy" else signal_price * 0.90
-                        stop_est = signal_price * 0.97 if direction == "buy" else signal_price * 1.03
+                        # SIG-01: use stored target/stop prices persisted at signal
+                        # INSERT time (migration 0128).  Fall back to hardcoded pcts
+                        # only for rows inserted before this fix (NULL columns).
+                        _stored_t1 = row[13]
+                        _stored_t2 = row[14]
+                        _stored_sl = row[15]
+                        if _stored_t1 and float(_stored_t1) > 0:
+                            target1_est = float(_stored_t1)
+                            target2_est = float(_stored_t2) if _stored_t2 and float(_stored_t2) > 0 else target1_est
+                            stop_est = float(_stored_sl) if _stored_sl and float(_stored_sl) > 0 else (signal_price * 0.97 if direction == "buy" else signal_price * 1.03)
+                        else:
+                            target1_est = signal_price * 1.05 if direction == "buy" else signal_price * 0.95
+                            target2_est = signal_price * 1.10 if direction == "buy" else signal_price * 0.90
+                            stop_est = signal_price * 0.97 if direction == "buy" else signal_price * 1.03
 
                         outcome = await tracker.evaluate_signal(
                             signal=signal_dict,
@@ -2139,7 +2206,7 @@ class QuantSignalOrchestrator:
                     snapshot["overall"] = round(sum(snapshot.values()) / len(snapshot), 2)
                 return snapshot
         except Exception as e:
-            logger.debug("Accuracy snapshot unavailable: %s", e)
+            logger.warning("Accuracy snapshot unavailable: %s", e)
 
         return {}
 
@@ -2178,7 +2245,10 @@ def _get_confidence_scorer(session: Any = None) -> Any:
     return _confidence_scorer
 
 
-def _get_signal_policy(policy_path: str = "config/signal_policy.yaml") -> Any:
+_SIGNAL_POLICY_PATH = str(_REPO_ROOT / "config" / "signal_policy.yaml")
+
+
+def _get_signal_policy(policy_path: str = _SIGNAL_POLICY_PATH) -> Any:
     """Return the cached SignalPolicy, parsing the YAML only on the first call."""
     global _signal_policy
     if _signal_policy is None:

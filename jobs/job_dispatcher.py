@@ -28,53 +28,54 @@ class JobDispatcher:
         self._locking = locking or JobLocking()
         self._retry_policy = retry_policy or JobRetryPolicy()
         self._deduplicator = deduplicator or JobDeduplicator()
+        # JOB-14: this semaphore limits concurrent dispatches to 10 when the
+        # dispatcher is called from multiple async tasks simultaneously (e.g. the
+        # HTTP /jobs/dispatch endpoint under load).  It has no effect in the
+        # sequential queue consumer (queue_consumer.py processes one job at a time
+        # via BRPOP), but it is a correct safeguard for other callers.
         self._semaphore = asyncio.Semaphore(10)
 
     async def dispatch(
         self, job_name: str, params: dict[str, Any] | None = None, context: JobContext | None = None
     ) -> JobResult:
-        job_class = self._registry.get(job_name)
-        if job_class is None:
-            # BrsApi/GoldDesk jobs in the BrsApi registry are function-based
-            # (no BaseJob class). In queue mode the worker receives their names
-            # from Redis, so dispatch them here instead of failing as unknown.
-            direct = await self._dispatch_brsapi_direct_job(job_name)
-            if direct is not None:
-                return direct
-            return JobResult.failure(f"Job {job_name} not found", job_name=job_name)
-        # Caller-supplied context (queue worker) carries the *occurrence* id and
-        # is republished unchanged on retry â€” deduping on it would make every
-        # retry and the dead-letter path a silent no-op. Occurrences are already
-        # serialised by the distributed lock below, so only dedup auto-generated
-        # in-process dispatches (no caller context).
+        # JOB-03: build context and apply dedup + distributed lock BEFORE
+        # routing to either registry so BrsApi jobs get the same concurrency
+        # controls as standard jobs.
         caller_supplied_context = context is not None
         if context is None:
-            context = JobContext(job_id=new_id("job"), job_name=job_name, params=params or {})
+            context = JobContext(job_id=new_id(“job”), job_name=job_name, params=params or {})
         if not caller_supplied_context:
-            dedup_key = f"{job_name}:{context.job_id}"
+            dedup_key = f”{job_name}:{context.job_id}”
             if await self._deduplicator.is_duplicate(dedup_key):
-                logger.warning("Dedup: job %s already dispatched", dedup_key)
-                return JobResult.failure("Duplicate job", job_name=job_name)
+                logger.warning(“Dedup: job %s already dispatched”, dedup_key)
+                return JobResult.failure(“Duplicate job”, job_name=job_name)
             await self._deduplicator.mark(dedup_key)
-        # ``hold`` renews the TTL while the job runs, so a job that outlives
-        # the default lock TTL cannot be picked up by a second worker
-        # mid-flight. It also releases on every exit path.
-        lock_key = f"job:{job_name}"
+
+        lock_key = f”job:{job_name}”
         async with self._locking.hold(lock_key, context.job_id) as acquired:
             if not acquired:
-                return JobResult.failure(f"Lock not acquired for {job_name}", job_name=job_name)
+                return JobResult.failure(f”Lock not acquired for {job_name}”, job_name=job_name)
             try:
                 async with self._semaphore:
+                    job_class = self._registry.get(job_name)
+                    if job_class is None:
+                        # BrsApi/GoldDesk jobs in the BrsApi registry are
+                        # function-based (no BaseJob class). In queue mode the
+                        # worker receives their names from Redis.
+                        direct = await self._dispatch_brsapi_direct_job(job_name)
+                        if direct is not None:
+                            return direct
+                        return JobResult.failure(f”Job {job_name} not found”, job_name=job_name)
                     job = self._registry.create(job_name)
                     if job is None:
-                        return JobResult.failure(f"Could not create job {job_name}", job_name=job_name)
+                        return JobResult.failure(f”Could not create job {job_name}”, job_name=job_name)
                     context.record_start()
                     result = await job.run(context)
                     if result.success:
                         self._retry_policy.clear_retries(context.job_id)
                     return result
             except Exception as e:
-                logger.error("Dispatch error for %s: %s", job_name, e)
+                logger.error(“Dispatch error for %s: %s”, job_name, e)
                 return JobResult.failure(str(e), job_name=job_name)
 
 
