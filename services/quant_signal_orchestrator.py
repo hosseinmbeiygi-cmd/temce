@@ -1534,9 +1534,10 @@ class QuantSignalOrchestrator:
                     return pct
             except (ValueError, IndexError):
                 pass
-        return 0.0    # ── DB Table Checks ──────────────────────────────────────────────────
+        return 0.0
 
-    @staticmethod
+    # ── DB Table Checks ──────────────────────────────────────────────────
+
     # SIG-14: guard so DDL runs at most once per process lifetime.
     # _ensure_db_tables() is called at the top of every generate() invocation;
     # issuing CREATE TABLE + CREATE INDEX + multiple commits on every pipeline

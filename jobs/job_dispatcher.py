@@ -43,18 +43,18 @@ class JobDispatcher:
         # controls as standard jobs.
         caller_supplied_context = context is not None
         if context is None:
-            context = JobContext(job_id=new_id(“job”), job_name=job_name, params=params or {})
+            context = JobContext(job_id=new_id("job"), job_name=job_name, params=params or {})
         if not caller_supplied_context:
-            dedup_key = f”{job_name}:{context.job_id}”
+            dedup_key = f"{job_name}:{context.job_id}"
             if await self._deduplicator.is_duplicate(dedup_key):
-                logger.warning(“Dedup: job %s already dispatched”, dedup_key)
-                return JobResult.failure(“Duplicate job”, job_name=job_name)
+                logger.warning("Dedup: job %s already dispatched", dedup_key)
+                return JobResult.failure("Duplicate job", job_name=job_name)
             await self._deduplicator.mark(dedup_key)
 
-        lock_key = f”job:{job_name}”
+        lock_key = f"job:{job_name}"
         async with self._locking.hold(lock_key, context.job_id) as acquired:
             if not acquired:
-                return JobResult.failure(f”Lock not acquired for {job_name}”, job_name=job_name)
+                return JobResult.failure(f"Lock not acquired for {job_name}", job_name=job_name)
             try:
                 async with self._semaphore:
                     job_class = self._registry.get(job_name)
@@ -65,17 +65,17 @@ class JobDispatcher:
                         direct = await self._dispatch_brsapi_direct_job(job_name)
                         if direct is not None:
                             return direct
-                        return JobResult.failure(f”Job {job_name} not found”, job_name=job_name)
+                        return JobResult.failure(f"Job {job_name} not found", job_name=job_name)
                     job = self._registry.create(job_name)
                     if job is None:
-                        return JobResult.failure(f”Could not create job {job_name}”, job_name=job_name)
+                        return JobResult.failure(f"Could not create job {job_name}", job_name=job_name)
                     context.record_start()
                     result = await job.run(context)
                     if result.success:
                         self._retry_policy.clear_retries(context.job_id)
                     return result
             except Exception as e:
-                logger.error(“Dispatch error for %s: %s”, job_name, e)
+                logger.error("Dispatch error for %s: %s", job_name, e)
                 return JobResult.failure(str(e), job_name=job_name)
 
 

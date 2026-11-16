@@ -171,9 +171,9 @@ async def test_walk_forward_response_is_gated_automatically(
 
     # The nested DSR block of the raw result reached the gate as a scalar.
     assert rows["min_dsr"]["value"] is not None
-    # The synthetic simulator trades are all winners, so the profit-factor
-    # criterion passes without an Infinity leaking into the payload.
+    # BT-15: infinite profit factor (no losing trades) is serialised as "∞",
+    # not null — returning null was self-contradictory (passed=true, value=null).
     assert rows["min_profit_factor"]["passed"] is True
-    assert rows["min_profit_factor"]["value"] is None
+    assert rows["min_profit_factor"]["value"] == "∞"  # "∞"
 
     json.dumps(data, allow_nan=False)  # raises if a non-finite float leaked
