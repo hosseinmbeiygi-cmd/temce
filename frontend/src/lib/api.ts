@@ -75,8 +75,12 @@ export async function hydrateSession(): Promise<InMemoryAuth> {
  */
 function restoreSession(): Promise<string | null> {
   if (!_sessionRestore) {
+    const nonceAtStart = _sessionNonce;
     _sessionRestore = _silentRefresh().then((token) => {
-      if (!token) clearStoredAuth();
+      // Only clear storage if the session hasn't been replaced since we started.
+      // A login (storeAuth) or logout (clearAuth) increments the nonce — in that
+      // case the caller already owns the storage and must not be wiped.
+      if (!token && _sessionNonce === nonceAtStart) clearStoredAuth();
       return token;
     });
   }
@@ -90,10 +94,16 @@ let _refreshPromise: Promise<string | null> | null = null;
 // instead of firing a request with no token — those 401s are what used to
 // clear a healthy session.
 let _sessionRestore: Promise<string | null> | null = null;
+// Incremented by storeAuth() and clearAuth() to invalidate any in-flight
+// _silentRefresh that started before the session changed. Without this, a slow
+// refresh response arriving after re-login would overwrite the new token.
+let _sessionNonce = 0;
 
 async function _silentRefresh(): Promise<string | null> {
   // Deduplicate concurrent refresh attempts
   if (_refreshPromise) return _refreshPromise;
+
+  const nonce = _sessionNonce; // capture before the async fetch
 
   _refreshPromise = (async () => {
     try {
@@ -111,7 +121,9 @@ async function _silentRefresh(): Promise<string | null> {
       const data = json.data ?? json;
       const newAccessToken = data.access_token;
 
-      if (newAccessToken) {
+      // Only commit if the session hasn't been replaced (login/logout) while
+      // this refresh was in-flight. A stale result must not clobber a fresh one.
+      if (newAccessToken && _sessionNonce === nonce) {
         writeStoredAuth({ access_token: newAccessToken });
         if (data.user) _memoryAuth.user = data.user as Record<string, unknown>;
         return newAccessToken;
@@ -321,18 +333,22 @@ export function getStoredAuth() {
 }
 
 export function clearAuth() {
+  _sessionNonce++;
   clearStoredAuth();
+  _sessionRestore = null;
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
     window.dispatchEvent(new Event(AUTH_STATE_CLEARED_EVENT));
   }
 }
 
 export function storeAuth(data: { user: Record<string, unknown>; access_token: string }) {
+  _sessionNonce++;
   _memoryAuth.access_token = data.access_token;
   _memoryAuth.user = data.user ?? _memoryAuth.user;
   setAccessToken(data.access_token);
   setAuthUser(data.user ?? _memoryAuth.user);
   _sessionTerminationStarted = false;
+  _sessionRestore = null;
 }
 
 // ------ Array Extraction (اصلاح‌شده) ------------------------------------------------------------------------------------------------------
