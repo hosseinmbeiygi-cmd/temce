@@ -20,6 +20,15 @@ import type {
 } from "@/lib/market-mock";
 import { getMarketSession } from "@/lib/market-mock";
 
+// UIF-10: canonical stale-time constants — align query freshness with the
+// server's `data_as_of` freshness threshold (DEFAULT_FRESHNESS_MS = 300 s).
+// Individual hooks may use shorter intervals for real-time surfaces (ticker,
+// order-book) but should not go below 10 s to avoid hammering the backend.
+// Use STALE_DEFAULT for most market data hooks (matches isDataAsOfFresh).
+const STALE_REALTIME = 10_000;    // order-book, ticker strip
+const STALE_FAST = 60_000;        // prices polled every minute
+const STALE_DEFAULT = DEFAULT_FRESHNESS_MS;  // 5 min — aligns with isDataAsOfFresh
+
 /** Minimal shapes for the new live hooks (kept local to avoid mock coupling). */
 export interface FlowRow {
   symbol: string;

@@ -100,7 +100,7 @@ def downgrade() -> None: ...
 alembic upgrade head
 
 # DB خالی: baseline 0004b خودکار جدول‌های هسته، brsapi_* و dual_date_columns را می‌سازد؛
-# نیازی به scripts/install_dual_dates.py یا create_all نیست. انتظار: current = head فعلی (`alembic heads`؛ در زمان نگارش 0124).
+# نیازی به scripts/install_dual_dates.py یا create_all نیست. انتظار: current = head فعلی (`alembic heads`؛ در زمان نگارش 0128).
 alembic current
 
 # CI — fund-service.yml و decision-engine.yml

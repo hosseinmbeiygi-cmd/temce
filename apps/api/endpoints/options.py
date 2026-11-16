@@ -646,7 +646,8 @@ async def live_commodity_chain(
         # Row layout: 0 strike, 1-7 call fields, 8-14 put fields.
         base = 8 if side == "put" else 1
         days = row[base + 4] or row[5] or 30
-        t = max(float(days) / 365.0, 1e-6)
+        # DOM-01 (OF5): 252 trading-day year, same as GoldDesk black76 path.
+        t = max(float(days) / 252.0, 1e-6)
         k = float(row[0])
         try:
             call_px, put_px, _, _ = black76_price(forward, k, t, iv, rate)

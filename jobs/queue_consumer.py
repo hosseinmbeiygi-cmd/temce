@@ -87,6 +87,12 @@ class JobQueueConsumer:
         self.dead_lettered = 0
         self.rejected_auth = 0
         self._started_at: float = 0.0
+        # JOB-05: timestamp of the last periodic orphan-recovery pass.
+        self._last_orphan_recovery: float = 0.0
+        self._orphan_recovery_interval: float = 60.0
+        # JOB-06: backoff policy used in _handle_failure before requeueing.
+        from jobs.retry_policy import JobRetryPolicy
+        self._retry_policy = JobRetryPolicy(max_retries=max_retries)
 
     # ── Redis plumbing ────────────────────────────────────────────────
 
@@ -102,6 +108,14 @@ class JobQueueConsumer:
 
     @property
     def is_available(self) -> bool:
+        # JOB-02: also gate on job_queue_enabled so WorkerConsumer.start()
+        # correctly idles when the flag is false, not just when Redis is down.
+        try:
+            from core.config import settings as _s
+            if not _s.job_queue_enabled:
+                return False
+        except Exception:
+            pass
         return self._redis() is not None
 
     # ── Lifecycle ─────────────────────────────────────────────────────
@@ -129,6 +143,19 @@ class JobQueueConsumer:
             self._task = None
         client = self._redis()
         if client is not None:
+            # JOB-05: requeue any messages still in this worker's processing list
+            # before clearing the lease, so a clean shutdown never loses work.
+            try:
+                if hasattr(client, "rpop") and hasattr(client, "lpush"):
+                    while True:
+                        raw = await client.rpop(self._processing_queue)
+                        if raw is None:
+                            break
+                        raw_str = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw)
+                        await client.lpush(self._queue_name, raw_str)
+                        logger.debug("Requeued processing message on stop: %.80s", raw_str)
+            except Exception:  # noqa: BLE001
+                logger.warning("Could not requeue processing messages on stop", exc_info=True)
             try:
                 await client.delete(self._worker_lease_key)
             except Exception:  # noqa: BLE001
@@ -157,13 +184,28 @@ class JobQueueConsumer:
             try:
                 if hasattr(client, "expire"):
                     await client.expire(self._worker_lease_key, self._lease_seconds)
+                # JOB-05: periodic orphan recovery so workers that crash without
+                # a clean stop don't leave messages stuck forever after their lease expires.
+                now = time.monotonic()
+                if now - self._last_orphan_recovery >= self._orphan_recovery_interval:
+                    try:
+                        await self._recover_orphaned_messages(client)
+                    except Exception:  # noqa: BLE001
+                        logger.debug("Periodic orphan recovery failed", exc_info=True)
+                    self._last_orphan_recovery = now
                 raw = await self._claim_message(client)
                 if raw is None:
                     continue
-                try:
-                    await self._handle_message(raw)
-                finally:
+                # JOB-04: only ACK (remove from processing list) after the
+                # message is fully handled — either dispatched successfully OR
+                # safely placed in retry/dead-letter queue.  An unconditional
+                # finally-ACK would silently drop messages when _requeue /
+                # _dead_letter fail (e.g. Redis flap during the write).
+                handled_ok = await self._handle_message(raw)
+                if handled_ok:
                     await self._ack_message(client, raw)
+                # If handle_message returned False, the message stays in the
+                # processing list and will be recovered by orphan recovery.
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001 — keep the loop alive
@@ -222,13 +264,20 @@ class JobQueueConsumer:
             await client.delete(key_text)
             logger.warning("Recovered orphaned queue messages from %s", key_text)
 
-    async def _handle_message(self, raw: str) -> None:
+    async def _handle_message(self, raw: str) -> bool:
+        """Handle a single message and return True when the message should be ACKed.
+
+        Returns False only when the message MUST stay in the processing list
+        (requeue/dead-letter Redis write failed) so the orphan recovery can
+        pick it up.  Malformed or auth-rejected messages are always ACKed to
+        prevent poison-pill re-processing.
+        """
         try:
             payload = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
             logger.error("JobQueueConsumer: malformed message dropped")
             self.failed += 1
-            return
+            return True  # Drop the undecodable message; ACK so it doesn't block.
 
         # ── Auth check ─────────────────────────────────────────────────
         if self._token and payload.get("token") != self._token:
@@ -237,7 +286,7 @@ class JobQueueConsumer:
                 payload.get("job_name", "unknown"),
             )
             self.rejected_auth += 1
-            return
+            return True  # Drop auth-rejected poison pill; ACK.
 
         job_name = payload.get("job_name", "")
         params = payload.get("params") or {}
@@ -247,7 +296,7 @@ class JobQueueConsumer:
         if not job_name:
             logger.error("JobQueueConsumer: message without job_name dropped")
             self.failed += 1
-            return
+            return True  # Drop; ACK.
 
         logger.info("Consuming job %s (id=%s attempt=%d)", job_name, job_id, attempt)
         context = JobContext(job_id=job_id or "", job_name=job_name, params=params)
@@ -257,26 +306,28 @@ class JobQueueConsumer:
         except Exception as e:  # noqa: BLE001
             logger.error("Job %s crashed: %s", job_name, e)
             error = str(e)
-            await self._handle_failure(payload, job_name, error, attempt)
-            return
+            # JOB-04: propagate failure to _handle_failure which may raise if
+            # the requeue/dead-letter Redis write fails — caller then keeps the
+            # message in the processing list.
+            return await self._handle_failure(payload, job_name, error, attempt)
 
         if result is not None and result.success:
             self.processed += 1
-            return
+            return True
 
         if getattr(result, "skipped", False):
             logger.info("Job %s skipped: %s", job_name, getattr(result, "message", ""))
             self.processed += 1
-            return
+            return True
 
         error = getattr(result, "error", "") or "unknown error"
         # Benign: another worker already ran this job (distributed lock).
         if any(marker in error for marker in _BENIGN_ERROR_MARKERS):
             logger.info("Job %s skipped — already handled elsewhere (%s)", job_name, error)
             self.processed += 1
-            return
+            return True
 
-        await self._handle_failure(payload, job_name, error, attempt)
+        return await self._handle_failure(payload, job_name, error, attempt)
 
     async def _dispatch(self, job_name: str, params: dict[str, Any], context: JobContext) -> Any:
         dispatcher = self._dispatcher
@@ -288,28 +339,44 @@ class JobQueueConsumer:
 
     # ── Retry / dead-letter ───────────────────────────────────────────
 
-    async def _handle_failure(self, payload: dict[str, Any], job_name: str, error: str, attempt: int) -> None:
-        """Route a hard failure to retry (back into the main queue) or dead-letter."""
-        if attempt < self._max_retries:
-            await self._requeue(payload, attempt + 1)
-            logger.warning("Job %s requeued (attempt %d) — %s", job_name, attempt + 1, error)
-        else:
-            await self._dead_letter(payload, error)
-            logger.error("Job %s dead-lettered after %d attempts: %s", job_name, attempt, error)
-        self.failed += 1
+    async def _handle_failure(self, payload: dict[str, Any], job_name: str, error: str, attempt: int) -> bool:
+        """Route a hard failure to retry or dead-letter.
+
+        Returns True when the message was safely placed elsewhere (ACK ok),
+        False when the Redis write failed and the message must stay in the
+        processing list for orphan recovery.
+        """
+        try:
+            if attempt < self._max_retries:
+                # JOB-06: apply exponential backoff with jitter before requeueing
+                # so a transient 30s DB/network outage doesn't burn all retries.
+                await self._retry_policy.wait(job_name)
+                self._retry_policy.record_retry(job_name)
+                await self._requeue(payload, attempt + 1)
+                logger.warning("Job %s requeued (attempt %d) — %s", job_name, attempt + 1, error)
+            else:
+                self._retry_policy.clear_retries(job_name)
+                await self._dead_letter(payload, error)
+                logger.error("Job %s dead-lettered after %d attempts: %s", job_name, attempt, error)
+            self.failed += 1
+            return True  # Safely placed; ACK the original message.
+        except Exception as re:  # noqa: BLE001
+            logger.error("Job %s requeue/dead-letter failed (%s) — message kept in processing", job_name, re)
+            self.failed += 1
+            return False  # Leave the message for orphan recovery.
 
     async def _requeue(self, payload: dict[str, Any], attempt: int) -> None:
         """Put the message back on the *main* queue so any worker retries it."""
         client = self._redis()
         if client is None:
-            return
+            raise RuntimeError("Redis unavailable — cannot requeue")
         payload["attempt"] = attempt
         await client.lpush(self._queue_name, json.dumps(payload, ensure_ascii=False, default=str))
 
     async def _dead_letter(self, payload: dict[str, Any], error: str) -> None:
         client = self._redis()
         if client is None:
-            return
+            raise RuntimeError("Redis unavailable — cannot dead-letter")
         payload["error"] = error
         payload["dead_lettered_at"] = time.time()
         await client.lpush(self._dead_queue, json.dumps(payload, ensure_ascii=False, default=str))

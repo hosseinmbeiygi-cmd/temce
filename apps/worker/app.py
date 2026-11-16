@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 
 from apps.worker.consumer import WorkerConsumer
-from apps.worker.error_policy import ErrorPolicy
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -13,7 +12,6 @@ class WorkerApp:
     def __init__(self) -> None:
         self._running = False
         self.consumer = WorkerConsumer()
-        self.error_policy = ErrorPolicy()
 
     def _register_jobs(self) -> None:
         """Populate the process-local job registries used by the dispatcher.

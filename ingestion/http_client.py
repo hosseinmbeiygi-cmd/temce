@@ -22,12 +22,23 @@ class HttpClient:
         self._lock = asyncio.Lock()
         self._cleanup_callbacks: list[Callable[[], Any]] = []
         self._circuits: dict[str, CircuitBreaker] = {}
+        # ING-02: per-host rate limiters driven by config; created lazily.
+        self._host_limiters: dict[str, RateLimiter] = {}
 
     def _get_circuit(self, url: str) -> CircuitBreaker:
         host = urlparse(url).netloc
         if host not in self._circuits:
             self._circuits[host] = CircuitBreaker(name=host)
         return self._circuits[host]
+
+    def _get_host_limiter(self, url: str) -> RateLimiter:
+        host = urlparse(url).netloc
+        if host not in self._host_limiters:
+            self._host_limiters[host] = RateLimiter(
+                max_calls=self._config.http_rate_limit_calls,
+                period=self._config.http_rate_limit_period,
+            )
+        return self._host_limiters[host]
 
     async def start(self) -> None:
         async with self._lock:
@@ -69,6 +80,8 @@ class HttpClient:
         if self._session is None:
             raise RuntimeError("HttpClient not started")
 
+        # ING-02: central per-host rate limiting; sources no longer need their own limiters.
+        await self._get_host_limiter(url).acquire()
         circuit = self._get_circuit(url)
         return await circuit.call(
             retry_async,

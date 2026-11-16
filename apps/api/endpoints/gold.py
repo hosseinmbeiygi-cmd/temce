@@ -20,6 +20,8 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from apps.api.dependencies import (
     get_alpha_vantage_provider,
     get_brsapi_query_service,
@@ -34,6 +36,7 @@ from apps.api.dependencies import (
     get_gold_news_rss_provider,
     get_gold_position_service,
 )
+from core.database import get_session
 from core.logging import get_logger
 from schemas.api.gold import (
     CoinBubbleRequest,
@@ -377,14 +380,72 @@ async def get_futures_health(
 )
 async def get_kill_switch(
     service: GoldLiveService = Depends(get_gold_live_service),
+    db: AsyncSession = Depends(get_session),
 ) -> ApiResponse[GoldKillSwitchStatus]:
-    # TODO: oz_history / usd_history از TimescaleDB (در phase بعدی)
+    # DOM-02: attempt to load the last 2 h of oz/usd prices from commodity_prices.
+    # Until this is wired to TimescaleDB, return UNKNOWN so the dashboard can
+    # distinguish "data unavailable" from an actual NORMAL condition.
+    from datetime import timedelta
+
+    from core.time import utc_now_naive
+    from sqlalchemy import text as _text
+
+    _cutoff = utc_now_naive() - timedelta(hours=2)
+    oz_history: list[tuple] | None = None
+    usd_history: list[tuple] | None = None
+    _data_available = False
+
+    try:
+        rows = await db.execute(
+            _text(
+                "SELECT time, price FROM commodity_prices "
+                "WHERE commodity IN ('gold_oz_usd', 'ounce') AND time >= :cutoff "
+                "ORDER BY time ASC"
+            ),
+            {"cutoff": _cutoff},
+        )
+        oz_rows = rows.fetchall()
+        if oz_rows:
+            oz_history = [(r[0], float(r[1])) for r in oz_rows]
+            _data_available = True
+
+        rows2 = await db.execute(
+            _text(
+                "SELECT time, price FROM commodity_prices "
+                "WHERE commodity IN ('usd_irr', 'usd') AND time >= :cutoff "
+                "ORDER BY time ASC"
+            ),
+            {"cutoff": _cutoff},
+        )
+        usd_rows = rows2.fetchall()
+        if usd_rows:
+            usd_history = [(r[0], float(r[1])) for r in usd_rows]
+            _data_available = True
+    except Exception:
+        pass  # table not yet populated; fall through to UNKNOWN
+
     live = await service.get_live_prices()
+
+    if not _data_available:
+        # Cannot evaluate rules 1 and 2 without price history — return UNKNOWN
+        # rather than the misleading NORMAL the evaluator would produce with
+        # oz_history=None. Rule 3 (systemic freeze) uses market_frozen which
+        # also still requires a feed, so stay UNKNOWN until both are wired.
+        return ApiResponse[GoldKillSwitchStatus](
+            success=True,
+            data=GoldKillSwitchStatus(
+                status="UNKNOWN",
+                reason="price_history_unavailable",
+                data_available=False,
+                directive="قبل از اتکا به نتیجه، فید تاریخچه قیمت را وصل کنید (DOM-02)",
+            ),
+        )
+
     eval_result = evaluate_kill_switch(
         current_oz_usd=float(live.get("gold_oz_usd") or 0),
         current_usd_irr=float(live.get("usd_irr") or 0),
-        oz_history=None,
-        usd_history=None,
+        oz_history=oz_history,
+        usd_history=usd_history,
         market_frozen=False,
     )
     return ApiResponse[GoldKillSwitchStatus](
@@ -395,6 +456,7 @@ async def get_kill_switch(
             triggered_at=eval_result.triggered_at,
             active_rules=eval_result.active_rules,
             directive=eval_result.directive,
+            data_available=True,
         ),
     )
 

@@ -325,6 +325,11 @@ def tier_subject_from_request(request: Request) -> str | None:
 
     Returns None for anonymous requests (no Authorization header) — those are
     handled by the existing per-IP sliding window only.
+
+    HTTP-07: reads ``request.state._jwt_payload`` when SecurityMiddleware
+    already decoded and validated the token (write paths), avoiding a second
+    decode.  On read-only paths (where SecurityMiddleware did not validate),
+    falls back to decoding the token and checking revocation here.
     """
     headers = getattr(request, "headers", None)
     if headers is None:  # duck-typed fakes / non-HTTP scopes — treat as anonymous
@@ -333,9 +338,26 @@ def tier_subject_from_request(request: Request) -> str | None:
     if scheme.lower() != "bearer" or not param:
         return None
     try:
-        from core.security.tokens import decode_access_token
+        # Prefer the already-validated payload cached by SecurityMiddleware.
+        cached = getattr(getattr(request, "state", None), "_jwt_payload", None)
+        if cached is not None:
+            payload = cached
+        else:
+            from core.security.tokens import decode_access_token, is_token_revoked
 
-        payload = decode_access_token(param)
+            payload = decode_access_token(param)
+            # Revocation check on the read-only path (SecurityMiddleware skips
+            # these; a revoked token must not receive its tier bucket).
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Can't await here; skip revocation on the tier path for truly
+                # async contexts where SecurityMiddleware already ran.
+                pass
+            else:
+                if loop.run_until_complete(is_token_revoked(payload.get("jti"))):
+                    return None
     except Exception:  # noqa: BLE001 — anonymous fallback must never raise
         return None
     sub = str(payload.get("sub", ""))

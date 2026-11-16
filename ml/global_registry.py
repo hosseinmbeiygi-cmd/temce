@@ -1,8 +1,10 @@
 """
-Global singleton ML model registry with demo seed data.
-This module provides a single shared ModelRegistry instance that
-is seeded with demo data on first import so the ML dashboard
-always has data to display.
+Global singleton ML model registry.
+
+MLD-01: In production (`settings.is_production == True`) this module returns
+an empty DemoModelRegistry so the dashboard shows real data or nothing — never
+fabricated metrics with stage="production".  Demo seed data is only used in
+development/test environments where it makes rapid iteration easier.
 """
 
 from __future__ import annotations
@@ -11,13 +13,14 @@ from ml.model_registry import DemoModelRegistry
 
 
 def _create_seeded_registry() -> DemoModelRegistry:
+    """Return a registry pre-seeded with demo data (dev/test only)."""
     registry = DemoModelRegistry()
 
     m1_id = registry.register("XGBoost Price Predictor", "regression", "xgboost", tags=["price", "featured"])
     registry.add_version(
         m1_id, "v1.0.0",
         metrics={"accuracy": 0.871, "f1": 0.834, "mse": 0.0241, "mae": 0.112, "r2": 0.892},
-        stage="production",
+        stage="development",
     )
     registry.add_version(
         m1_id, "v1.1.0",
@@ -29,7 +32,7 @@ def _create_seeded_registry() -> DemoModelRegistry:
     registry.add_version(
         m2_id, "v2.0.0",
         metrics={"accuracy": 0.843, "f1": 0.812, "mse": 0.0312, "mae": 0.134, "r2": 0.867},
-        stage="production",
+        stage="development",
     )
     registry.add_version(
         m2_id, "v2.1.0",
@@ -49,8 +52,20 @@ def _create_seeded_registry() -> DemoModelRegistry:
     return registry
 
 
+def _make_registry() -> DemoModelRegistry:
+    """Return the right registry for the current environment (MLD-01)."""
+    try:
+        from core.config import settings as _settings
+        if _settings.is_production:
+            # Production: empty registry — dashboard shows real DB data or nothing.
+            return DemoModelRegistry()
+    except Exception:
+        pass
+    return _create_seeded_registry()
+
+
 # Eager initialization: registry is ready on module import
-_registry = _create_seeded_registry()
+_registry = _make_registry()
 
 
 def get_registry() -> DemoModelRegistry:

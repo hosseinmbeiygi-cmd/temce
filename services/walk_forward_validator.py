@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from backtesting.costs.iran_costs import IranTransactionCosts
 from core.logging import get_logger
 from core.result import Result
 from ml.models.registry import model_registry
@@ -252,18 +253,39 @@ class WalkForwardValidator:
 
             # سند v5.0 §7.2: feed the OOS results into the Acceptance Gate
             result.oos_trade_count = sum(w.test_size for w in windows)
-            # Convert window test accuracy into synthetic trade outcomes for the gate
-            # (the gate is designed for trade-level pnl, not raw accuracy).
-            # We model each OOS observation as a +1 / -1 trade, with cost = 0.5%
-            # (the system's default commission + slippage from the policy YAML).
+
+            # BT-02: build TradeOutcome from actual price returns when closes are
+            # available.  Synthetic ±1.0 pnl values caused every model above 50%
+            # accuracy to trivially pass the gate regardless of real profitability.
+            _costs_model = IranTransactionCosts.from_config()
+            _round_trip_cost_pct = (_costs_model.buy_cost(1.0, 1) + _costs_model.sell_cost(1.0, 1)) * 100
             oos_trades: list[TradeOutcome] = []
-            for win in windows:
-                n_win = int(round(win.test_accuracy * win.test_size))
-                n_loss = win.test_size - n_win
-                # First half / second half by window order
+            for win_idx, win in enumerate(windows):
                 period = 0 if win.window_index <= (result.num_windows + 1) // 2 else 1
-                oos_trades.extend(TradeOutcome(pnl_pct=1.0, cost_pct=0.5, period_index=period) for _ in range(n_win))
-                oos_trades.extend(TradeOutcome(pnl_pct=-1.0, cost_pct=0.5, period_index=period) for _ in range(n_loss))
+                win_num = win_idx
+                test_start_global = win_num * window_size + train_size
+                test_end_global = min((win_num + 1) * window_size, n)
+                if closes is not None and test_end_global < len(closes):
+                    # Use real bar-to-bar price returns for each OOS observation.
+                    win_closes = closes[test_start_global : test_end_global + 1]
+                    bar_returns = [
+                        (win_closes[i + 1] - win_closes[i]) / max(abs(win_closes[i]), 1e-9)
+                        for i in range(len(win_closes) - 1)
+                    ]
+                    pred_signal = win.test_accuracy * 2 - 1  # accuracy→direction: >0 bullish, <0 bearish
+                    for ret in bar_returns:
+                        pnl_pct = pred_signal * ret * 100  # pnl in %
+                        oos_trades.append(TradeOutcome(pnl_pct=pnl_pct, cost_pct=_round_trip_cost_pct, period_index=period))
+                else:
+                    # Fallback when no close prices: use accuracy-weighted synthetic
+                    # outcomes but log a warning so this path is visible.
+                    logger.warning(
+                        "BT-02: closes not available for window %d — using synthetic outcomes", win.window_index
+                    )
+                    n_win = int(round(win.test_accuracy * win.test_size))
+                    n_loss = win.test_size - n_win
+                    oos_trades.extend(TradeOutcome(pnl_pct=1.0, cost_pct=_round_trip_cost_pct, period_index=period) for _ in range(n_win))
+                    oos_trades.extend(TradeOutcome(pnl_pct=-1.0, cost_pct=_round_trip_cost_pct, period_index=period) for _ in range(n_loss))
             acceptance = evaluate_acceptance(oos_trades, mc_ev_samples=None)
             result.acceptance_passed = acceptance.passed
             result.acceptance_reasons = acceptance.failed_conditions

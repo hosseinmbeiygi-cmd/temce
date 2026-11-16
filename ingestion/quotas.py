@@ -157,11 +157,17 @@ class QuotaAssessment:
 
     @property
     def recommended_env(self) -> dict[str, str]:
-        """Env vars that make the whole platform use the expected profile."""
-        return {
-            DAILY_LIMIT_ENV: str(self.expected.daily_limit),
-            FIVE_MIN_LIMIT_ENV: str(self.expected.five_min_limit),
-        }
+        """Env vars that give the ingestion scope enough headroom.
+
+        Only recommends raising limits, never lowering them — the global cap is
+        shared across all consumers and must be >= the ingestion reservation.
+        """
+        result: dict[str, str] = {}
+        if self.active_daily_limit < self.expected.daily_limit:
+            result[DAILY_LIMIT_ENV] = str(self.expected.daily_limit)
+        if self.active_five_min_limit < self.expected.five_min_limit:
+            result[FIVE_MIN_LIMIT_ENV] = str(self.expected.five_min_limit)
+        return result
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -186,11 +192,17 @@ def assess_active_profile(profile: QuotaProfile = DEFAULT_QUOTA_PROFILE) -> Quot
     active_daily = int(getattr(brsapi_settings, "global_daily_limit", 0) or 0)
     active_five_min = int(getattr(brsapi_settings, "global_5min_limit", 0) or 0)
 
+    # ING-06: profile.five_min_limit is a RESERVATION from the platform budget
+    # (300/5min), not a replacement for the global cap (1000/5min).  Drift means
+    # the global limit is BELOW the ingestion reservation — a true mis-config.
+    # Reporting drift when global > reservation was always wrong; it led
+    # recommended_env to suggest halving the global cap (300) which would
+    # throttle every other consumer on the same key.
     drift: list[str] = []
-    if active_daily != profile.daily_limit:
-        drift.append(f"{DAILY_LIMIT_ENV}: active={active_daily} expected={profile.daily_limit}")
-    if active_five_min != profile.five_min_limit:
-        drift.append(f"{FIVE_MIN_LIMIT_ENV}: active={active_five_min} expected={profile.five_min_limit}")
+    if active_daily < profile.daily_limit:
+        drift.append(f"{DAILY_LIMIT_ENV}: active={active_daily} < required={profile.daily_limit}")
+    if active_five_min < profile.five_min_limit:
+        drift.append(f"{FIVE_MIN_LIMIT_ENV}: active={active_five_min} < required={profile.five_min_limit}")
 
     return QuotaAssessment(
         expected=profile,

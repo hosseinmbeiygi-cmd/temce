@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
-from ingestion.http_client import HttpClient, RateLimiter
+from ingestion.http_client import HttpClient
 
 from .base import DataSource, FetchResult, SourcePayload
 
@@ -16,7 +16,6 @@ IME_BASE = "https://api.ime.ir/api/v1"
 class IMEEnergySource(DataSource):
     def __init__(self, http: HttpClient) -> None:
         self._http = http
-        self._rate_limiter = RateLimiter(max_calls=10, period=1.0)
 
     @property
     def name(self) -> str:
@@ -24,7 +23,6 @@ class IMEEnergySource(DataSource):
 
     async def fetch(self, context: dict[str, Any] | None = None) -> FetchResult:
         url = f"{IME_BASE}/market/trades"
-        await self._rate_limiter.acquire()
         raw = await self._http.fetch(url)
         payload = SourcePayload(
             source=self.name,

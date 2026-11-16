@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
-from ingestion.http_client import HttpClient, RateLimiter
+from ingestion.http_client import HttpClient
 
 from .base import DataSource, FetchResult, SourcePayload
 
@@ -14,7 +14,6 @@ logger = get_logger(__name__)
 class TsetmcOptionSource(DataSource):
     def __init__(self, http: HttpClient) -> None:
         self._http = http
-        self._rate_limiter = RateLimiter(max_calls=5, period=1.0)
 
     @property
     def name(self) -> str:
@@ -26,7 +25,6 @@ class TsetmcOptionSource(DataSource):
             return FetchResult(payloads=[])
 
         url = f"https://cdn.tsetmc.com/api/Option/GetOption/{ins_id}"
-        await self._rate_limiter.acquire()
         raw = await self._http.fetch(url)
         payload = SourcePayload(
             source=self.name,
@@ -52,7 +50,6 @@ class TsetmcOptionSource(DataSource):
 class TsetmcFutureSource(DataSource):
     def __init__(self, http: HttpClient) -> None:
         self._http = http
-        self._rate_limiter = RateLimiter(max_calls=5, period=1.0)
 
     @property
     def name(self) -> str:
@@ -64,7 +61,6 @@ class TsetmcFutureSource(DataSource):
             return FetchResult(payloads=[])
 
         url = f"https://cdn.tsetmc.com/api/Future/GetFuture/{ins_id}"
-        await self._rate_limiter.acquire()
         raw = await self._http.fetch(url)
         payload = SourcePayload(
             source=self.name,

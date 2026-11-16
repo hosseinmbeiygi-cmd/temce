@@ -224,7 +224,9 @@ rate_limiter = RateLimiter()
 async def rate_limit_dependency(request: Request, user: UserContext = Depends(get_user_context)):
     """Dependency — اعمال Rate Limit بر اساس نقش."""
     limit = RATE_LIMITS_PER_MINUTE.get(user.role, 60)
-    key = user.sub if user.role != ROLE_GUEST else request.client.host if request.client else "guest"
+    # HTTP-08/CFG-11: use the proxy-aware helper instead of raw request.client.host
+    from core.security.client_ip import get_client_ip
+    key = user.sub if user.role != ROLE_GUEST else get_client_ip(request)
     allowed, remaining = rate_limiter.check(key, limit)
     if not allowed:
         raise HTTPException(

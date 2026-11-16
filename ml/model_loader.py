@@ -31,6 +31,7 @@ Usage
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import functools
 import hashlib
@@ -125,7 +126,14 @@ class ModelLoader:
             version = self._artifact_version(model_key)
             cache_key = f"{model_key}@{version}" if version else model_key
             try:
-                model = self._load_cached(cache_key)
+                # MLD-13: _load_from_disk is synchronous CPU/IO-bound work
+                # (pickle deserialisation of large model files). Run it in a
+                # thread executor so it doesn't block the event loop for other
+                # coroutines. After the first load the result is in the LRU
+                # cache, so subsequent calls are instant and executor overhead
+                # is negligible.
+                loop = asyncio.get_running_loop()
+                model = await loop.run_in_executor(None, self._load_cached, cache_key)
                 self._loaded[cache_key] = _CacheEntry(
                     timestamp=time.time(),
                     model=model,

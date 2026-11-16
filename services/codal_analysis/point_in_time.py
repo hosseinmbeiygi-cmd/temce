@@ -1,3 +1,10 @@
+"""Point-in-time Codal data filter — DOM-10: no production callers.
+
+This module prevents look-ahead by filtering announcements to only those
+visible at a given reference date.  It has zero importers outside its own
+package, so look-ahead prevention is not currently active in any live query.
+Wire it in or remove it before claiming temporal data integrity.
+"""
 from __future__ import annotations
 
 import re

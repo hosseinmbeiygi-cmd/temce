@@ -6,7 +6,7 @@ from typing import Any
 
 from core.logging import get_logger
 
-from ..http_client import HttpClient, RateLimiter
+from ..http_client import HttpClient
 from .base import DataSource, FetchResult, SourcePayload
 
 logger = get_logger(__name__)
@@ -25,8 +25,6 @@ class ConfiguredMarketSource(DataSource):
         asset_class: str = "global",
         currency: str = "USD",
         price_paths: tuple[str, ...] = ("price", "close", "rate", "data.price"),
-        max_calls: int = 1,
-        period: float = 5.0,
     ) -> None:
         self._http = http
         self._source_name = source_name
@@ -35,14 +33,12 @@ class ConfiguredMarketSource(DataSource):
         self._asset_class = asset_class
         self._currency = currency
         self._price_paths = price_paths
-        self._rate_limiter = RateLimiter(max_calls=max_calls, period=period)
 
     @property
     def name(self) -> str:
         return self._source_name
 
     async def fetch(self, context: dict[str, Any] | None = None) -> FetchResult:
-        await self._rate_limiter.acquire()
         raw = await self._http.fetch(self._url)
         try:
             payload = json.loads(raw)

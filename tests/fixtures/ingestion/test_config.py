@@ -19,12 +19,6 @@ class TestIngestionConfig:
         config = IngestionConfig()
         assert config.market_hours_enabled is True
 
-    def test_worker_count_bounds(self) -> None:
-        config = IngestionConfig(worker_count=1)
-        assert config.worker_count == 1
-        config = IngestionConfig(worker_count=32)
-        assert config.worker_count == 32
-
     def test_dedup_window_default(self) -> None:
         config = IngestionConfig()
         assert config.dedup_window_minutes == 60

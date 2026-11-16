@@ -1,3 +1,16 @@
+"""In-memory feature store — MLD-09 disambiguation.
+
+This module holds an in-memory dict-backed FeatureStore used for feature
+*registration* (tracking name → dtype mappings within a process).
+
+The file-backed FeatureStore that persists feature vectors to JSON files lives
+in ml.features.store.FeatureStore. Use that one for persistent feature storage.
+
+MLD-09: having two classes with the same name in different modules causes
+import confusion. Prefer ml.features.store.FeatureStore for any new code that
+needs persistent feature storage.
+"""
+
 from __future__ import annotations
 
 

@@ -66,6 +66,9 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
+    # SQLite path: retained for offline SQL generation and local Alembic
+    # autogenerate tests ONLY. init_database() rejects SQLite at runtime,
+    # so this branch never runs in production or staging (DB-09).
     if settings.database_url.startswith("sqlite"):
         connectable = create_engine(settings.database_url, poolclass=pool.NullPool)
         with connectable.connect() as connection:

@@ -315,7 +315,12 @@ export function getMarketSession(now = new Date()): MarketSession {
   return { dateFa: toFaDate(now), status, note, isOpen, holiday, nextEventAt, nextEventLabel };
 }
 
-/** Legacy static constant — kept for imports that only need a default shape. */
+/**
+ * @deprecated UIF-09: computed once at module load — will be stale for the life
+ * of the tab.  Use `getMarketSession()` directly so each call reflects current
+ * time.  Zero production callers exist; this export is kept only to avoid
+ * breaking any future import and will be removed next cleanup pass.
+ */
 export const MARKET_SESSION = getMarketSession();
 
 /* ── Ticker / Sitebar strip ─────────────────────────────────── */

@@ -119,6 +119,3 @@ class JobScheduler:
             "running": self._running,
             "registered_funcs": list(self._job_funcs.keys()),
         }
-
-
-scheduler = JobScheduler()

@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
-from ingestion.http_client import HttpClient, RateLimiter
+from ingestion.http_client import HttpClient
 
 from .base import DataSource, FetchResult, SourcePayload
 
@@ -18,7 +18,6 @@ class TsetmcInstrumentSource(DataSource):
     def __init__(self, http: HttpClient) -> None:
         self._http = http
         self._instruments: list[dict[str, Any]] | None = None
-        self._rate_limiter = RateLimiter(max_calls=10, period=1.0)
         self._load_lock = asyncio.Lock()
 
     @property
@@ -27,7 +26,6 @@ class TsetmcInstrumentSource(DataSource):
 
     async def fetch(self, context: dict[str, Any] | None = None) -> FetchResult:
         url = f"{TSETMC_BASE}/Instrument/GetInstrumentList"
-        await self._rate_limiter.acquire()
         raw = await self._http.fetch(url)
         payload = SourcePayload(
             source=self.name,
@@ -77,7 +75,6 @@ class TsetmcInstrumentSource(DataSource):
 class TsetmcMarketWatchSource(DataSource):
     def __init__(self, http: HttpClient) -> None:
         self._http = http
-        self._rate_limiter = RateLimiter(max_calls=10, period=1.0)
 
     @property
     def name(self) -> str:
@@ -85,7 +82,6 @@ class TsetmcMarketWatchSource(DataSource):
 
     async def fetch(self, context: dict[str, Any] | None = None) -> FetchResult:
         url = f"{TSETMC_BASE}/MarketData/MarketData"
-        await self._rate_limiter.acquire()
         raw = await self._http.fetch(url)
         payload = SourcePayload(
             source=self.name,
@@ -107,7 +103,6 @@ class TsetmcMarketWatchSource(DataSource):
 class TsetmcTradeSource(DataSource):
     def __init__(self, http: HttpClient) -> None:
         self._http = http
-        self._rate_limiter = RateLimiter(max_calls=5, period=1.0)
 
     @property
     def name(self) -> str:
@@ -119,7 +114,6 @@ class TsetmcTradeSource(DataSource):
             return FetchResult(payloads=[])
 
         url = f"{TSETMC_BASE}/ClosingPrice/GetClosingPriceHistory/{ins_id}"
-        await self._rate_limiter.acquire()
         raw = await self._http.fetch(url)
         payload = SourcePayload(
             source=self.name,
@@ -142,7 +136,6 @@ class TsetmcTradeSource(DataSource):
 class TsetmcOrderBookSource(DataSource):
     def __init__(self, http: HttpClient) -> None:
         self._http = http
-        self._rate_limiter = RateLimiter(max_calls=5, period=1.0)
 
     @property
     def name(self) -> str:
@@ -154,7 +147,6 @@ class TsetmcOrderBookSource(DataSource):
             return FetchResult(payloads=[])
 
         url = f"{TSETMC_BASE}/OrderBook/GetOrderBook/{ins_id}"
-        await self._rate_limiter.acquire()
         raw = await self._http.fetch(url)
         payload = SourcePayload(
             source=self.name,

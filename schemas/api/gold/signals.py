@@ -53,8 +53,11 @@ class GoldSignal(BaseModel, LegalDisclaimerMixin):
 class GoldKillSwitchStatus(BaseModel):
     """وضعیت سیستم هشدار بحرانی."""
 
-    status: str = Field(..., description="NORMAL / WARNING / ACTIVE")
+    status: str = Field(..., description="NORMAL / WARNING / ACTIVE / UNKNOWN")
     reason: str | None = None
     triggered_at: str | None = None
     active_rules: list[str] = Field(default_factory=list)
     directive: str | None = None
+    # DOM-02: False when oz_history / usd_history are not yet wired to DB.
+    # Callers must treat UNKNOWN the same as WARNING (do not cache as safe).
+    data_available: bool = Field(default=True, description="False when price history unavailable")

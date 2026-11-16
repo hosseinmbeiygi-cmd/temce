@@ -7,7 +7,22 @@ import random
 
 
 def set_global_seed(seed: int = 42) -> int:
+    # BT-10: os.environ["PYTHONHASHSEED"] has no effect on the running
+    # interpreter — Python reads it only at startup, before the first
+    # import. Set PYTHONHASHSEED=<seed> in the process environment (e.g.
+    # Dockerfile, docker-compose, or the launch wrapper) for full hash
+    # determinism. We still write it here so child processes that exec
+    # later will inherit the value.
     os.environ["PYTHONHASHSEED"] = str(seed)
+    import logging as _logging
+    _actual = os.environ.get("PYTHONHASHSEED")
+    if _actual != str(seed):
+        _logging.getLogger(__name__).warning(
+            "BT-10: PYTHONHASHSEED set to %s but os.environ already shows %r — "
+            "set it in the launch environment for full hash determinism",
+            seed,
+            _actual,
+        )
     random.seed(seed)
     try:
         import numpy as _np

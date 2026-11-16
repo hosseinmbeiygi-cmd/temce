@@ -209,6 +209,13 @@ class WalkForwardOptimizer:
             score = _objective_function(metrics)
             return (score, params, metrics["sharpe"])
         except Exception:
+            # BT-11: log the failure so parameter combinations that crash are
+            # visible in the logs rather than silently scoring -1e9.
+            logger.warning(
+                "BT-11: _eval_combo failed for params=%s — scored as -1e9",
+                params,
+                exc_info=True,
+            )
             return (-1e9, params, 0.0)
 
     async def _optimize_window(
@@ -393,6 +400,13 @@ class WalkForwardOptimizer:
                         all_is_sharpes.append(is_sharpe)
                         all_oos_sharpes.append(oos_metrics["sharpe"])
                 except Exception:
+                    # BT-11: log OOS window failures so silent skips are visible.
+                    logger.warning(
+                        "BT-11: OOS validation failed for window %d params=%s",
+                        w + 1,
+                        best_params,
+                        exc_info=True,
+                    )
                     continue
 
         if not oos_results:

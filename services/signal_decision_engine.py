@@ -211,6 +211,7 @@ class SignalCandidate:
     best_class_probability: float = 0.0
     second_class_probability: float = 0.0
     source: str = ""
+    market_open: bool = True  # SIG-04: wired from is_tehran_market_open() by caller
 
 
 # ── Policy / Config ──────────────────────────────────────────────────────────
@@ -311,7 +312,7 @@ class SignalPolicy:
             },
 
             "execution": {
-                "min_spread_pct": 0.0,
+                "min_spread_pct": 0.005,  # SIG-04: 0.0 silently bypassed the guard (> 0 check)
                 "require_market_open": True,
             },
 
@@ -436,24 +437,29 @@ class SignalDecisionEngine:
         return self._policy
 
     async def evaluate(self, candidate: SignalCandidate) -> Decision:
-        """Run all 10 gates on the candidate and return the decision."""
+        """Run all 11 gates on the candidate and return the decision."""
         gate_results: list[GateResult] = []
 
         market = candidate.market
 
+        # ── Gate 1: Data Quality ────────────────────────────────────────────
+        gate_results.append(await self._gate_data_quality(candidate, market))
+
+        # ── Smart override (market-condition aware) ───────────────────────
+        # SIG-09: resolve override BEFORE computing effective_threshold so that
+        # _gate_regime's mutation of candidate.volatility_regime is visible to
+        # get_effective_threshold (which reads that field from the candidate).
+        override = await self._resolve_gate_override(candidate, market)
+
         # Compute the effective threshold (dynamic, market-aware)
+        # Must come after override resolution because Gate 4 may update
+        # candidate.volatility_regime from the SmartDecisionGate result.
         effective_threshold = self._policy.get_effective_threshold(
             volatility=candidate.volatility_regime,
             liquidity=candidate.liquidity_score,
             drift=candidate.feature_drift,
             market=market,
         )
-
-        # ── Gate 1: Data Quality ────────────────────────────────────────────
-        gate_results.append(await self._gate_data_quality(candidate, market))
-
-        # ── Smart override (market-condition aware) ───────────────────────
-        override = await self._resolve_gate_override(candidate, market)
 
         # ── Gate 2: Model (with SmartOverride) ──────────────────────────────
         gate_results.append(await self._gate_model(candidate, market, override))
@@ -1001,7 +1007,18 @@ class SignalDecisionEngine:
     async def _gate_execution(self, candidate: SignalCandidate, market: str) -> GateResult:
         """Gate 10: Execution — can the signal be executed in the current market?"""
         cfg = self._policy.get_gate_config("execution", market)
-        min_spread = cfg.get("min_spread_pct", 0.0)
+        min_spread = cfg.get("min_spread_pct", 0.005)
+        require_open = cfg.get("require_market_open", True)
+
+        # SIG-04: enforce market-hours gate when policy requires it
+        if require_open and not candidate.market_open:
+            return GateResult(
+                gate_name="execution",
+                verdict=GateVerdict.BLOCK,
+                score=0.0,
+                reason="بازار بسته است؛ اجرای سیگنال مجاز نیست",
+                details={"require_market_open": True, "market_open": False},
+            )
 
         if candidate.spread_pct > min_spread > 0:
             return GateResult(

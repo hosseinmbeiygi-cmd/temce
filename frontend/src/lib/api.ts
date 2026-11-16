@@ -398,6 +398,18 @@ export function extractTotal(response: unknown): number {
   return 0;
 }
 
+/**
+ * UIF-11: preferred replacement for `extractArray` when the caller wants a
+ * visible warning on backend errors instead of silently receiving `[]`.
+ *
+ * `extractArray` collapses `success:false` responses into an empty array,
+ * causing pages to show an "empty state" (or fall back to mock data) rather
+ * than surfacing the error.  Use `safeExtractArray` on any hook or page that
+ * should distinguish "nothing to show" from "backend failure".
+ *
+ * Zero production callers existed at the time of UIF-11; replace `extractArray`
+ * calls in hooks/pages incrementally, starting with real-time data surfaces.
+ */
 export function safeExtractArray<T = unknown>(response: unknown, endpoint?: string): T[] {
   if (response && typeof response === "object") {
     const obj = response as Record<string, unknown>;

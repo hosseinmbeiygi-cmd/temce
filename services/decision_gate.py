@@ -81,11 +81,20 @@ class SmartDecisionGate:
     ----------
     session : Any | None
         An optional async DB session for fetching market data.
-        When ``None``, the gate falls back to data-less heuristics.
+    async_session_factory : Any | None
+        SIG-02: factory callable (e.g. ``async_session_factory`` from
+        ``core.database``) used to open a session when ``session`` is None.
+        Prevents the gate from silently returning neutral defaults in production
+        when no per-request session is passed.
     """
 
-    def __init__(self, session: Any | None = None) -> None:
+    def __init__(
+        self,
+        session: Any | None = None,
+        async_session_factory: Any | None = None,
+    ) -> None:
         self._session = session
+        self._session_factory = async_session_factory
 
     # ── Public API ─────────────────────────────────────────────────────────
 
@@ -193,6 +202,17 @@ class SmartDecisionGate:
 
         Falls back to a neutral state when DB is unavailable.
         """
+        # SIG-02: try factory-opened session when no per-request session given.
+        if self._session is None and self._session_factory is not None:
+            try:
+                async with self._session_factory() as _fs:
+                    self._session = _fs
+                    result = await self._query_market_state(market)
+                    self._session = None
+                    return result
+            except Exception as e:
+                logger.debug("Factory session for market-state failed: %s", e)
+                return _MarketState()
         if self._session is None:
             return _MarketState()
 
@@ -254,6 +274,17 @@ class SmartDecisionGate:
 
         Returns 0.0 when data is unavailable.
         """
+        # SIG-02: try factory-opened session when no per-request session given.
+        if self._session is None and self._session_factory is not None:
+            try:
+                async with self._session_factory() as _fs:
+                    self._session = _fs
+                    result = await self._fetch_volume_ratio(symbol, market)
+                    self._session = None
+                    return result
+            except Exception as e:
+                logger.debug("Factory session for volume-ratio failed: %s", e)
+                return 0.0
         if self._session is None:
             return 0.0
 
@@ -354,6 +385,7 @@ _gate: SmartDecisionGate | None = None
 def get_decision_gate(
     session: Any | None = None,
     instance: SmartDecisionGate | None = None,
+    async_session_factory: Any | None = None,
 ) -> SmartDecisionGate:
     """Get or create the SmartDecisionGate.
 
@@ -361,12 +393,26 @@ def get_decision_gate(
         session: optional database session for market-condition queries.
         instance: optional pre-built instance to use instead of the singleton.
                   Use this in tests or when a fresh gate is needed.
+        async_session_factory: SIG-02 — factory used when session is None.
     """
     if instance is not None:
         return instance
     global _gate
+
+    # SIG-02: inject factory into the singleton so it can open its own session
+    # when no per-request session is provided (avoids returning neutral defaults).
+    if async_session_factory is None:
+        try:
+            from core.database import async_session_factory as _default_factory
+            async_session_factory = _default_factory
+        except Exception:
+            pass
+
     if _gate is None:
-        _gate = SmartDecisionGate(session=session)
-    elif session is not None and getattr(_gate, "_session", None) is None:
-        _gate._session = session
+        _gate = SmartDecisionGate(session=session, async_session_factory=async_session_factory)
+    else:
+        if session is not None and getattr(_gate, "_session", None) is None:
+            _gate._session = session
+        if async_session_factory is not None and getattr(_gate, "_session_factory", None) is None:
+            _gate._session_factory = async_session_factory
     return _gate

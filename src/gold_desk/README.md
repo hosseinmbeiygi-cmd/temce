@@ -2,6 +2,25 @@
 
 ابزار شخصی برای تحلیل و تصمیم‌گیری داده‌محور در بازار طلا، سکه، ارز و صندوق‌های طلا.
 
+---
+
+## راهنمای حاکمیت — منابع تکمنبع (DOM-11 / DOM-16)
+
+### وضعیت استقرار (DOM-11)
+- **این پوشه (`src/gold_desk/`) داخل monolith اصلی (`apps/api`) مستقر می‌شود** و سرویس مستقلی نیست.
+- تنها سرویس مستقل زیرسیستم ارز (`apps/currency_service/`) است.
+- مسیرهای URL: `/golddesk` (توکن SaaS) و `/gold` (JWT کاربر)
+
+### منبع کانونیکال برای هر موضوع (DOM-16)
+| موضوع | فایل کانونیکال | توضیح |
+|--------|----------------|--------|
+| ثابت‌های طلا (عیار، وزن، آستانه) | `services/gold/constants.py` | تکمنبع؛ `src/gold_desk/constants.py` از آن import می‌کند |
+| ساعات معاملاتی | `core/trading_constants.py` → `TRADING_HOURS` | تقویم کانونیکال؛ تضادها در `src/gold_desk/dates.py` و `services/gold/constants.py` ثانویه‌اند |
+| نرخ بدون ریسک | `core/trading_constants.py` → `get_risk_free_rate()` | نه ۰.۱۵ هاردکد، نه ۰.۲۵؛ از تابع استفاده شود |
+| اسناد حاکمیت | `docs/PLAN_GOLD.md` | سند اصلی؛ `GOLD_SILVER_ASSISTANT_SPEC.md` و `acceptance.yaml` ثانویه‌اند |
+
+---
+
 ## معماری
 
 ```

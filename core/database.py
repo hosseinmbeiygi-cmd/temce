@@ -185,8 +185,10 @@ async def _try_connect(url: str) -> bool:
 async def _create_all_tables() -> None:
     """Import all models and run ``create_all`` (opt-in, non-production only).
 
-    Bypasses the Alembic history, so it is only for throwaway local databases;
-    ``init_database`` refuses it in production/staging (DB-09).
+    Bypasses the Alembic history; for local PostgreSQL dev only.
+    ``init_database`` refuses it in production/staging AND rejects SQLite
+    entirely, so this function always targets a local PostgreSQL instance.
+    Enable with ``DATABASE_AUTO_CREATE_TABLES=true`` in .env.
     """
     import models  # noqa: F401 — triggers registration of all model classes
     from models.base import Base

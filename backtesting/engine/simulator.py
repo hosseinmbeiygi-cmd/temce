@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from backtesting.costs.iran_costs import IranTransactionCosts
 from backtesting.engine.broker import Broker
 from backtesting.engine.portfolio import PortfolioManager
 from backtesting.strategies.base import BaseStrategy
@@ -42,7 +43,12 @@ class BacktestSimulator:
         if broker is not None:
             self.broker = broker
         else:
-            kwargs = {}
+            # BT-01: load cost rates from config/backtest_costs.yaml so that
+            # changes to the YAML actually affect execution.  from_config() was
+            # implemented but had zero callers — commission_pct/slippage_bps
+            # overrides from the caller still take precedence.
+            _costs = IranTransactionCosts.from_config()
+            kwargs: dict = {"cost_model": _costs}
             if commission_pct is not None:
                 kwargs["commission_pct"] = commission_pct
             if slippage_bps is not None:

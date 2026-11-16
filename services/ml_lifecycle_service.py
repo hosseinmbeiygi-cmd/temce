@@ -48,14 +48,18 @@ def prune_ml_artifacts(
         return {"deleted": 0, "kept": 0, "skipped_prod": 0}
 
     cutoff = time.time() - max_age_days * 86400
-    # Group by artifact prefix (algo) — dir names like xgboost_فولاد
+    # MLD-12: group by (algo, model_id) — iterate version subdirs so that:
+    # (a) _is_production reads the correct metadata.json (inside each version dir,
+    #     not at the model-id level where it does not exist), and
+    # (b) rmtree deletes only a single version directory, never the entire model tree.
     groups: dict[str, list[Path]] = {}
-    for p in base.iterdir():
-        if not p.is_dir():
+    for model_dir in base.iterdir():
+        if not model_dir.is_dir():
             continue
-        # algo is prefix before '_' — fallback to full name
-        algo = p.name.split("_")[0] if "_" in p.name else p.name
-        groups.setdefault(algo, []).append(p)
+        algo = model_dir.name.split("_")[0] if "_" in model_dir.name else model_dir.name
+        for version_dir in model_dir.iterdir():
+            if version_dir.is_dir():
+                groups.setdefault(algo, []).append(version_dir)
 
     deleted = 0
     kept = 0
@@ -65,6 +69,7 @@ def prune_ml_artifacts(
         # Sort by mtime descending (newest first)
         dirs_sorted = sorted(dirs, key=lambda d: d.stat().st_mtime, reverse=True)
         for idx, d in enumerate(dirs_sorted):
+            # metadata.json lives inside the version directory (d)
             meta = d / "metadata.json"
             is_prod = _is_production(meta) if meta.exists() else False
             if is_prod:
@@ -77,6 +82,10 @@ def prune_ml_artifacts(
                 if not dry_run:
                     try:
                         shutil.rmtree(d)
+                        # Clean up the now-empty parent model directory if applicable.
+                        parent = d.parent
+                        if parent != base and parent.is_dir() and not any(parent.iterdir()):
+                            parent.rmdir()
                     except Exception as exc:
                         logger.warning("Failed to delete %s: %s", d, exc)
                         continue

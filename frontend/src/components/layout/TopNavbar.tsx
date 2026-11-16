@@ -23,7 +23,8 @@ import {
 import { NAV_CONFIG, SEARCH_SHORTCUTS, type NavGroup, type NavItem } from "@/lib/nav-config";
 import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/cn";
-import { SEARCH_SYMBOLS } from "@/lib/market-mock";
+// UIF-02: SEARCH_SYMBOLS mock removed — search now hits the real backend.
+// import { SEARCH_SYMBOLS } from "@/lib/market-mock";
 import { useAuth } from "@/lib/auth-context";
 import PersonaSwitcher from "@/components/layout/PersonaSwitcher";
 
@@ -145,17 +146,56 @@ function MegaPanel({
 
 /* ── Symbol search ──────────────────────────────────────────── */
 
+type SymbolHit = { symbol: string; name: string; market?: string };
+
+function useSymbolSearch(q: string) {
+  // UIF-02: query the real backend /symbols/search instead of the 14-item mock.
+  const [results, setResults] = useState<SymbolHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
+
+  useEffect(() => {
+    const trimmed = q.trim();
+    if (!trimmed) { setResults([]); return; }
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const url = `${apiBase}/symbols/search?q=${encodeURIComponent(trimmed)}&limit=6`;
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) return;
+        const json = await res.json();
+        const hits: SymbolHit[] = Array.isArray(json?.data)
+          ? json.data.map((r: Record<string, unknown>) => ({
+              symbol: String(r.symbol ?? ""),
+              name: String(r.name ?? r.full_name ?? ""),
+              market: r.market_type ? String(r.market_type) : undefined,
+            }))
+          : [];
+        if (!ctrl.signal.aborted) setResults(hits);
+      } catch {
+        // network error or aborted — keep previous results
+      } finally {
+        if (!ctrl.signal.aborted) setLoading(false);
+      }
+    }, 180);  // debounce 180 ms
+
+    return () => { clearTimeout(timer); ctrl.abort(); };
+  }, [q, apiBase]);
+
+  return { results, loading };
+}
+
 function SymbolSearch({ compact }: { compact: boolean }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [focus, setFocus] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
 
-  const results = q.trim()
-    ? SEARCH_SYMBOLS.filter(
-        (s) => s.symbol.includes(q.trim()) || s.name.includes(q.trim()),
-      ).slice(0, 6)
-    : SEARCH_SYMBOLS.slice(0, 5);
+  const { results, loading } = useSymbolSearch(q);
+
+  const displayResults = results;
 
   const open = focus;
 
@@ -169,13 +209,13 @@ function SymbolSearch({ compact }: { compact: boolean }) {
     if (!open) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIdx((i) => Math.min(i + 1, results.length - 1));
+      setActiveIdx((i) => Math.min(i + 1, displayResults.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const hit = results[activeIdx];
+      const hit = displayResults[activeIdx];
       if (hit) go(`/symbol/${encodeURIComponent(hit.symbol)}`);
     } else if (e.key === "Escape") {
       setFocus(false);
@@ -221,13 +261,17 @@ function SymbolSearch({ compact }: { compact: boolean }) {
             role="listbox"
           >
             <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-bold text-ink-3">
-              {q ? "نتایج جستجو" : "نمادهای پرتقاضا"}
+              {q ? "نتایج جستجو" : "در حال بارگذاری…"}
             </p>
-            {results.length === 0 ? (
+            {loading && (
+              <p className="px-2.5 py-3 text-[11px] text-ink-3">جستجو…</p>
+            )}
+            {!loading && displayResults.length === 0 && q.trim() && (
               <p className="px-2.5 py-3 text-[11px] text-ink-3">نمادی یافت نشد</p>
-            ) : (
+            )}
+            {!loading && displayResults.length > 0 && (
               <div className="space-y-0.5">
-                {results.map((s, i) => (
+                {displayResults.map((s, i) => (
                   <button
                     key={s.symbol}
                     type="button"
@@ -244,9 +288,11 @@ function SymbolSearch({ compact }: { compact: boolean }) {
                       <span className="block truncate text-[13px] font-bold text-ink">{s.symbol}</span>
                       <span className="block truncate text-[10.5px] text-ink-3">{s.name}</span>
                     </span>
-                    <span className="shrink-0 rounded-md bg-soft px-1.5 py-0.5 text-[10px] font-medium text-ink-3">
-                      {s.market}
-                    </span>
+                    {s.market && (
+                      <span className="shrink-0 rounded-md bg-soft px-1.5 py-0.5 text-[10px] font-medium text-ink-3">
+                        {s.market}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>

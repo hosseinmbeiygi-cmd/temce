@@ -6,7 +6,7 @@ from typing import Any
 
 from core.logging import get_logger
 
-from ..http_client import HttpClient, RateLimiter
+from ..http_client import HttpClient
 from ..market_data import AssetClass, parse_decimal
 from .base import DataSource, FetchResult, SourcePayload
 
@@ -24,15 +24,12 @@ class CryptoExchangeSource(DataSource):
         base_url: str,
         symbol: str = "USDTIRT",
         path: str = "/v2/orderbook/{symbol}",
-        max_calls: int = 5,
-        period: float = 1.0,
     ) -> None:
         self._http = http
         self._source_name = source_name
         self._base_url = base_url.rstrip("/")
         self._symbol = symbol
         self._path = path
-        self._rate_limiter = RateLimiter(max_calls=max_calls, period=period)
 
     @property
     def name(self) -> str:
@@ -42,7 +39,6 @@ class CryptoExchangeSource(DataSource):
         ctx = context or {}
         symbol = str(ctx.get("symbol", self._symbol))
         endpoint = self._path.format(symbol=symbol)
-        await self._rate_limiter.acquire()
         raw = await self._http.fetch(f"{self._base_url}{endpoint}")
         records = self._normalize(raw, symbol)
         envelope = json.dumps(

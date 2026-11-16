@@ -34,12 +34,6 @@ if sys.platform == "win32":
 def app() -> FastAPI:
     """Create the FastAPI application for testing."""
     from apps.api.app import create_app
-    from core.config import settings
-
-    # Set environment to "test" so RateLimitMiddleware skips all rate limiting.
-    # The settings object is mutable; we restore after tests via module-level teardown.
-    _orig_env = settings.environment
-    settings.environment = "test"
 
     application = create_app()
 
@@ -53,8 +47,6 @@ def app() -> FastAPI:
     application.dependency_overrides[get_current_user] = _mock_authenticated_user
 
     yield application
-
-    settings.environment = _orig_env
 
 
 @pytest.fixture(scope="module")

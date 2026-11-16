@@ -264,16 +264,30 @@ class MLSignalConnector:
                         closes = []
 
                 if closes and len(closes) >= 10:
-                    logger.info("No trained models for '%s'. Using heuristic fallback.", market)
-                    return Result.ok(_heuristic_trend_predict(closes))
+                    # MLD-03: mark explicitly as heuristic so callers (gates 2/5)
+                    # can exclude this result from ML-specific scoring paths.
+                    logger.warning(
+                        "No trained ML artifacts for market '%s' — using heuristic fallback. "
+                        "is_heuristic=True will be set in the prediction payload.",
+                        market,
+                    )
+                    heuristic_result = _heuristic_trend_predict(closes)
+                    heuristic_result["is_heuristic"] = True
+                    heuristic_result["models_used"] = ["heuristic_trend"]
+                    return Result.ok(heuristic_result)
 
-                logger.info("No trained models for '%s' and insufficient price data. Returning neutral.", market)
+                logger.warning(
+                    "No trained ML artifacts for market '%s' and insufficient price data — "
+                    "returning neutral heuristic. is_heuristic=True.",
+                    market,
+                )
                 return Result.ok(
                     {
                         "direction_scores": {"buy": 0.5, "sell": 0.5, "hold": 0.5},
                         "confidence": 0.0,
                         "ml_score": 0.5,
-                        "models_used": [],
+                        "models_used": ["heuristic_neutral"],
+                        "is_heuristic": True,
                         "note": "no_trained_models_no_data",
                     }
                 )

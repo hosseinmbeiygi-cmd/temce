@@ -1,4 +1,4 @@
-"""Initial schema - 19 tables based on BrsApi.ir endpoints
+﻿"""Initial schema - 19 tables based on BrsApi.ir endpoints
 
 Revision ID: 0001
 Revises: None
@@ -15,7 +15,31 @@ branch_labels = None
 depends_on = None
 
 
+def _timescaledb_present(conn) -> bool:
+    """Return True when the timescaledb extension is installed (DB-02)."""
+    result = conn.execute(sa.text("SELECT 1 FROM pg_extension WHERE extname = 'timescaledb'"))
+    return result.fetchone() is not None
+
+
 def upgrade() -> None:
+    # DB-02: Ensure TimescaleDB extension exists before hypertable calls.
+    # On vanilla Postgres this silently skips the create_hypertable() calls
+    # so the migration succeeds without TimescaleDB installed.
+    bind = op.get_bind()
+    _has_timescale = _timescaledb_present(bind)
+    if not _has_timescale:
+        # Try to create the extension; non-fatal if the image lacks it.
+        try:
+            bind.execute(sa.text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE"))
+            _has_timescale = True
+        except Exception:
+            import warnings
+            warnings.warn(
+                "TimescaleDB extension not available — hypertable creation skipped. "
+                "Use the timescale/timescaledb image for full functionality (DB-02).",
+                stacklevel=2,
+            )
+
     # 1. symbols
     op.create_table(
         "symbols",
@@ -70,10 +94,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("symbol_id", "time"),
     )
     op.create_index("idx_symbol_snapshots_time", "symbol_snapshots", ["time"])
-    # DB-02: ensure TimescaleDB extension is loaded before the first hypertable.
-    # This is idempotent — IF NOT EXISTS makes it safe to re-run.
-    op.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE")
-    op.execute("SELECT create_hypertable('symbol_snapshots', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('symbol_snapshots', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)")
 
     # 3. orderbook_snapshots
     op.create_table(
@@ -92,7 +114,8 @@ def upgrade() -> None:
         sa.Column("ask_count_5", sa.Integer),         sa.Column("ask_volume_5", sa.BigInteger), sa.Column("ask_price_5", sa.Numeric),
         sa.PrimaryKeyConstraint("symbol_id", "time"),
     )
-    op.execute("SELECT create_hypertable('orderbook_snapshots', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('orderbook_snapshots', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)")
 
     # 4. intraday_trades
     op.create_table(
@@ -106,7 +129,8 @@ def upgrade() -> None:
         sa.Column("is_canceled", sa.Boolean, server_default="false"),
         sa.PrimaryKeyConstraint("symbol_id", "trade_date", "seq_no"),
     )
-    op.execute("SELECT create_hypertable('intraday_trades', 'trade_date', chunk_time_interval => INTERVAL '7 days', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('intraday_trades', 'trade_date', chunk_time_interval => INTERVAL '7 days', if_not_exists => TRUE)")
 
     # 5. daily_history
     op.create_table(
@@ -128,7 +152,8 @@ def upgrade() -> None:
         sa.Column("price_close_change_pct", sa.Numeric),
         sa.PrimaryKeyConstraint("symbol_id", "trade_date"),
     )
-    op.execute("SELECT create_hypertable('daily_history', 'trade_date', chunk_time_interval => INTERVAL '30 days', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('daily_history', 'trade_date', chunk_time_interval => INTERVAL '30 days', if_not_exists => TRUE)")
 
     # 6. daily_real_legal
     op.create_table(
@@ -149,7 +174,8 @@ def upgrade() -> None:
         sa.Column("legal_sell_value", sa.Numeric),
         sa.PrimaryKeyConstraint("symbol_id", "trade_date"),
     )
-    op.execute("SELECT create_hypertable('daily_real_legal', 'trade_date', chunk_time_interval => INTERVAL '30 days', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('daily_real_legal', 'trade_date', chunk_time_interval => INTERVAL '30 days', if_not_exists => TRUE)")
 
     # 7. candlesticks
     op.create_table(
@@ -164,7 +190,8 @@ def upgrade() -> None:
         sa.Column("volume", sa.BigInteger, nullable=False),
         sa.PrimaryKeyConstraint("symbol_id", "candle_type", "time"),
     )
-    op.execute("SELECT create_hypertable('candlesticks', 'time', chunk_time_interval => INTERVAL '7 days', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('candlesticks', 'time', chunk_time_interval => INTERVAL '7 days', if_not_exists => TRUE)")
 
     # 8. shareholders
     op.create_table(
@@ -177,7 +204,8 @@ def upgrade() -> None:
         sa.Column("change", sa.Numeric),
         sa.PrimaryKeyConstraint("symbol_id", "record_date", "holder_name"),
     )
-    op.execute("SELECT create_hypertable('shareholders', 'record_date', chunk_time_interval => INTERVAL '30 days', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('shareholders', 'record_date', chunk_time_interval => INTERVAL '30 days', if_not_exists => TRUE)")
 
     # 9. codal_announcements
     op.create_table(
@@ -219,7 +247,8 @@ def upgrade() -> None:
         sa.Column("discount_premium", sa.Numeric),
         sa.PrimaryKeyConstraint("symbol_id", "time"),
     )
-    op.execute("SELECT create_hypertable('etf_nav', 'time', chunk_time_interval => INTERVAL '7 days', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('etf_nav', 'time', chunk_time_interval => INTERVAL '7 days', if_not_exists => TRUE)")
 
     # 12. options
     op.create_table(
@@ -313,7 +342,8 @@ def upgrade() -> None:
         sa.Column("unit", sa.String(20)),
         sa.PrimaryKeyConstraint("symbol", "time"),
     )
-    op.execute("SELECT create_hypertable('commodity_prices', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('commodity_prices', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)")
 
     # 19. gold_currency_prices
     op.create_table(
@@ -330,7 +360,8 @@ def upgrade() -> None:
         sa.Column("section", sa.String(20)),
         sa.PrimaryKeyConstraint("symbol", "time"),
     )
-    op.execute("SELECT create_hypertable('gold_currency_prices', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)")
+    if _has_timescale:
+        op.execute("SELECT create_hypertable('gold_currency_prices', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)")
 
 
 def downgrade() -> None:

@@ -276,11 +276,16 @@ async def job_queue_stats() -> ApiResponse[dict[str, Any]]:
         queue_size = await _queue_len(client, settings.job_queue_name)
         dead_letter_size = await _queue_len(client, settings.job_queue_dead_letter)
 
+        # JOB-07: counters (processed/failed/dead_lettered) come from the
+        # API-process singleton which is never started, so they are always 0.
+        # Queue lengths from Redis are accurate. Workers maintain their own
+        # in-process counters that are not visible here.
         return ApiResponse[dict[str, Any]](success=True, data={
             **stats,
             "queue_size": queue_size,
             "dead_letter_size": dead_letter_size,
             "queue_enabled": settings.job_queue_enabled,
+            "stats_source": "api-process (processed/failed counts are 0; use worker logs for real counters)",
             "config": {
                 "queue": settings.job_queue_name,
                 "dead_letter": settings.job_queue_dead_letter,

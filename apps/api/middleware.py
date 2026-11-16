@@ -176,6 +176,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                                 status_code=401,
                                 content={"success": False, "error": "Session has been revoked", "code": "SESSION_REVOKED"},
                             )
+                        # HTTP-07: cache validated payload so tier/downstream layers
+                        # don't re-decode (reduces 3 decodes → 1 on write paths).
+                        request.state._jwt_payload = payload
                     except Exception:
                         return JSONResponse(
                             status_code=401,
@@ -604,7 +607,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return pattern
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        if app_settings.environment == "test" or request.url.path.startswith(
+        # HTTP-06: test mode must NOT bypass rate limiting globally — only skip
+        # the same infrastructure paths that are always skipped, so that tests
+        # can verify that rate-limit 429s are returned when limits are reached.
+        if request.url.path.startswith(
             ("/docs", "/openapi.json", f"{_API_PREFIX}/health", "/metrics")
         ):
             return await call_next(request)

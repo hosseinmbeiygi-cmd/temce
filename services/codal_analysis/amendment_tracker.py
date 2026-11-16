@@ -1,3 +1,9 @@
+"""Codal amendment chain tracker — DOM-10: no production callers.
+
+This module has zero importers outside its own package. All live Codal data
+flows through ``services.codal_analysis.service`` and the 30 connected modules
+beneath it.  This class is kept for reference; wire it in or remove it.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

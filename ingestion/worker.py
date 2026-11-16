@@ -148,10 +148,9 @@ class IngestionWorker:
             try:
                 events = await parser.parse(payload.raw_data)
             except ParseError as exc:
-                # A payload we could not read is a failed ingest, not an empty
-                # one: the raw copy stays in the lake for replay, and
-                # ``ingest_all`` records the source as failed (-1) instead of
-                # reporting zero written events as if the source were healthy.
+                # ING-05: one bad payload must not stop the remaining payloads
+                # for this source in the current tick.  Log the error and keep
+                # iterating; the raw copy is already in the lake for replay.
                 logger.error(
                     "Parse failed for source=%s endpoint=%s reason=%s. Raw payload kept at %s",
                     payload.source,
@@ -159,7 +158,7 @@ class IngestionWorker:
                     exc.reason,
                     object_key,
                 )
-                raise
+                continue
             except Exception:
                 logger.exception(
                     "Parse failed for source=%s endpoint=%s. Raw payload kept at %s",
@@ -169,7 +168,13 @@ class IngestionWorker:
                 )
                 continue
 
-            payload_written_all = True
+            # ING-04: only mark a payload as seen after at least one event was
+            # actually written.  Defaults to False here; flipped to True after
+            # the first successful _write_event so the dedup gate below fires
+            # only when real work happened.  When _identity or _storage are
+            # None the write block is skipped entirely — leaving the payload
+            # unmarked so the next tick retries once those deps are available.
+            payload_written_all = self._identity is not None and self._storage is not None
             for event in events:
                 event.raw_object_key = object_key
                 event.parsed_at = datetime.now(UTC).isoformat()

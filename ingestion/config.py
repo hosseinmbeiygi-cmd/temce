@@ -39,15 +39,17 @@ class IngestionConfig(BaseSettings):
         description="Active data sources",
     )
 
-    worker_count: int = Field(default=4, ge=1, le=32)
     max_retries: int = Field(default=3, ge=0)
     retry_backoff_base: float = Field(default=2.0, ge=1.0)
     retry_max_delay: float = Field(default=60.0, ge=1.0)
 
     request_timeout: float = Field(default=30.0, ge=1.0)
     connection_pool_size: int = Field(default=20, ge=1)
-    rate_limit_calls: int = Field(default=10, ge=1)
-    rate_limit_period: int = Field(default=1, ge=1)
+
+    # ING-02: single config-driven rate limit applied by HttpClient per upstream host.
+    # Replaces the hardcoded per-source RateLimiter instances.
+    http_rate_limit_calls: int = Field(default=5, ge=1, description="Max requests per http_rate_limit_period per upstream host")
+    http_rate_limit_period: float = Field(default=1.0, ge=0.1, description="Window in seconds for http_rate_limit_calls")
 
     lake_bucket_raw: str = Field(default="raw-payloads")
     lake_bucket_parsed: str = Field(default="parsed-data")
@@ -70,9 +72,6 @@ class IngestionConfig(BaseSettings):
     market_timezone: str = Field(default="Asia/Tehran")
 
     dedup_window_minutes: int = Field(default=60, ge=1)
-
-    replay_chunk_size: int = Field(default=1000, ge=1)
-    replay_concurrency: int = Field(default=2, ge=1)
 
     @field_validator("db_dsn", mode="before")
     @classmethod

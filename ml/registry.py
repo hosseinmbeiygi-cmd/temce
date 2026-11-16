@@ -1,3 +1,19 @@
+"""ML model metadata registry — tracks trained artifact metadata.
+
+MLD-09 disambiguation: this is ONE of several registries in the ML layer.
+- ml.registry.ModelRegistry       — THIS file; stores ModelArtifactMeta for
+                                     trained artifacts (the live artifact record).
+- ml.models.registry.ModelRegistry — model *class* registry; maps algorithm
+                                      name strings to BaseModel subclasses for training.
+- ml.model_registry.DemoModelRegistry — demo/dashboard registry (dev/test only).
+- ml.global_registry.get_registry()   — singleton wrapper around DemoModelRegistry.
+
+Add an import alias when both registries must coexist in the same module to
+avoid the name clash:
+    from ml.registry import ModelRegistry as ArtifactRegistry
+    from ml.models.registry import ModelRegistry as ModelClassRegistry
+"""
+
 from __future__ import annotations
 
 from core.logging import get_logger

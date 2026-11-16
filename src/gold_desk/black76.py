@@ -75,7 +75,8 @@ def years_to_expiry(expiry: date) -> float:
     delta_days = (expiry - today).days
     if delta_days < 0:
         raise ValueError(f"expiry is in the past: {expiry} < {today}")
-    return max(delta_days / 365.0, 1e-6)  # حداقل ~31 ثانیه (1e-6 سال)
+    # DOM-01 (OF5): use 252 trading-day year (IME commodity option convention).
+    return max(delta_days / 252.0, 1e-6)  # حداقل ~31 ثانیه (1e-6 سال)
 
 
 def black76_price(

@@ -1,3 +1,9 @@
+"""Codal disclosure lineage tracker — DOM-10: no production callers.
+
+This module has zero importers outside its own package.  The ``point_in_time``
+module that relies on lineage data to prevent look-ahead is also unconnected.
+Wire both in or remove them before claiming look-ahead prevention.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

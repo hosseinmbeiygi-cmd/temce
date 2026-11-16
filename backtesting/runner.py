@@ -48,6 +48,7 @@ from backtesting.engine.simulation_engine import SimulationEngine
 from backtesting.engine.simulator import BacktestSimulator
 from backtesting.hybrid.hybrid_simulator import HybridMarketSimulator
 from backtesting.types import BacktestResult
+from backtesting.validation import BacktestValidator
 from core.logging import get_logger
 from core.result import Result
 
@@ -139,6 +140,15 @@ class BacktestRunner:
         from core.seed import set_global_seed
 
         set_global_seed(int(kwargs.pop("seed", 42)))
+
+        # BT-09: validate config before dispatching so callers surface missing
+        # fields early rather than getting a cryptic engine error.
+        _validator = BacktestValidator()
+        _config = {"strategy": strategy, **kwargs}
+        _errors = _validator.validate_config(_config)
+        if _errors:
+            logger.warning("BT-09: BacktestRunner received invalid config: %s", _errors)
+
         name = self.resolve(engine)
         if name in DEPRECATED_ENGINES:
             warnings.warn(
@@ -152,6 +162,9 @@ class BacktestRunner:
             engine = self._ENGINES[name][0]()
 
         bt_result = await self._dispatch(name, engine, strategy, initial_capital, data, kwargs)
+        # BT-09: also validate the result so None/empty results produce a warning.
+        for _warn in _validator.validate_results(bt_result):
+            logger.warning("BT-09: BacktestRunner result warning: %s", _warn)
         return self._summarize(bt_result, name, initial_capital)
 
     # ── Dispatch ───────────────────────────────────────────────────
