@@ -44,6 +44,9 @@ class SignalAccuracyModel(TimestampMixin, Base):
 
     generated_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now())
     outcome_set_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Present in the database since migrations 0006/0007; TimestampMixin only
+    # carries created_at, so it is declared here to keep the ORM in step.
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text)
 
 

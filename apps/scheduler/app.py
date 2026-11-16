@@ -156,6 +156,10 @@ class SchedulerApp:
         # ── Evaluate user price/volume/RSI alerts against live data ──
         # Runs every 2 minutes so alerts fire shortly after the condition holds.
         self.add_job("EvaluateAlertsJob", trigger="interval", minutes=2, max_instances=1, replace_existing=True)
+        # ── Alert engine: analyse every instrument active in Alerts + deliver notifications ──
+        # State lives in the DB (alert_monitors), so a restart resumes without duplicates.
+        # The job only reads stored market data; it never calls BrsApi, so it costs no API budget.
+        self.add_job("MonitorAlertInstrumentsJob", trigger="interval", minutes=2, max_instances=1, coalesce=True, replace_existing=True)
 
         # ── Backfill historical data (daily, off-peak hours) ──
         self.add_job(

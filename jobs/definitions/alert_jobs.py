@@ -196,3 +196,74 @@ class EvaluateAlertsJob(BaseJob):
         except Exception as e:
             logger.exception("EvaluateAlertsJob failed")
             return JobResult.failure(str(e), job_name=self._name)
+
+
+class MonitorAlertInstrumentsJob(BaseJob):
+    """Analyse every instrument that is active in Alerts and deliver pending notifications.
+
+    * Monitors with a confirmed position are analysed first (risk before ideas).
+    * Each monitor runs in its own transaction and is row-locked (SKIP LOCKED), so one
+      failing or slow instrument never blocks the others and concurrent runs cannot
+      analyse the same monitor twice.
+    * Market-wide inputs (breadth/regime) are loaded once per pass and shared.
+    * A time budget bounds the pass; anything not reached is reported as ``deferred``
+      (degraded cadence is disclosed, never hidden) and picked up by the next run.
+    * Reads stored data only — it never calls the data provider.
+    """
+
+    #: Seconds one pass may spend analysing before deferring the rest to the next run.
+    TIME_BUDGET_SECONDS = 90.0
+
+    async def execute(self, context: JobContext) -> JobResult:
+        import time
+
+        from core.database import async_session_factory
+        from jobs.market_hours import is_tehran_market_open
+        from services.alert_engine import data as engine_data
+        from services.alert_engine import notifier
+        from services.alert_engine.engine import AlertEngine
+        from services.alert_engine.settings import FreshnessPolicy
+
+        if async_session_factory is None:
+            return JobResult.failure("Database not available", job_name=self._name)
+
+        started = time.monotonic()
+        stats = {"monitors": 0, "analyzed": 0, "unchanged": 0, "skipped_locked": 0, "errors": 0, "deferred": 0}
+        try:
+            async with async_session_factory() as session:
+                ids = await AlertEngine(session).active_monitor_ids()
+                market = None
+                if ids:
+                    market = await engine_data.load_market(session, FreshnessPolicy(), datetime.now(UTC), is_tehran_market_open())
+                await session.rollback()
+            stats["monitors"] = len(ids)
+
+            for index, (monitor_id, _has_position) in enumerate(ids):
+                if time.monotonic() - started > self.TIME_BUDGET_SECONDS:
+                    stats["deferred"] = len(ids) - index
+                    logger.warning("MonitorAlertInstrumentsJob: time budget hit, %d monitors deferred", stats["deferred"])
+                    break
+                try:
+                    async with async_session_factory() as session:
+                        result = await AlertEngine(session).analyze(monitor_id, market=market)
+                        await session.commit()
+                    if result is None:
+                        stats["skipped_locked"] += 1
+                    elif result.get("state") == "error":
+                        stats["errors"] += 1
+                    elif result.get("unchanged"):
+                        stats["unchanged"] += 1
+                    else:
+                        stats["analyzed"] += 1
+                except Exception:  # noqa: BLE001 — isolate one instrument's failure
+                    stats["errors"] += 1
+                    logger.exception("MonitorAlertInstrumentsJob: monitor %s failed", monitor_id)
+
+            async with async_session_factory() as session:
+                stats["telegram"] = await notifier.deliver_pending(session, now=datetime.now(UTC))
+                await session.commit()
+            stats["duration_seconds"] = round(time.monotonic() - started, 2)
+            return JobResult.success_result(job_name=self._name, data=stats)
+        except Exception as e:
+            logger.exception("MonitorAlertInstrumentsJob failed")
+            return JobResult.failure(str(e), job_name=self._name)

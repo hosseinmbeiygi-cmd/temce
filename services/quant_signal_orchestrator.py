@@ -1545,7 +1545,6 @@ class QuantSignalOrchestrator:
                             source VARCHAR(100),
                             direction VARCHAR(10),
                             timeframe VARCHAR(10),
-                            regime VARCHAR(50),
                             signal_price FLOAT,
                             signal_strength FLOAT,
                             signal_confidence FLOAT,

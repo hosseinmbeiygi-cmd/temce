@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
+from apps.api.dependencies import get_current_user, require_user_for_writes
 from apps.api.dependencies import require_roles as require_any_role
-from apps.api.dependencies import require_user_for_writes
 from core.config import settings
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
@@ -224,6 +224,7 @@ class Router:
         # module (tens of seconds cumulative).  Each endpoint loads only when setup()
         # is called, which happens once at app creation time.
         from apps.admin.dashboard import router as admin_dashboard_router
+        from apps.api.endpoints.alert_monitors import router as alert_monitors_router
         from apps.api.endpoints.alerts import router as alerts_router
         from apps.api.endpoints.alpha import router as alpha_router
         from apps.api.endpoints.analysis import router as analysis_router
@@ -347,6 +348,9 @@ class Router:
         router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
         # Reference market data may be read by anonymous visitors (the landing and
         # /markets pages render before login); every write still needs a token.
+        # Alert engine (monitored instruments, portfolio risk, notifications). Mounted
+        # before the threshold-alert router so its fixed paths win over ``/{alert_id}``.
+        router.include_router(alert_monitors_router, prefix="/alerts", tags=["Alerts"], dependencies=_require_user)
         router.include_router(alerts_router, prefix="/alerts", tags=["Alerts"], dependencies=_require_user)
         router.include_router(
             market_router,
@@ -770,14 +774,17 @@ class Router:
             dependencies=_require_user,
         )
         # System administration (kill switch + permission check, §15.3 + §19.3).
-        # Defence-in-depth: a mount-level _require_user ensures the JWT is valid
-        # on every system route even if a per-endpoint guard is accidentally
-        # omitted in the future (HTTP-13). Per-endpoint require_roles("admin")
-        # still gates the sensitive operations inside the router.
+        # Defence-in-depth: a mount-level authentication check ensures the JWT
+        # is valid on every system route even if a per-endpoint guard is
+        # accidentally omitted in the future (HTTP-13). It must be
+        # authentication-only: ``_require_user`` whitelists user/analyst/admin
+        # and would lock trader/quant/risk roles out of ``permissions/check``.
+        # Per-endpoint require_roles("admin") still gates the sensitive
+        # operations inside the router.
         router.include_router(
             system_router,
             prefix="",
             tags=["System"],
-            dependencies=_require_user,
+            dependencies=[Depends(get_current_user)],
         )
         return router

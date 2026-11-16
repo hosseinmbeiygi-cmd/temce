@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
 import SymbolSelector from "@/components/SymbolSelector";
+import MonitorWorkspace from "@/components/alerts/MonitorWorkspace";
 import { apiGet, apiPost, apiPut, apiDelete, extractItems } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
 
@@ -47,6 +48,8 @@ export default function AlertsPage() {
   const [historyAlertId, setHistoryAlertId] = useState<string | null>(null);
   const [historyData, setHistoryData] = useState<Array<{id: string; triggered_at: string; trigger_value: number; message: string}>>([]);
   const [manualEntry, setManualEntry] = useState(false);
+  // «پایش ابزارها» = موتور تحلیل و هشدار؛ «هشدارهای آستانه‌ای» = هشدارهای سادهٔ قیمت/حجم/RSI.
+  const [view, setView] = useState<"monitors" | "thresholds">("monitors");
 
   useEffect(() => {
     fetchAlerts();
@@ -125,6 +128,23 @@ export default function AlertsPage() {
 
   return (
     <AppLayout title="هشدارها">
+        <div className="flex items-center gap-2 mb-5" role="tablist">
+          {([["monitors", "پایش ابزارها"], ["thresholds", "هشدارهای آستانه‌ای"]] as const).map(([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={view === key}
+              onClick={() => setView(key)}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${view === key ? "bg-primary-600 text-white" : "bg-surface-800 text-gray-400 hover:text-white"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === "monitors" && <MonitorWorkspace />}
+
+        {view === "thresholds" && (<>
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => setShowForm(!showForm)} className="bg-primary-600 hover:bg-primary-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition">
             {showForm ? "بستن" : "هشدار جدید"}
@@ -274,6 +294,7 @@ export default function AlertsPage() {
             ))}
           </div>
         )}
+        </>)}
     </AppLayout>
   );
 }

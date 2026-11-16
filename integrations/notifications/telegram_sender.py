@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 
 import httpx
 
@@ -9,6 +10,12 @@ from core.logging import get_logger
 from core.result import Result
 
 logger = get_logger(__name__)
+
+_TOKEN_RE = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
+
+
+def _redact_token(message: str) -> str:
+    return _TOKEN_RE.sub("bot<redacted>", message)
 
 
 class TelegramSender:
@@ -28,8 +35,11 @@ class TelegramSender:
                 logger.info("Telegram message sent")
                 return Result.ok(True)
             except httpx.HTTPError as e:
-                logger.error("Failed to send Telegram message: %s", e)
-                return Result.fail(str(e))
+                # httpx puts the request URL — which embeds the bot token — in the
+                # error text; never log or return it verbatim.
+                safe = _redact_token(str(e))
+                logger.error("Failed to send Telegram message: %s", safe)
+                return Result.fail(safe)
 
     async def send_photo(self, photo_url: str, caption: str = "") -> Result[bool]:
         if not self._token or not self._chat_id:
@@ -42,7 +52,7 @@ class TelegramSender:
                 resp.raise_for_status()
                 return Result.ok(True)
             except httpx.HTTPError as e:
-                return Result.fail(str(e))
+                return Result.fail(_redact_token(str(e)))
 
     async def send_document(self, document_path: str, caption: str = "") -> Result[bool]:
         if not self._token or not self._chat_id:
@@ -59,4 +69,4 @@ class TelegramSender:
                 resp.raise_for_status()
                 return Result.ok(True)
             except httpx.HTTPError as e:
-                return Result.fail(str(e))
+                return Result.fail(_redact_token(str(e)))

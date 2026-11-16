@@ -119,6 +119,14 @@ from models.user import UserModel
 # DB-03: modules below were absent from this file so their tables never reached
 # Base.metadata — Alembic --autogenerate would have proposed dropping them.
 from models.alert_hub import SymbolAlertModel, SymbolAssessmentSnapshotModel
+from models.alert_engine import (
+    AlertAnalysisModel,
+    AlertEngineSettingsModel,
+    AlertEquityStateModel,
+    AlertLedgerEntryModel,
+    AlertMonitorModel,
+    AlertNotificationModel,
+)
 from models.approval_gateway import ProposalModel, ProposalAuditModel
 from models.codal_analysis import (
     AccountMapping,

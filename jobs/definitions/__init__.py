@@ -1,4 +1,4 @@
-from jobs.definitions.alert_jobs import EvaluateAlertsJob
+from jobs.definitions.alert_jobs import EvaluateAlertsJob, MonitorAlertInstrumentsJob
 from jobs.definitions.analytics_jobs import AnalyticsComputationJob, IndicatorCalculationJob
 from jobs.definitions.backtest_jobs import BacktestExecutionJob, BacktestOptimizationJob
 from jobs.definitions.brsapi_jobs import (
@@ -101,6 +101,7 @@ __all__ = [
     "AnalyticsComputationJob",
     "IndicatorCalculationJob",
     "EvaluateAlertsJob",
+    "MonitorAlertInstrumentsJob",
     "ModelTrainingJob",
     "BatchInferenceJob",
     "ModelEvaluationJob",
