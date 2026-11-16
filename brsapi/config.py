@@ -12,9 +12,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 
 
 class EndpointCategory(StrEnum):
@@ -380,7 +383,8 @@ class BrsApiEndpoints:
 
 
 class BrsApiSettings(BaseSettings):
-    model_config = {"env_prefix": "BRSAPI_", "env_file": ".env", "extra": "ignore"}
+    # Repository-anchored, not CWD-relative (CFG-06).
+    model_config = {"env_prefix": "BRSAPI_", "env_file": str(_ENV_FILE), "extra": "ignore"}
 
     api_key: str = Field(default="", description="BrsApi.ir API key")
     base_url: str = Field(default="https://api.brsapi.ir", description="BrsApi base URL")
