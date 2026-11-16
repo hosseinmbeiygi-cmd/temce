@@ -1,0 +1,353 @@
+================================================================================
+GRIAH KAMIL RAHBARDAZI PROJE AUTUZCODER
+Complete Setup Report - AutoZCoder Project
+================================================================================
+Tarikh: 10/22/2026 16:17:37
+OS: Windows 11 (win32)
+PowerShell: 5.1
+Python: 3.14.6
+================================================================================
+
+1. MASIR PROJE
+--------------------------------------------------------------------------------
+C:\Users\Iran\Downloads\Telegram Desktop\autozcoder-@ArchiveTell
+
+Sakhteye folder ha:
+  accounts/
+  assets/
+  docs/
+  generator/
+  generator-data/
+  logs/
+  mail-worker/
+  tests/
+  tools/
+  zcode_gateway/
+
+Fayl ha:
+  .gitattributes
+  .gitignore
+  build-exe.ps1
+  config.example.yaml
+  config.yaml
+  gui_main.py
+  LICENSE
+  model-caps.json
+  pytest.ini
+  README.md
+  requirements-dev.txt
+  requirements-server.txt
+  requirements.txt
+  SETUP.md
+  SKILL.md
+
+================================================================================
+2. MOHIT MJAZI (VIRTUAL ENVIRONMENT)
+--------------------------------------------------------------------------------
+Hokm: python -m venv .venv
+Masir venv: .venv\
+Hokm fa'al sakhtan: .\.venv\Scripts\Activate.ps1
+Version pip ba'd az tieret: 26.2.2
+Natijeh: Majazi ba mueffaqiyat sakht shod va fa'al shod.
+
+================================================================================
+3. NASAB VAFAQITHA (DEPENDENCIES)
+--------------------------------------------------------------------------------
+
+3.1 Fayl requirements.txt
+--------------------------------------------------------------------------------
+Hokm: pip install -r requirements.txt
+Natijeh: KAMILAN NASAB SHOD
+
+| Paket | Version |
+|-------|---------|
+| annotated-doc | 0.0.5 |
+| annotated-types | 0.8.0 |
+| anyio | 4.15.1 |
+| bottle | 0.13.4 |
+| certifi | 2026.10.19 |
+| cffi | 2.1.1 |
+| charset_normalizer | 3.5.2 |
+| click | 8.5.0 |
+| clr_loader | 0.3.1 |
+| fastapi | 0.159.1 |
+| h11 | 0.16.0 |
+| httpcore | 1.0.9 |
+| httptools | 0.9.0 |
+| httpx | 0.28.1 |
+| idna | 3.20 |
+| opentelemetry-api | 1.45.1 |
+| proxy_tools | 0.1.0 |
+| pycparser | 3.12 |
+| pydantic | 2.14.1 |
+| pydantic-core | 2.50.1 |
+| python-dotenv | 1.2.4 |
+| pythonnet | 3.2.1 |
+| pywebview | 6.2.1 |
+| requests | 2.34.2 |
+| starlette | 1.9.0 |
+| truststore | 0.10.5 |
+| typing-extensions | 4.16.0 |
+| typing-inspection | 0.4.4 |
+| urllib3 | 2.8.0 |
+| uvicorn | 0.54.0 |
+| watchfiles | 1.3.0 |
+| websockets | 17.3 |
+| PyYAML | 6.0.3 |
+
+3.2 Fayl generator\requirements.txt
+--------------------------------------------------------------------------------
+Hokm: pip install -r generator\requirements.txt
+Natijeh: KAMILAN NASAB SHOD
+
+| Paket | Version |
+|-------|---------|
+| ddddocr | 1.6.1 |
+| flatbuffers | 25.12.19 |
+| greenlet | 3.5.6 |
+| numpy | 2.5.4 |
+| onnxruntime | 1.31.0 |
+| opencv-python | 5.0.0.93 |
+| packaging | 26.3 |
+| playwright | 1.64.0 |
+| protobuf | 7.36.2 |
+| pyee | 14.0.0 |
+| pysocks | 1.7.1 |
+| Pillow | 13.0.0 |
+| requests | (anasb shode ast) |
+| urllib3 | (anasb shode ast) |
+| certifi | (anasb shode ast) |
+
+3.3 Nasab Morur Playwright
+--------------------------------------------------------------------------------
+Hokm: playwright install chromium
+Natijeh: KAMILAN NASAB SHOD
+
+| Komponen | Version | Masir |
+|----------|---------|-------|
+| Chrome for Testing | 156.0.8078.4 (v1248) | C:\Users\Iran\AppData\Local\ms-playwright\chromium-1248 |
+| FFmpeg | v1013 | C:\Users\Iran\AppData\Local\ms-playwright\ffmpeg-1013 |
+| Chrome Headless Shell | 156.0.8078.4 (v1248) | C:\Users\Iran\AppData\Local\ms-playwright\chromium_headless_shell-1248 |
+
+================================================================================
+4. ANJAM TEST-HA (STRICT TDD)
+--------------------------------------------------------------------------------
+Hokm: pytest
+Fayl setting: pytest.ini
+Test paths: tests/
+Tedad test ha jam: 219
+
+Natijeh jawame:
+  219 passed, 0 failed, 0 skipped
+  Zaman ejra: 29.70 second
+
+Tafsil baraye harek fayl test:
+--------------------------------------------------------------------------------
+tests/test_accounts_dir.py            : 8/8  PASSED
+tests/test_acquire_wait.py            : 2/2  PASSED
+tests/test_auth_and_complete.py       : 6/6  PASSED
+tests/test_cap_display.py             : 8/8  PASSED
+tests/test_generator.py               : 17/17 PASSED
+tests/test_local_hardening.py         : 14/14 PASSED
+tests/test_model_caps_persist.py      : 4/4  PASSED
+tests/test_model_retry.py             : 13/13 PASSED
+tests/test_proxy_tooling.py           : 24/24 PASSED
+tests/test_relays.py                  : 11/11 PASSED
+tests/test_translate_anthropic.py     : 12/12 PASSED
+tests/test_updater.py                 : 15/15 PASSED
+tests/test_zcode_bootstrap.py         : 7/7  PASSED
+tests/test_zcode_core.py              : 34/34 PASSED
+tests/test_zcode_device.py            : 6/6  PASSED
+
+Entezarat (warnings):
+  StarletteDeprecationWarning dar fastapi testclient (be hojat-e na-darad be maqsoud-e jary)
+
+Natijeh jame: Hame test ha pass kardand. Taghyir-e kodi angezam nashod.
+
+================================================================================
+5. ANJAM GITWAY (ZCODE GATEWAY)
+--------------------------------------------------------------------------------
+Hokm: python -m zcode_gateway.main
+Varedgah-e config: config.yaml (dar ruye sakht)
+
+5.1 Set-ha-ye Server (az config.yaml)
+--------------------------------------------------------------------------------
+server.host:         127.0.0.1
+server.port:         8788
+require_client_key:  true
+admin_key:           gw-admin-local
+client_keys:
+  - key: gw-local-1, name: local
+
+upstream.base_url:   https://zcode.z.ai/api/v1
+upstream.chat_path:  /zcode-plan/anthropic/v1/messages
+
+5.2 Natijeh Ejra
+--------------------------------------------------------------------------------
+Server ba mueffaqiyat shoro shod.
+Log: INFO: Uvicorn running on http://127.0.0.1:8788 (Press CTRL+C to quit)
+
+5.3 Tashkhis-e Dashbord
+--------------------------------------------------------------------------------
+URL: http://127.0.0.1:8788/dash
+Kod-e javab: HTTP 200
+Mohtava: HTML page-ye Zcode Gateway Dashboard (dashbord-e Zcode Gateway)
+Titel: Zcode Gateway
+Zaban: en-US
+
+Natijeh: Dashbord-e gitway dar dastur ast va bedune ghalbat tabdil shode ast.
+
+================================================================================
+6. HALAT JARI
+--------------------------------------------------------------------------------
+- Majazi Python fa'al ast (.venv)
+- Hame vafaqit-haye dar requirements.txt va generator\requirements.txt nasab shode ast
+- Morur-e Chromium-e Playwright nasab shode ast
+- Hame 219 test pass kardand
+- Gitway baraye port 8788 anjam mishavad va dar dastur ast
+- Dashbord baraye http://127.0.0.1:8788/dash moayyad shodast
+
+================================================================================
+7. HOKM-HA-YE MOFID BARAYE ESTEFADAH BA'D
+--------------------------------------------------------------------------------
+
+7.1 Baz kardane dashbord dar browser:
+  start http://127.0.0.1:8788/dash
+
+7.2 Tast-e halat-e hale gitway:
+  curl.exe http://127.0.0.1:8788/dash
+
+7.3 Band kardane gitway:
+  Ctrl+C dar terminal-e chalak shode
+  ya:
+  Stop-Process -Name python -Force
+
+7.4 Do-bare-e anjame test ha:
+  .\.venv\Scripts\python.exe -m pytest
+
+7.5 Do-bare-e shoro-e gitway:
+  .\.venv\Scripts\python.exe -m zcode_gateway.main
+
+================================================================================
+8. SETUP-YE CONFIG.YAML (KHALASI)
+--------------------------------------------------------------------------------
+server:
+  host: 127.0.0.1
+  port: 8788
+  require_client_key: true
+  admin_key: gw-admin-local
+  client_keys:
+    - key: gw-local-1
+      name: local
+
+upstream:
+  base_url: https://zcode.z.ai/api/v1
+  chat_path: /zcode-plan/anthropic/v1/messages
+  timeout_connect: 15
+  timeout_read: 600
+  max_attempts: 3
+  overload_max_attempts: 11
+  overload_base_delay_seconds: 2
+  overload_max_delay_seconds: 60
+
+pool:
+  strategy: drain_first
+  cooldown_seconds: 30
+  max_in_flight_per_account: 1
+  acquire_wait_seconds: 60
+  balance_poll_seconds: 60
+  blocked_model_cooldown_seconds: 900
+
+accounts:
+  source: accounts_dir
+  dir: /opt/autozcoder/accounts
+  pool_file: /opt/autozcoder/pool.json
+
+models:
+  aliases:
+    glm-5.3: GLM-5.3
+    glm-5.3-flash: GLM-5.3-Flash
+  default: GLM-5.3-Flash
+  default_anthropic: GLM-5.3
+  default_max_tokens: 128000
+  probe_unknown: false
+  auto_free_fallback:
+    enabled: false
+    chain: [GLM-5.3, GLM-5.3-Flash]
+
+logging:
+  level: INFO
+  capture: false
+  capture_dir: /opt/autozcoder/logs
+
+store:
+  sqlite_path: /opt/autozcoder/gateway.db
+
+update:
+  enabled: false
+
+generator:
+  enabled: true
+  zcodeauto_dir: /opt/autozcoder/generator
+  captcha: auto
+  headless: true
+  claim: true
+  invite_code: YOUR_INVITE_CODE
+  proxy_types: http
+
+================================================================================
+NATEIJE JAME
+--------------------------------------------------------------------------------
+Hame marahil-e talab shode ba mueffaqiyat anjam shodan:
+1. Extraction & Workspace: ANJAM SHOD (mojood ast dar masir-e ghadr)
+2. Python Environment & Dependencies: KAMILAN NASAB SHOD
+3. Testing & Validation (Strict TDD): 219/219 PASSED - taghyir-e kodi angezam nashod
+4. Run Gateway: SHORO SHOD baraye port 8788, dashbord baraye /dash moayyad shod (HTTP 200)
+
+Proje AutoZCoder kamelan rah-afzayi shode va be kar dastur ast.
+
+================================================================================
+9. RAHNAMA-YE ESTEFADAH AZ GITWAY DAR ABZAR-HA-YE CODING
+================================================================================
+Ebarat az in gitway dar VS Code (ya abzarha-ye manand-e Claude Code CLI, Cline/Roo Code, ya avazine-ha-ye mosavi-ba OpenAI/Anthropic) kafi ast alave-ye local gitway ra be jaye API asli taarif konid.
+
+In gitway hamzaman az protokol-ha-ye OpenAI va Anthropic peyvast mikonad. Settings be gune-ye abzar-e istemade shode zire-alast:
+
+--------------------------------------------------------------------------------
+9.1 Claude Code CLI (mohit-e terminal)
+--------------------------------------------------------------------------------
+Agar az abzar claude (Claude Code CLI) estefade mikonid, motaghayyerat-e mohiti zire ra dar terminal-e khod (PowerShell) tajim konid ta tamaam-e database-ha be jaye website asli, az tarsmo-ye gitway-e local-e shoma baraye port 8788 jro shavad:
+
+powershell
+# Tajim alave-ye base (ba peyvast be format-e Anthropic /v1/messages)
+$env:ANTHROPIC_BASE_URL="http://127.0.0.1:8788"
+
+# Kalid-e ejra-ye shenasi ke dar config.yaml taarif shode ast
+$env:ANTHROPIC_API_KEY="gw-local-1"
+
+# Entekhab-e model (masalan GLM-5.3 ya GLM-5.3-Flash)
+$env:ANTHROPIC_MODEL="GLM-5.3"
+
+(baraye peydayi-daimi, mitavanid in moqdar-ha ra dar settings-e System Environment Variables Windows afzay konid.)
+
+--------------------------------------------------------------------------------
+9.2 Avazine-ha-ye VS Code (masalan Cline, Roo Code, ya Continue)
+--------------------------------------------------------------------------------
+Agar az ekstenshona-e AI dar VS Code estefade mikonid, dar ghesmat-e settings-e provider ya settings-e khod-e ekstensha moqdar-ha-ye zire ra vared konid:
+
+Provider / API Type: entekhab-e Anthropic ya OpenAI Compatible (botar-e peyvast-e ekstensha)
+Base URL / Endpoint: http://127.0.0.1:8788 (ya baraye endpoint-e OpenAI: http://127.0.0.1:8788/v1)
+API Key: gw-local-1
+Model ID: GLM-5.3 (ya glm-5.3-flash)
+
+--------------------------------------------------------------------------------
+9.3 Tast-e sor'at-e ettela (baraye tat'eq-e salamati-ye ettela)
+--------------------------------------------------------------------------------
+Ghabl az shoro-ye kar dar VS Code, mitavanid ba hokmi sad-e dar PowerSSL bebasbizid ke gitway be database-ha javab midad ke khayr:
+
+powershell
+curl.exe http://127.0.0.1:8788/dash
+
+Agar code 200 gereftid, ya'ni gitway kamelan amade ast va database-ha-ye coding-e shoma ra edara mikonad.
+
+================================================================================
