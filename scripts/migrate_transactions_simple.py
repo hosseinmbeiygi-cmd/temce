@@ -58,8 +58,8 @@ def migrate():
 
     insert_sql = """
         INSERT INTO transactions
-        (symbol, trade_date, seq_no, time, volume, price, is_canceled)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        (symbol, trade_date, seq_no, time, volume, price, is_canceled, trade_date_jalali)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (symbol, trade_date, seq_no) DO NOTHING
     """
 
@@ -71,8 +71,8 @@ def migrate():
         # Parse Jalali dates and insert
         for row in rows:
             # Convert Jalali (شمسی) to Gregorian
-            # trade_date format: "1390-02-31"
-            parts = row['trade_date'].split('-')
+            jalali_str = row['trade_date']
+            parts = jalali_str.split('-')
             jdate = JalaliDate(int(parts[0]), int(parts[1]), int(parts[2]))
             gregorian_date = jdate.to_gregorian()
 
@@ -84,6 +84,7 @@ def migrate():
                 row['volume'],
                 row['price'],
                 row['is_canceled'],
+                jalali_str,
             ))
 
         inserted += len(rows)
