@@ -86,7 +86,7 @@ def test_previously_leaked_files_read_from_environment() -> None:
     for rel in (
         "z.py",
         "collector.py",
-        "script.py",
+        "scripts/script.py",
         "assistant.py",
         "scripts/backfill_funds_only.py",
     ):
