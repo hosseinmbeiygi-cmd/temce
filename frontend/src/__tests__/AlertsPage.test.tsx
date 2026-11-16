@@ -34,6 +34,14 @@ vi.mock("@/components/layout/AppLayout", () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock("@/components/SymbolSelector", () => ({
+  default: () => null,
+}));
+
+vi.mock("@/components/alerts/MonitorWorkspace", () => ({
+  default: () => null,
+}));
+
 import AlertsHubPage from "@/app/alerts/page";
 
 function alertItem(overrides: Record<string, unknown> = {}) {
@@ -63,8 +71,15 @@ describe("AlertsHubPage", () => {
     mocks.apiGet.mockResolvedValue({ success: true, data: { items: [alertItem()], total: 1 } });
   });
 
+  // Helper: render the page and switch to the thresholds tab (default view is monitors)
+  async function renderOnThresholdsTab() {
+    const utils = render(<AlertsHubPage />);
+    fireEvent.click(screen.getByText(/هشدارهای آستانه/));
+    return utils;
+  }
+
   it("renders an alert using the API's `enabled` field (not is_active)", async () => {
-    render(<AlertsHubPage />);
+    await renderOnThresholdsTab();
 
     expect(await screen.findByText("فولاد")).toBeInTheDocument();
     // enabled=true must surface as "فعال" and the toggle must offer to disable.
@@ -77,7 +92,7 @@ describe("AlertsHubPage", () => {
       success: true,
       data: { items: [alertItem({ enabled: false })], total: 1 },
     });
-    render(<AlertsHubPage />);
+    await renderOnThresholdsTab();
 
     const enableBtn = await screen.findByText("فعال کردن");
     expect(enableBtn).toBeInTheDocument();
@@ -91,7 +106,7 @@ describe("AlertsHubPage", () => {
 
   it("renders the empty state when there are no alerts", async () => {
     mocks.apiGet.mockResolvedValue({ success: true, data: { items: [], total: 0 } });
-    render(<AlertsHubPage />);
+    await renderOnThresholdsTab();
 
     expect(await screen.findByText("هیچ هشداری تعریف نشده")).toBeInTheDocument();
   });

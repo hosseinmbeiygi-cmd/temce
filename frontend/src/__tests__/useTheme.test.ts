@@ -64,6 +64,12 @@ describe("useTheme", () => {
       value: vi.fn().mockImplementation((query: string) => ({
         matches: query === "(prefers-color-scheme: light)",
         media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
       })),
     });
 
@@ -77,6 +83,12 @@ describe("useTheme", () => {
       value: vi.fn().mockImplementation((query: string) => ({
         matches: query === "(prefers-color-scheme: dark)",
         media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
       })),
     });
 
