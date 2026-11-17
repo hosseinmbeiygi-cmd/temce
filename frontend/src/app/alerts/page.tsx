@@ -50,17 +50,20 @@ export default function AlertsPage() {
   const [manualEntry, setManualEntry] = useState(false);
   // «پایش ابزارها» = موتور تحلیل و هشدار؛ «هشدارهای آستانه‌ای» = هشدارهای سادهٔ قیمت/حجم/RSI.
   const [view, setView] = useState<"monitors" | "thresholds">("monitors");
+  const [fetchError, setFetchError] = useState("");
 
   useEffect(() => {
     fetchAlerts();
   }, []);
 
   async function fetchAlerts() {
+    setFetchError("");
     try {
       const data = await apiGet<unknown>("/alerts?page_size=50");
       setAlerts(extractItems<Alert>(data));
-    } catch (error) {
-      console.error("Error fetching alerts:", error);
+    } catch (err) {
+      console.error("Error fetching alerts:", err);
+      setFetchError("بارگذاری هشدارها ناموفق بود — صفحه را دوباره بارگذاری کنید.");
     }
     setLoading(false);
   }
@@ -85,7 +88,7 @@ export default function AlertsPage() {
       // Anti-spam: don't re-trigger the same alert within 30 minutes.
       condition.cooldown_minutes = 30;
 
-      await apiPost("/alerts", {
+      await apiPost("/alerts/", {
         // instrument_id is a UUID (resolved server-side when available) —
         // never send the ticker symbol there. Leave it empty so the schema
         // default ("") applies and alerts are matched by symbol.
@@ -219,6 +222,8 @@ export default function AlertsPage() {
              <Skeleton className="h-16 w-full rounded-xl" />
              <Skeleton className="h-16 w-full rounded-xl" />
            </div>
+         ) : fetchError ? (
+           <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-4 py-3 rounded-lg text-sm">{fetchError}</div>
          ) : alerts.length === 0 ? (
           <div className="glass-card p-12 text-center">
             <p className="text-gray-500 text-lg mb-2">هیچ هشداری تعریف نشده</p>
@@ -240,7 +245,7 @@ export default function AlertsPage() {
                       className="flex items-center gap-2"
                     >
                       <span className={`relative block h-6 w-10 rounded-full transition ${alert.enabled ? "bg-emerald-600" : "bg-surface-700"}`}>
-                        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${alert.enabled ? "left-0.5" : "right-0.5"}`} />
+                        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${alert.enabled ? "right-0.5" : "left-0.5"}`} />
                       </span>
                       <span className="whitespace-nowrap text-xs text-gray-400">
                         {alert.enabled ? "غیرفعال کردن" : "فعال کردن"}

@@ -37,8 +37,8 @@ export default function CoinBubbleTable({ data }: CoinBubbleTableProps) {
       <thead>
         <tr className="border-b border-zinc-700/60 text-xs text-zinc-500">
           <th className="px-2 py-1 text-right">سکه / منبع داده</th>
-          <th className="px-2 py-1 text-right">قیمت بازار</th>
-          <th className="px-2 py-1 text-right">ارزش منصفانه</th>
+          <th className="px-2 py-1 text-right">قیمت بازار (تومان)</th>
+          <th className="px-2 py-1 text-right">ارزش منصفانه (تومان)</th>
           <th className="px-2 py-1 text-right">حباب</th>
         </tr>
       </thead>

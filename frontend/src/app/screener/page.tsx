@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
 import MiniSparkline from "@/components/MiniSparkline";
+import AddAlertButton from "@/components/AddAlertButton";
 import { apiGet } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -471,9 +472,13 @@ export default function ScreenerPage() {
                   <p className="text-[8px] text-surface-600">حجم</p>
                 </div>
 
-                {/* Arrow */}
-                <div className="mr-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="material-icons text-surface-500 text-lg">
+                {/* Alert + Arrow */}
+                <div className="mr-auto flex items-center gap-2 shrink-0">
+                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
+                  <div onClick={(e) => e.preventDefault()}>
+                    <AddAlertButton symbol={item.symbol} market={item.market ?? ""} entry={item.last_price || undefined} compact />
+                  </div>
+                  <span className="material-icons text-surface-500 text-lg opacity-0 group-hover:opacity-100 transition-opacity">
                     chevron_left
                   </span>
                 </div>

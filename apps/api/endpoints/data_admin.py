@@ -32,6 +32,9 @@ router = APIRouter()
 # Source → job → table mapping, derived from apps/scheduler/app.py.
 # Update this list when new ingestion paths are added.
 
+# ING-12: This registry covers only the APScheduler-based jobs stack
+# (jobs/definitions/ → brsapi.client / providers/).  The ingestion/ package
+# runs its own MarketScheduler independently and is NOT represented here.
 PIPELINE_REGISTRY: list[dict[str, Any]] = [
     {
         "id": "tsetmc_instruments",
@@ -647,6 +650,8 @@ async def data_overview(
             },
             "recent_failures": recent_failures,
             "failure_rate_24h": round(failure_rate, 3),
+            # ING-12: two ingestion stacks exist; this registry covers only APScheduler jobs.
+            "ingestion_stack_note": "registry covers apscheduler+brsapi stack only; ingestion/ standalone stack is not reflected here",
         },
     )
 

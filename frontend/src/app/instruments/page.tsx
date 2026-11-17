@@ -8,6 +8,7 @@ import Skeleton from "@/components/Skeleton";
 import MiniSparkline from "@/components/MiniSparkline";
 import { DonutChart } from "@/components/DonutChart";
 import { Card } from "@/components/ui/Card";
+import AddAlertButton from "@/components/AddAlertButton";
 import { apiGet, extractArray } from "@/lib/api";
 import { useSectorCounts } from "@/hooks/useSectorCounts";
 import { SECTOR_HEX_COLORS, sectorBadge } from "@/lib/sectors";
@@ -204,18 +205,19 @@ export default function InstrumentsPage() {
                 <th className="pb-2 px-3 font-medium">حجم</th>
                 <th className="pb-2 px-3 font-medium">P/E</th>
                 <th className="pb-2 px-3 font-medium">EPS</th>
+                <th className="pb-2 px-3 font-medium">هشدار</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 [1,2,3,4,5,6,7,8,9,10].map(i => (
                   <tr key={i} className="border-b border-surface-800/50">
-                    <td colSpan={10} className="py-4"><Skeleton className="h-4 w-full" /></td>
+                    <td colSpan={11} className="py-4"><Skeleton className="h-4 w-full" /></td>
                   </tr>
                 ))
               ) : displaySymbols.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-sm text-surface-500">
+                  <td colSpan={11} className="py-8 text-center text-sm text-surface-500">
                     {sectorFilter
                       ? `نمادی در بخش «${sectorFilter}» یافت نشد — روی بخش دیگری از نمودار کلیک کنید یا «همه» را انتخاب کنید`
                       : "نمادی یافت نشد"}
@@ -246,6 +248,9 @@ export default function InstrumentsPage() {
                   <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.volume?.toLocaleString("en-US")}</td>
                   <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.peRatio > 0 ? inst.peRatio.toFixed(1) : "—"}</td>
                   <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.eps > 0 ? inst.eps.toLocaleString("en-US") : "—"}</td>
+                  <td className="py-2.5 px-3">
+                    <AddAlertButton symbol={inst.symbol} market={inst.sector ?? ""} entry={inst.lastPrice || undefined} compact />
+                  </td>
                 </tr>
                 );
               })}

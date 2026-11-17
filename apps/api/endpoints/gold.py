@@ -150,7 +150,8 @@ async def get_etf_nav_premium(
 
     for symbol, info in ETF_UNIVERSE.items():  # type: ignore[var-annotated]
         # NAV ذاتی هر واحد (فرض: هر واحد ≈ ۰.۱ گرم طلای ۱۸ عیار) — برآورد، نه دادهٔ صندوق
-        nav = (oz_usd / 31.1035) * 0.1 * 0.750 * usd_irr * 1000 if oz_usd and usd_irr else 0.0
+        # formula: (USD/g24k) × 0.1g × 0.750 purity × (Toman/USD) → Toman per unit
+        nav = (oz_usd / 31.1035) * 0.1 * 0.750 * usd_irr if oz_usd and usd_irr else 0.0
 
         # No real traded price is wired for these tickers yet. It used to be synthesized as
         # nav * 1.005, which made every gold ETF report a +0.5% premium forever.

@@ -95,25 +95,35 @@ class GoldLiveService:
         if isinstance(currencies, BaseException):
             raise currencies
 
-        out: dict[str, float] = {
-            "gold_oz_usd": 0.0,
-            "gold_18k_irr": 0.0,
-            "coin_bahar_irr": 0.0,
-            "usd_irr": 0.0,
+        # None = symbol not found; 0.0 would falsely claim a price of zero.
+        out: dict[str, float | None] = {
+            "gold_oz_usd": None,
+            "gold_18k_irr": None,
+            "coin_bahar_irr": None,
+            "usd_irr": None,
         }
         for item in commodities:
             sym = (item.get("symbol") or "").lower()
-            price = item.get("price") or item.get("price_irr") or 0
+            raw = item.get("price") or item.get("price_irr")
+            if raw is None:
+                continue
+            price = float(raw)
+            if price <= 0:
+                continue
             if "ounce" in sym or "oz" in sym:
-                out["gold_oz_usd"] = float(price)
+                out["gold_oz_usd"] = price
             elif "18" in sym or "18k" in sym:
-                out["gold_18k_irr"] = float(price)
+                out["gold_18k_irr"] = price
             elif "coin" in sym or "bahar" in sym or "sekke" in sym:
-                out["coin_bahar_irr"] = float(price)
+                out["coin_bahar_irr"] = price
         for item in currencies:
             sym = (item.get("symbol") or "").lower()
             if "usd" in sym or "dollar" in sym:
-                out["usd_irr"] = float(item.get("price") or 0)
+                raw = item.get("price")
+                if raw is not None:
+                    price = float(raw)
+                    if price > 0:
+                        out["usd_irr"] = price
 
         from core.time import utc_now_iso
 
@@ -127,11 +137,12 @@ class GoldLiveService:
     def _empty_shape(is_stale: bool, error: str | None = None) -> dict[str, Any]:
         from core.time import utc_now_iso
 
+        # None signals "no data" rather than a price of zero.
         return {
-            "gold_oz_usd": 0.0,
-            "gold_18k_irr": 0.0,
-            "coin_bahar_irr": 0.0,
-            "usd_irr": 0.0,
+            "gold_oz_usd": None,
+            "gold_18k_irr": None,
+            "coin_bahar_irr": None,
+            "usd_irr": None,
             "last_updated": utc_now_iso(),
             "source": "BrsApi.ir",
             "is_stale": is_stale,

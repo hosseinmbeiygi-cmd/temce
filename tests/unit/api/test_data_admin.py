@@ -438,3 +438,54 @@ def test_table_freshness_with_valid_timestamp():
         assert entry["latest_ts"] is not None
         assert entry["staleness_seconds"] is not None
         assert entry["staleness_seconds"] >= 0
+
+
+# ── DB-03 regression: all model modules reach Base.metadata ──────────────────
+# Prevents silent re-introduction of the gap where 15 modules (41 table classes)
+# were absent from models/__init__.py and would vanish from create_all /
+# alembic --autogenerate.
+
+
+def test_all_model_modules_imported_in_init():
+    """Every .py in models/ (except base.py and __init__.py) must be imported
+    when `import models` runs so that Base.metadata is complete."""
+    import importlib
+    import pathlib
+
+    models_dir = pathlib.Path(__file__).resolve().parents[3] / "models"
+    module_names = {
+        f.stem
+        for f in models_dir.glob("*.py")
+        if f.stem not in {"__init__", "base"}
+    }
+
+    import models  # noqa: F401 — triggers __init__.py which registers all tables
+    from models.base import Base
+
+    registered_tables = set(Base.metadata.tables.keys())
+
+    # For each model module, import it and collect its __tablename__ values.
+    missing_modules: list[str] = []
+    for module_name in module_names:
+        mod = importlib.import_module(f"models.{module_name}")
+        # Check whether any ORM class from this module is in metadata.
+        # We detect ORM classes by duck-typing for __tablename__.
+        mod_tables = {
+            getattr(cls, "__tablename__")
+            for cls in vars(mod).values()
+            if isinstance(cls, type) and hasattr(cls, "__tablename__")
+        }
+        if mod_tables and not mod_tables.intersection(registered_tables):
+            missing_modules.append(module_name)
+
+    assert not missing_modules, (
+        f"Model modules with no tables in Base.metadata (DB-03 regression): "
+        f"{sorted(missing_modules)}"
+    )
+
+
+def test_pipeline_registry_has_no_duplicate_job_names():
+    """Job names should be unique so last-run enrichment maps correctly."""
+    job_names = [s["job_name"] for s in PIPELINE_REGISTRY if s.get("job_name")]
+    duplicates = [jn for jn in set(job_names) if job_names.count(jn) > 1]
+    assert not duplicates, f"Duplicate job_names in PIPELINE_REGISTRY: {duplicates}"

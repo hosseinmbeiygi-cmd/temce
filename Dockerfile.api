@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -r
 
 WORKDIR /app
 
-COPY --from=builder /root/.local /home/app/.local
-ENV PATH=/home/app/.local/bin:$PATH
+COPY --from=builder /root/.local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /root/.local/bin /usr/local/bin
 
 # App code is copied explicitly (never `COPY . .`), so tests, local databases
 # and other dev artifacts cannot leak into the runtime image.

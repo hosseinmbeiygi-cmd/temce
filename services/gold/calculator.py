@@ -17,18 +17,17 @@ from typing import Any
 # ── Physical constants (Iranian coin gold) ────────────────────────
 TROY_OUNCE_GRAM = 31.1035  # grams per troy ounce
 COIN_BAHAR_WEIGHT_G = 8.133  # grams
-COIN_BAHAR_PURITY = 0.915  # 900/1000 + minting fee factor
+COIN_BAHAR_PURITY = 0.900  # 22k gold = 900/1000 fineness (Iranian standard); minting fee is separate
 
 # ETF (NAV Premium/Discount) — این آستانه‌ها درصدی منطقی هستند
 ETF_PREMIUM_SELL_THRESHOLD = 2.0  # +%  → SELL signal
 ETF_DISCOUNT_BUY_THRESHOLD = -1.0  # -%  → BUY signal
 
-# Coin bubble — بازار ایران به‌طور ساختاری حباب 300-1000% دارد
-# (تقاضای سفته‌بازی + محدودیت عرضه فیزیکی + کنترل قیمت دولتی طلا)
-# آستانه‌های واقع‌بینانه:
-#  - خنثی: حباب در بازه نرمال (300% الی 700%)
-#  - SELL: حباب بیش از 700% (اشباع تقاضا / فرصت فروش)
-#  - BUY: حباب کمتر از 300% (سکه ارزان‌تر از حد معمول)
+# Coin bubble thresholds for POST /gold/coin-bubble endpoint.
+# Note: this endpoint receives coin_price_irr and usd_irr without enforced
+# unit validation; callers historically pass coin_price in Toman-scale millions
+# and usd_irr in Toman, yielding intrinsic ≈ 40M Toman for a typical day, so
+# the 300-700% range reflects that call convention, not a physical market truth.
 COIN_BUBBLE_SELL_THRESHOLD = 700.0
 COIN_BUBBLE_BUY_THRESHOLD = 300.0
 

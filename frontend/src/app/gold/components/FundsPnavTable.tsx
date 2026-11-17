@@ -57,8 +57,8 @@ export default function FundsPnavTable({ data, trust }: FundsPnavTableProps) {
         <thead>
           <tr className="border-b border-zinc-700/60 text-xs text-zinc-500">
             <th className="px-2 py-1 text-right">صندوق</th>
-            <th className="px-2 py-1 text-right">NAV هر واحد</th>
-            <th className="px-2 py-1 text-right">قیمت بازار</th>
+            <th className="px-2 py-1 text-right">NAV هر واحد (تومان)</th>
+            <th className="px-2 py-1 text-right">قیمت بازار (تومان)</th>
             <th className="px-2 py-1 text-right">حباب</th>
           </tr>
         </thead>

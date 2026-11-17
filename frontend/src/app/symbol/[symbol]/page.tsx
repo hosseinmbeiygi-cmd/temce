@@ -19,6 +19,7 @@ import StockIntelligencePanel from "@/components/StockIntelligencePanel";
 import TradingViewChart from "@/components/charts/TradingViewChart";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
+import AddAlertButton from "@/components/AddAlertButton";
 import SymbolSelector from "@/components/SymbolSelector";
 import { apiGet, apiPost, extractItems } from "@/lib/api";
 import { formatDateShamsi, formatTime } from "@/lib/dates";
@@ -378,6 +379,7 @@ export default function SymbolPage() {
               </div>
             </div>
             <div className="flex items-center gap-6 text-sm">
+              <AddAlertButton symbol={decodedSymbol} market={profile?.market ?? ""} entry={displayQuote.price_close} compact />
               <Sparkline data={sparkData} width={150} height={40} color={displayQuote.price_change_pct >= 0 ? "#22c55e" : "#ef4444"} />
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div><div className="text-xs text-surface-500">بالا</div><div className="font-mono font-bold text-surface-200">{displayQuote.price_high.toLocaleString("en-US")}</div></div>
@@ -389,6 +391,7 @@ export default function SymbolPage() {
         ) : (
           <div className="glass-card p-5 flex items-center gap-4">
             <SymbolSelector value={decodedSymbol} onChange={(s) => router.push(`/symbol/${s}`)} />
+            <AddAlertButton symbol={decodedSymbol} market={profile?.market ?? ""} entry={profile?.price_close ?? profile?.price_last} compact />
             {!loading && (
               <span className="text-sm text-surface-500">داده‌های قیمتی در دسترس نیست</span>
             )}

@@ -52,7 +52,7 @@ export default function AddAlertButton({
             apiPost("/alerts/", {
               ...base,
               alert_type: direction === "sell" ? "price_below" : "price_above",
-              condition: { field: "price", operator: direction === "sell" ? "lte" : "gte", threshold: takeProfit },
+              condition: { field: "price", operator: direction === "sell" ? "lte" : "gte", threshold: takeProfit, cooldown_minutes: 30 },
               description: `هدف ${symbol}`,
             })
           );
@@ -62,7 +62,7 @@ export default function AddAlertButton({
             apiPost("/alerts/", {
               ...base,
               alert_type: direction === "sell" ? "price_above" : "price_below",
-              condition: { field: "price", operator: direction === "sell" ? "gte" : "lte", threshold: stopLoss },
+              condition: { field: "price", operator: direction === "sell" ? "gte" : "lte", threshold: stopLoss, cooldown_minutes: 30 },
               description: `حد ضرر ${symbol}`,
             })
           );
@@ -74,12 +74,16 @@ export default function AddAlertButton({
             apiPost("/alerts/", {
               ...base,
               alert_type: "price_above",
-              condition: { field: "price", operator: "gte", threshold: ref },
+              condition: { field: "price", operator: "gte", threshold: ref, cooldown_minutes: 30 },
               description: `هشدار قیمت ${symbol}`,
             })
           );
         }
-        await Promise.all(jobs);
+        const results = await Promise.allSettled(jobs);
+        const anyFailed = results.some((r) => r.status === "rejected");
+        const anySucceeded = results.some((r) => r.status === "fulfilled");
+        if (anyFailed && !anySucceeded) throw new Error("all-failed");
+        // partial failure: at least one alert was created — treat as done
       }
       setState("done");
     } catch {

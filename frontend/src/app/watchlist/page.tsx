@@ -6,6 +6,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import MiniSparkline from "@/components/MiniSparkline";
+import AddAlertButton from "@/components/AddAlertButton";
 import { apiGet, apiPost, apiDelete, extractArray } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -333,6 +334,9 @@ export default function WatchlistPage() {
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">P/E {item.peRatio.toFixed(1)}</span>
                       )}
                     </div>
+
+                    {/* Add to alerts */}
+                    <AddAlertButton symbol={item.symbol} market="" entry={item.price} compact />
 
                     {/* Remove button */}
                     <button

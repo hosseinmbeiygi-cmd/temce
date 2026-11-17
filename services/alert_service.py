@@ -100,7 +100,6 @@ class AlertService:
             )
             self.session.add(alert)
             await self.session.flush()
-            await self.session.commit()
             logger.info("Alert created: %s (%s — %s)", alert.id, symbol, alert_type)
             return Result.ok(self._alert_to_dict(alert))
         except Exception as e:
