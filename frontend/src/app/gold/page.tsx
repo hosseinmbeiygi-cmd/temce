@@ -63,14 +63,14 @@ export default function GoldCommandCenterPage() {
 
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-300">حباب سکه</h2>
-          <CoinBubbleTable data={data ? Object.values(data.coins) : undefined} />
+          <CoinBubbleTable data={data ? Object.values(data.coins) : undefined} isLoading={isLoading} />
         </section>
 
         <ImeSpreadSection />
 
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-300">صندوق‌های طلا (P/NAV)</h2>
-          <FundsPnavTable data={data?.funds} trust={data?.references} />
+          <FundsPnavTable data={data?.funds} trust={data?.references} isLoading={isLoading} />
         </section>
 
         <FeedHealthSection />

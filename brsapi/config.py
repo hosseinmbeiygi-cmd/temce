@@ -432,7 +432,11 @@ class BrsApiSettings(BaseSettings):
     max_raw_payload_age_days: int = Field(default=30)
 
     # Global rate limits (must not be exceeded)
-    # AIO (All In One) package: 500 requests per 5 minutes
+    # ING-08: BrsApi plan tiers differ — base AIO plan allows 500 req/5-min,
+    # upgraded plans allow 1000 req/5-min.  The default below (1000) assumes
+    # the upgraded plan.  If your key is on the base AIO plan, set
+    # BRSAPI_GLOBAL_5MIN_LIMIT=500 in .env or the governor will permit 2× the
+    # actual provider cap and risk a 302 block.
     # IMPORTANT: set BRSAPI_GLOBAL_DAILY_LIMIT in .env to the EXACT plan quota.
     # The confirmed paid-plan cap is 10,000 requests/day; the default here matches
     # that cap so the budget governor is a hard enforcement layer, not just a
@@ -440,7 +444,7 @@ class BrsApiSettings(BaseSettings):
     # the governor blocks all live calls for budget_block_cooldown_seconds after
     # any HTTP 302 heavy-file redirect (the server's over-quota signal).
     global_daily_limit: int = Field(default=10000, ge=1, description="Max requests per day across all endpoints (hard cap — the rate limiter blocks until midnight Tehran when reached)")
-    global_5min_limit: int = Field(default=1000, ge=1, description="Max requests per 5-minute window across all endpoints (upgraded plan limit)")
+    global_5min_limit: int = Field(default=1000, ge=1, description="Max requests per 5-minute window (1000 for upgraded plan; set to 500 for base AIO plan — see ING-08)")
     # When True and the daily budget is exhausted, ``acquire()`` rejects the
     # request immediately instead of sleeping until midnight. Prevents a
     # blocked-key cascade when multiple jobs pile up past the quota.

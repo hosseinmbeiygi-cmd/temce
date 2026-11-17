@@ -25,6 +25,10 @@ class ScheduledJob:
 JobFunc = Callable[..., Coroutine[Any, Any, Any]]
 
 
+# JOB-08: JobScheduler is not wired into any production path.  The live
+# scheduler is apps/scheduler/app.py (APScheduler-backed).  This class is
+# used only by tests/unit/jobs/test_scheduler.py.  Kept here to avoid
+# breaking those tests; remove together with the test when no longer needed.
 class JobScheduler:
     def __init__(self) -> None:
         self._scheduled: dict[str, ScheduledJob] = {}

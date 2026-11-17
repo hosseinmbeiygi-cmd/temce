@@ -3,9 +3,11 @@
 import type { AssetBlock } from "@/types/gold";
 import { cn } from "@/lib/cn";
 import { DataTrustBadge } from "@/components/gold/DataTrustBadge";
+import { SkeletonBlock } from "@/components/gold/ui/SkeletonBlock";
 
 interface CoinBubbleTableProps {
   data?: AssetBlock[];
+  isLoading?: boolean;
 }
 
 const fmt = (value: number | null | undefined): string => {
@@ -27,7 +29,10 @@ const bubbleTone = (value: number | null | undefined): string => {
   return value > 0 ? "text-rose-300" : "text-emerald-300";
 };
 
-export default function CoinBubbleTable({ data }: CoinBubbleTableProps) {
+export default function CoinBubbleTable({ data, isLoading }: CoinBubbleTableProps) {
+  if (isLoading && !data) {
+    return <SkeletonBlock visible className="h-32 w-full" />;
+  }
   if (!data || data.length === 0) {
     return <div className="text-center text-sm text-zinc-500">داده‌ای برای سکه‌ها ثبت نشده است</div>;
   }

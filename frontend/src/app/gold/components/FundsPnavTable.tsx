@@ -3,6 +3,7 @@
 import type { FundBlock } from "@/types/gold";
 import { cn } from "@/lib/cn";
 import { DataTrustBadge } from "@/components/gold/DataTrustBadge";
+import { SkeletonBlock } from "@/components/gold/ui/SkeletonBlock";
 
 interface FundTrust {
   quality?: string | null;
@@ -16,6 +17,7 @@ interface FundsPnavTableProps {
   // FundBlock در قرارداد فیلد منبع/زمان ندارد؛ برچسب از snapshot مرجع می‌آید
   // و به‌صراحت «مرجع» نامیده می‌شود تا با provenance تک‌تک ردیف‌ها اشتباه نشود.
   trust?: FundTrust;
+  isLoading?: boolean;
 }
 
 const fmt = (value: number | null | undefined, digits = 0): string => {
@@ -35,7 +37,10 @@ const bubbleTone = (value: number | null | undefined): string => {
   return value > 0 ? "text-rose-300" : "text-emerald-300";
 };
 
-export default function FundsPnavTable({ data, trust }: FundsPnavTableProps) {
+export default function FundsPnavTable({ data, trust, isLoading }: FundsPnavTableProps) {
+  if (isLoading && !data) {
+    return <SkeletonBlock visible className="h-40 w-full" />;
+  }
   if (!data || data.length === 0) {
     return <div className="text-center text-sm text-zinc-500">داده‌ای برای صندوق‌ها ثبت نشده است</div>;
   }
