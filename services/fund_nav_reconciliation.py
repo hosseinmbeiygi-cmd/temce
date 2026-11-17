@@ -114,6 +114,173 @@ def next_lifecycle(current: str, target: str) -> str:
     return target
 
 
+def build_probable_cause(
+    internal: dict[str, Any] | None,
+    reference: dict[str, Any] | None,
+    comparability: str,
+    reference_status: str,
+    valuation_date: date,
+    reference_date: date | None,
+) -> dict[str, Any]:
+    """ساخت تشخیص علت احتمالی مغایرت NAV — رتبه‌بندی‌شده و قابل تست بدون DB.
+
+    هر علت دارای ``code`` (شناسه ماشین‌خوان)، ``severity``
+    (CRITICAL/HIGH/MEDIUM/LOW) و ``detail`` (متن فارسی) است.
+    علت‌ها به ترتیب اهمیت مرتب می‌شوند.
+    """
+    causes: list[dict[str, Any]] = []
+
+    internal = internal or {}
+    reference = reference or {}
+    internal_quality: str | None = internal.get("quality_status")
+    coverage_pct = float(internal.get("coverage_pct") or 0.0)
+    holdings_period = internal.get("holdings_period")
+    internal_units = internal.get("units_outstanding")
+    reference_units = reference.get("units_outstanding")
+
+    # ── گیت اول: داده مسدود ─────────────────────────────────────────────────
+    if internal_quality == "BLOCKED":
+        causes.append(
+            {
+                "code": "BLOCKED_QUALITY",
+                "severity": "CRITICAL",
+                "detail": "موقعیت یا تعداد واحد صندوق ناموجود است — محاسبه ممکن نیست",
+            }
+        )
+
+    # ── تاریخ مرجع != تاریخ ارزش‌گذاری ─────────────────────────────────────
+    if reference_date is not None and reference_date != valuation_date:
+        lag = (valuation_date - reference_date).days
+        causes.append(
+            {
+                "code": "DATE_MISMATCH",
+                "severity": "HIGH",
+                "detail": f"تاریخ داخلی {valuation_date} ≠ تاریخ مرجع {reference_date} ({lag:+d} روز)",
+                "lag_days": lag,
+            }
+        )
+
+    # ── کهنگی پرتفوی ────────────────────────────────────────────────────────
+    staleness_days: int | None = None
+    if holdings_period is not None:
+        try:
+            hp = (
+                date.fromisoformat(str(holdings_period))
+                if isinstance(holdings_period, str)
+                else holdings_period
+            )
+            staleness_days = (valuation_date - hp).days
+            if staleness_days > 30:
+                causes.append(
+                    {
+                        "code": "STALE_HOLDINGS",
+                        "severity": "HIGH",
+                        "detail": f"آخرین پرتفوی {staleness_days} روز پیش ({hp}) است — قیمت‌های لایو روی ترکیب قدیمی اعمال شده‌اند",
+                        "staleness_days": staleness_days,
+                        "holdings_period": str(hp),
+                    }
+                )
+            elif staleness_days > 7:
+                causes.append(
+                    {
+                        "code": "STALE_HOLDINGS",
+                        "severity": "MEDIUM",
+                        "detail": f"آخرین پرتفوی {staleness_days} روز پیش ({hp}) است",
+                        "staleness_days": staleness_days,
+                        "holdings_period": str(hp),
+                    }
+                )
+        except (TypeError, ValueError):
+            pass
+
+    # ── پوشش قیمتی پایین ─────────────────────────────────────────────────────
+    coverage_gap = round(100.0 - coverage_pct, 2)
+    if coverage_gap > 20:
+        causes.append(
+            {
+                "code": "COVERAGE_GAP",
+                "severity": "HIGH",
+                "detail": f"{coverage_gap:.1f}٪ از دارایی‌ها بدون قیمت لایو — ارزش گزارش دوره جایگزین شده",
+                "coverage_pct": round(coverage_pct, 2),
+                "coverage_gap_pct": coverage_gap,
+            }
+        )
+    elif coverage_gap > 5:
+        causes.append(
+            {
+                "code": "COVERAGE_GAP",
+                "severity": "MEDIUM",
+                "detail": f"{coverage_gap:.1f}٪ از دارایی‌ها بدون قیمت لایو",
+                "coverage_pct": round(coverage_pct, 2),
+                "coverage_gap_pct": coverage_gap,
+            }
+        )
+
+    # ── تعداد واحدها ─────────────────────────────────────────────────────────
+    if internal_units and reference_units:
+        try:
+            iu, ru = float(internal_units), float(reference_units)
+            unit_diff_pct = abs(iu - ru) / max(ru, 1.0) * 100
+            if unit_diff_pct > 1.0:
+                causes.append(
+                    {
+                        "code": "UNITS_MISMATCH",
+                        "severity": "HIGH",
+                        "detail": f"واحدهای داخلی {iu:,.0f} ≠ مرجع {ru:,.0f} ({unit_diff_pct:.2f}٪ اختلاف)",
+                        "internal_units": iu,
+                        "reference_units": ru,
+                        "unit_diff_pct": round(unit_diff_pct, 4),
+                    }
+                )
+        except (TypeError, ValueError):
+            pass
+
+    # ── NAV مرجع کهنه ────────────────────────────────────────────────────────
+    if reference_status == "STALE":
+        causes.append(
+            {
+                "code": "STALE_REFERENCE",
+                "severity": "MEDIUM",
+                "detail": "NAV مرجع کهنه است — مقایسه‌پذیری پایین",
+            }
+        )
+
+    if not causes:
+        causes.append(
+            {
+                "code": "UNKNOWN",
+                "severity": "LOW",
+                "detail": "با داده موجود علت قابل انتساب نیست — مرجع چندردیفی و تجزیه دارایی لازم است",
+            }
+        )
+
+    # ترتیب بر اساس شدت
+    _SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+    causes.sort(key=lambda c: _SEVERITY_ORDER.get(c["severity"], 9))
+
+    return {
+        "causes": causes,
+        "summary": {
+            "primary_code": causes[0]["code"],
+            "primary_severity": causes[0]["severity"],
+            "cause_count": len(causes),
+        },
+        "metadata": {
+            "internal_quality": internal_quality,
+            "coverage_pct": round(coverage_pct, 2),
+            "staleness_days": staleness_days,
+            "holdings_period": str(holdings_period) if holdings_period else None,
+            "internal_units": internal_units,
+            "reference_units": reference_units,
+            "reference_date": str(reference_date) if reference_date else None,
+            "reference_source": reference.get("source"),
+            "same_date": reference_date == valuation_date,
+            "comparability": comparability,
+            "reference_status": reference_status,
+        },
+    }
+
+
 def summarize_shadow_acceptance(
     rows: list[dict[str, Any]],
     min_days: int = 20,
@@ -468,17 +635,16 @@ class FundNavReconciliationService:
         )
 
         probable_cause = json.dumps(
-            {
-                "internal_quality": internal_quality,
-                "internal_coverage_pct": (internal or {}).get("coverage_pct"),
-                "holdings_period": (internal or {}).get("holdings_period"),
-                "units_outstanding": (internal or {}).get("units_outstanding"),
-                "reference_date": str(reference_date) if reference_date else None,
-                "reference_source": (reference or {}).get("source"),
-                "same_date": same_date,
-                "note": "با تک‌عدد مرجع، علت قطعی قابل انتساب نیست؛ ردیف‌های مرجع لازم است.",
-            },
+            build_probable_cause(
+                internal=internal,
+                reference=reference,
+                comparability=comparability,
+                reference_status=reference_status,
+                valuation_date=valuation_date,
+                reference_date=reference_date,
+            ),
             ensure_ascii=False,
+            default=str,
         )
 
         row = (
@@ -718,6 +884,7 @@ __all__ = [
     "RECON_ENGINE_VERSION",
     "STALE_REFERENCE_DAYS",
     "FundNavReconciliationService",
+    "build_probable_cause",
     "classify_diff",
     "compute_diff",
     "evaluate_comparability",

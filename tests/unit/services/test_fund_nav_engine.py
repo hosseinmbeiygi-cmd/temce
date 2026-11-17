@@ -26,6 +26,7 @@ from services.fund_nav_engine import (  # noqa: E402
 )
 from services.fund_nav_reconciliation import (  # noqa: E402
     DEFAULT_THRESHOLDS,
+    build_probable_cause,
     classify_diff,
     compute_diff,
     evaluate_comparability,
@@ -201,3 +202,111 @@ def test_shadow_acceptance_not_ready_with_few_days() -> None:
     summary = summarize_shadow_acceptance(_acceptance_rows(5))
     assert summary["acceptance_ready"] is False
     assert summary["days"] == 5
+
+
+# ── build_probable_cause ─────────────────────────────────────────────────────
+
+_TODAY = date(2026, 11, 17)
+
+
+def test_probable_cause_blocked_quality_is_critical() -> None:
+    result = build_probable_cause(
+        internal={"quality_status": "BLOCKED", "coverage_pct": 0},
+        reference={},
+        comparability="INCOMPLETE",
+        reference_status="INVALID",
+        valuation_date=_TODAY,
+        reference_date=None,
+    )
+    codes = [c["code"] for c in result["causes"]]
+    assert "BLOCKED_QUALITY" in codes
+    primary = result["summary"]["primary_code"]
+    assert primary == "BLOCKED_QUALITY"
+    assert result["summary"]["primary_severity"] == "CRITICAL"
+
+
+def test_probable_cause_stale_holdings_flagged() -> None:
+    stale_period = _TODAY - timedelta(days=45)
+    result = build_probable_cause(
+        internal={"quality_status": "ESTIMATED", "coverage_pct": 80, "holdings_period": stale_period},
+        reference={},
+        comparability="COMPARABLE",
+        reference_status="VALID",
+        valuation_date=_TODAY,
+        reference_date=_TODAY,
+    )
+    stale = next((c for c in result["causes"] if c["code"] == "STALE_HOLDINGS"), None)
+    assert stale is not None
+    assert stale["severity"] == "HIGH"
+    assert stale["staleness_days"] == 45
+
+
+def test_probable_cause_coverage_gap_flagged() -> None:
+    result = build_probable_cause(
+        internal={"quality_status": "PARTIAL", "coverage_pct": 60},
+        reference={},
+        comparability="COMPARABLE",
+        reference_status="VALID",
+        valuation_date=_TODAY,
+        reference_date=_TODAY,
+    )
+    gap = next((c for c in result["causes"] if c["code"] == "COVERAGE_GAP"), None)
+    assert gap is not None
+    assert gap["coverage_gap_pct"] == 40.0
+
+
+def test_probable_cause_units_mismatch_flagged() -> None:
+    result = build_probable_cause(
+        internal={"quality_status": "COMPLETE", "coverage_pct": 98, "units_outstanding": 1_000_000},
+        reference={"units_outstanding": 1_200_000},
+        comparability="COMPARABLE",
+        reference_status="VALID",
+        valuation_date=_TODAY,
+        reference_date=_TODAY,
+    )
+    um = next((c for c in result["causes"] if c["code"] == "UNITS_MISMATCH"), None)
+    assert um is not None
+    assert um["severity"] == "HIGH"
+
+
+def test_probable_cause_date_mismatch_flagged() -> None:
+    ref_date = _TODAY - timedelta(days=2)
+    result = build_probable_cause(
+        internal={"quality_status": "COMPLETE", "coverage_pct": 98},
+        reference={},
+        comparability="NOT_COMPARABLE",
+        reference_status="VALID",
+        valuation_date=_TODAY,
+        reference_date=ref_date,
+    )
+    dm = next((c for c in result["causes"] if c["code"] == "DATE_MISMATCH"), None)
+    assert dm is not None
+    assert dm["lag_days"] == 2
+
+
+def test_probable_cause_unknown_when_all_clean() -> None:
+    result = build_probable_cause(
+        internal={"quality_status": "COMPLETE", "coverage_pct": 99},
+        reference={},
+        comparability="COMPARABLE",
+        reference_status="VALID",
+        valuation_date=_TODAY,
+        reference_date=_TODAY,
+    )
+    assert result["causes"][0]["code"] == "UNKNOWN"
+    assert result["summary"]["primary_severity"] == "LOW"
+
+
+def test_probable_cause_sorted_by_severity() -> None:
+    stale_period = _TODAY - timedelta(days=50)
+    result = build_probable_cause(
+        internal={"quality_status": "BLOCKED", "coverage_pct": 50, "holdings_period": stale_period},
+        reference={},
+        comparability="INCOMPLETE",
+        reference_status="STALE",
+        valuation_date=_TODAY,
+        reference_date=_TODAY - timedelta(days=3),
+    )
+    severities = [c["severity"] for c in result["causes"]]
+    order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+    assert severities == sorted(severities, key=lambda s: order[s])
