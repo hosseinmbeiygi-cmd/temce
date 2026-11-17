@@ -292,6 +292,7 @@ class Router:
         from apps.api.endpoints.symbol_search import router as symbol_search_router
         from apps.api.endpoints.symbols import router as symbols_router
         from apps.api.endpoints.system import router as system_router
+        from apps.api.endpoints.data_admin import router as data_admin_router
         from apps.api.endpoints.tabdeal import router as tabdeal_router
         from apps.api.endpoints.tables import router as tables_router
         from apps.api.endpoints.tests_runner import router as tests_router
@@ -697,6 +698,14 @@ class Router:
             tables_router,
             prefix="/tables",
             tags=["Tables"],
+            dependencies=_require_admin,
+        )
+        # Data admin — central ingestion & storage console aggregation.
+        # Admin-only: aggregates job stats, queue depths, table freshness.
+        router.include_router(
+            data_admin_router,
+            prefix="/data-admin",
+            tags=["Data Admin"],
             dependencies=_require_admin,
         )
         # Strategy Composition

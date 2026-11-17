@@ -41,6 +41,8 @@ services/data/**/__pycache__/
 !backtesting/data/
 !backtesting/data/**
 backtesting/data/**/__pycache__/
+!frontend/src/app/data/
+!frontend/src/app/data/**
 *.db
 *.sqlite
 
