@@ -249,3 +249,30 @@ json/brsapi/symbol_details.json
 /secrets/*.txt
 /secrets/*.key
 /secrets/*.pem
+
+# Private keys / certificates anywhere in the tree
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+
+# Compiled / build output directories (C#/.NET style artifacts)
+bin/
+obj/
+
+# Large generated data, model and archive artifacts
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.onnx
+*.pt
+*.ckpt
+*.zip
+*.tar.gz
+*.7z
+
+# Local test/lint verification logs (regenerated on demand)
+/final_l1_tests.txt
+/final_l2_lint.txt
