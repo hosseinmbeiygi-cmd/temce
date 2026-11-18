@@ -75,10 +75,12 @@ async def send_message(
                     await asyncio.sleep(2.0)
                     r = await client.post(url, json=payload)
                     return r.status_code == 200
-                logger.warning("Telegram send failed: %s %s", r.status_code, r.text[:200])
+                body = r.text[:200].replace(cfg.bot_token or "\0", "<redacted>")
+                logger.warning("Telegram send failed: %s %s", r.status_code, body)
                 return False
         except Exception as exc:
-            logger.error("Telegram send exception: %s", exc)
+            safe = str(exc).replace(cfg.bot_token or "\0", "<redacted>")
+            logger.error("Telegram send exception: %s", safe)
             return False
 
 

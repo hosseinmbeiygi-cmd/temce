@@ -11,11 +11,17 @@ from core.result import Result
 
 logger = get_logger(__name__)
 
-_TOKEN_RE = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
+_TOKEN_RE = re.compile(r"(?:bot)?\d{5,}(?::|%3A)[A-Za-z0-9_-]+", re.IGNORECASE)
+
+
+def redact_token(message: str, token: str = "") -> str:
+    if token:
+        message = message.replace(token, "<redacted>").replace(token.replace(":", "%3A"), "<redacted>")
+    return _TOKEN_RE.sub("<redacted>", message)
 
 
 def _redact_token(message: str) -> str:
-    return _TOKEN_RE.sub("bot<redacted>", message)
+    return redact_token(message, getattr(settings, "telegram_bot_token", "") or "")
 
 
 class TelegramSender:
@@ -34,10 +40,10 @@ class TelegramSender:
                 resp.raise_for_status()
                 logger.info("Telegram message sent")
                 return Result.ok(True)
-            except httpx.HTTPError as e:
+            except Exception as e:
                 # httpx puts the request URL — which embeds the bot token — in the
                 # error text; never log or return it verbatim.
-                safe = _redact_token(str(e))
+                safe = redact_token(str(e), self._token)
                 logger.error("Failed to send Telegram message: %s", safe)
                 return Result.fail(safe)
 
@@ -51,8 +57,8 @@ class TelegramSender:
                 resp = await client.post(url, json=payload)
                 resp.raise_for_status()
                 return Result.ok(True)
-            except httpx.HTTPError as e:
-                return Result.fail(_redact_token(str(e)))
+            except Exception as e:
+                return Result.fail(redact_token(str(e), self._token))
 
     async def send_document(self, document_path: str, caption: str = "") -> Result[bool]:
         if not self._token or not self._chat_id:
@@ -68,5 +74,5 @@ class TelegramSender:
                 resp = await client.post(url, data=data, files=files)
                 resp.raise_for_status()
                 return Result.ok(True)
-            except httpx.HTTPError as e:
-                return Result.fail(_redact_token(str(e)))
+            except Exception as e:
+                return Result.fail(redact_token(str(e), self._token))
