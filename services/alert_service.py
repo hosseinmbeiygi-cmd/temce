@@ -34,6 +34,16 @@ def _normalize_field(field: str) -> str:
     return _FIELD_ALIASES.get(key, key)
 
 
+def quarantine_reason(alert: Any) -> str | None:
+    """Why a stored alert must not fire. The row itself is never changed."""
+    if not getattr(alert, "user_id", None):
+        return "no_owner"
+    symbol = str(getattr(alert, "symbol", "") or "")
+    if symbol and not symbol.strip("?� ‌"):
+        return "unrecoverable_symbol"
+    return None
+
+
 def _condition_met(operator: str, value: float, threshold: float) -> bool:
     if operator == "gte":
         return value >= threshold
@@ -199,31 +209,42 @@ class AlertService:
     async def _deliver_notification(self, message: str, channels: list[str]) -> bool:
         """Deliver an alert across its configured channels.
 
-        Returns True if at least one channel delivered successfully.
+        Returns True only when a channel with a confirmed transport reported
+        success. Console/sound/email have no confirmed transport here — they are
+        logged and reported as ``not_configured``, never as delivered.
         """
-        delivered = False
-        for channel in channels:
+        statuses = await self._deliver_by_channel(message, channels)
+        return any(status == "delivered" for status in statuses.values())
+
+    async def _deliver_by_channel(self, message: str, channels: list[str]) -> dict[str, str]:
+        """Per-channel outcome: delivered | failed | not_configured | skipped."""
+        from integrations.notifications.telegram_sender import redact_token
+
+        statuses: dict[str, str] = {}
+        for channel in dict.fromkeys(channels):
             try:
                 if channel == "console":
                     logger.info("[ALERT] %s", message)
-                    delivered = True
-                elif channel == "sound":
-                    logger.info("[ALERT][SOUND] Notification sound would play: %s", message)
-                    delivered = True
+                    statuses[channel] = "not_configured"
+                elif channel in ("sound", "email"):
+                    logger.info("[ALERT][%s] no delivery transport configured: %s", channel.upper(), message)
+                    statuses[channel] = "not_configured"
                 elif channel == "telegram":
                     from integrations.notifications.telegram_sender import TelegramSender
 
                     res = await TelegramSender().send(message)
                     if res.success:
-                        delivered = True
+                        statuses[channel] = "delivered"
                     else:
-                        logger.debug("[ALERT][TELEGRAM] Not sent: %s", res.error)
-                elif channel == "email":
-                    logger.info("[ALERT][EMAIL] Email would be sent: %s", message)
-                    delivered = True
+                        error = redact_token(str(res.error or ""))
+                        statuses[channel] = "not_configured" if "not configured" in error else "failed"
+                        logger.info("[ALERT][TELEGRAM] Not sent: %s", error)
+                else:
+                    statuses[channel] = "skipped"
             except Exception as e:
-                logger.error("Failed to deliver alert via %s: %s", channel, e)
-        return delivered
+                statuses[channel] = "failed"
+                logger.error("Failed to deliver alert via %s: %s", channel, redact_token(str(e)))
+        return statuses
 
     async def evaluate_and_trigger(self, instrument_id: str, symbol: str, field: str, value: float) -> list[dict[str, Any]]:
         """Evaluate all enabled alerts for a symbol/instrument and trigger matches.
@@ -257,6 +278,10 @@ class AlertService:
             alerts = result.scalars().all()
             now = datetime.now(UTC).replace(tzinfo=None)
             for alert in alerts:
+                reason = quarantine_reason(alert)
+                if reason:
+                    logger.warning("Alert %s quarantined (%s); not evaluated", getattr(alert, "id", "?"), reason)
+                    continue
                 try:
                     cond = json.loads(alert.condition) if isinstance(alert.condition, str) else alert.condition or {}
                     threshold = float(cond.get("threshold", 0))
@@ -350,6 +375,10 @@ class AlertService:
             now = datetime.now(UTC).replace(tzinfo=None)
             n = 0
             for alert in alerts:
+                reason = quarantine_reason(alert)
+                if reason:
+                    logger.warning("Alert %s quarantined (%s); signal outcome not sent", alert.id, reason)
+                    continue
                 message = f"Signal {alert.symbol} [{signal_id[:8]}]: {status} @ {price}"
                 channels = json.loads(alert.channels) if isinstance(alert.channels, str) and alert.channels else []
                 delivered = await self._deliver_notification(message, channels)

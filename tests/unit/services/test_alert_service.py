@@ -658,10 +658,82 @@ class TestDeliverNotification:
         svc = _make_service()
         await svc._deliver_notification("Test message", ["unknown_channel"])
 
-    async def test_console_channel_returns_true(self):
+    async def test_quarantined_alerts_never_fire_and_are_not_reassigned(self):
+        from services.alert_service import quarantine_reason
+
+        orphan = _make_alert_model(id="alr_orphan", user_id=None)
+        garbled = _make_alert_model(id="alr_garbled", user_id="user_001", symbol="?????")
+        owned = _make_alert_model(id="alr_owned", user_id="user_001")
+        assert quarantine_reason(orphan) == "no_owner"
+        assert quarantine_reason(garbled) == "unrecoverable_symbol"
+        assert quarantine_reason(owned) is None
+
+        session = AsyncMock()
+        session.add = MagicMock()
+        result = MagicMock()
+        result.scalars.return_value.all.return_value = [orphan, garbled, owned]
+        session.execute.return_value = result
+        svc = _make_service(session=session)
+        triggered = await svc.evaluate_and_trigger("inst_001", "فولاد", "price_last", 6000.0)
+        assert [t["alert_id"] for t in triggered] == ["alr_owned"]
+        assert orphan.user_id is None
+        assert orphan.triggered_count == 0
+
+    async def test_log_only_channels_are_never_reported_delivered(self):
         svc = _make_service()
-        delivered = await svc._deliver_notification("Test message", ["console"])
+        delivered = await svc._deliver_notification("Test message", ["console", "sound", "email"])
+        assert delivered is False
+        statuses = await svc._deliver_by_channel("Test message", ["console", "sound", "email", "pager"])
+        assert statuses == {
+            "console": "not_configured",
+            "sound": "not_configured",
+            "email": "not_configured",
+            "pager": "skipped",
+        }
+
+    async def test_telegram_failure_is_failed_not_delivered(self):
+        svc = _make_service()
+        with patch("integrations.notifications.telegram_sender.TelegramSender") as MockSender:
+            mock_sender = AsyncMock()
+            mock_sender.send.return_value = Result.fail("HTTP 500")
+            MockSender.return_value = mock_sender
+            statuses = await svc._deliver_by_channel("m", ["telegram", "console"])
+            delivered = await svc._deliver_notification("m", ["telegram", "console"])
+        assert statuses == {"telegram": "failed", "console": "not_configured"}
+        assert delivered is False
+
+    async def test_telegram_not_configured_status(self):
+        svc = _make_service()
+        with patch("integrations.notifications.telegram_sender.TelegramSender") as MockSender:
+            mock_sender = AsyncMock()
+            mock_sender.send.return_value = Result.fail("Telegram bot token or chat ID not configured")
+            MockSender.return_value = mock_sender
+            statuses = await svc._deliver_by_channel("m", ["telegram"])
+        assert statuses == {"telegram": "not_configured"}
+
+    async def test_duplicate_channel_sends_once(self):
+        svc = _make_service()
+        with patch("integrations.notifications.telegram_sender.TelegramSender") as MockSender:
+            mock_sender = AsyncMock()
+            mock_sender.send.return_value = Result.ok(True)
+            MockSender.return_value = mock_sender
+            delivered = await svc._deliver_notification("m", ["telegram", "telegram"])
         assert delivered is True
+        mock_sender.send.assert_awaited_once()
+
+    async def test_raised_exception_with_token_is_redacted_in_logs(self):
+        token = "987654321:ZZsecretTOKENvalue_abcdefghijkl"
+        svc = _make_service()
+        with patch("integrations.notifications.telegram_sender.TelegramSender") as MockSender, \
+                patch("services.alert_service.logger") as mock_logger:
+            mock_sender = AsyncMock()
+            mock_sender.send.side_effect = RuntimeError(f"boom https://api.telegram.org/bot{token}/sendMessage")
+            MockSender.return_value = mock_sender
+            statuses = await svc._deliver_by_channel("m", ["telegram"])
+        assert statuses == {"telegram": "failed"}
+        logged = repr(mock_logger.mock_calls)
+        assert mock_logger.error.called
+        assert "ZZsecretTOKENvalue" not in logged
 
     async def test_empty_channels_returns_false(self):
         svc = _make_service()
