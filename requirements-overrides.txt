@@ -17,4 +17,4 @@
 # requirements.txt, silently discarding the `<2.1` upper bound. Always restate
 # the full range in this file (see below) so the two stay in sync.
 tehran-stocks==2.0.0
-sqlalchemy>=2.0,<2.1
+sqlalchemy>=2.0,<2.2
