@@ -7,6 +7,7 @@ import SymbolSelector from "@/components/SymbolSelector";
 import MonitorWorkspace from "@/components/alerts/MonitorWorkspace";
 import { apiGet, apiPost, apiPut, apiDelete, extractItems } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
+import { buildAlertCondition, thresholdMeta } from "@/lib/alert-conditions";
 
 interface Alert {
   id: string;
@@ -41,7 +42,7 @@ export default function AlertsPage() {
   const [showForm, setShowForm] = useState(false);
   const [symbol, setSymbol] = useState("");
   const [alertType, setAlertType] = useState("price_above");
-  const [threshold, setThreshold] = useState("1000");
+  const [threshold, setThreshold] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -59,7 +60,11 @@ export default function AlertsPage() {
   async function fetchAlerts() {
     setFetchError("");
     try {
-      const data = await apiGet<unknown>("/alerts?page_size=50");
+      // Trailing slash matters: the backend route is "/alerts/" and the
+      // slashless call 307-redirects, which drops the Authorization header in
+      // the rewrite proxy → 401 → the auth layer fired a spurious logout and
+      // kicked the user out of the whole app seconds after login.
+      const data = await apiGet<unknown>("/alerts/?page_size=50");
       setAlerts(extractItems<Alert>(data));
     } catch (err) {
       console.error("Error fetching alerts:", err);
@@ -72,35 +77,29 @@ export default function AlertsPage() {
     e.preventDefault();
     setError(""); setMessage("");
     if (!symbol) { setError("لطفاً یک نماد انتخاب کنید"); return; }
+    // Contract building is a pure, tested function (audit F4): unit labels, the
+    // user-configurable RSI threshold and NaN guards all live in lib/alert-conditions.
+    const built = buildAlertCondition(alertType, threshold);
+    if (!built.ok) {
+      setError(built.error === "RSI_RANGE"
+        ? "آستانهٔ RSI باید عددی بین ۰ تا ۱۰۰ باشد"
+        : "لطفاً یک آستانهٔ عددی معتبر وارد کنید");
+      return;
+    }
     try {
-      const condition: Record<string, unknown> = { threshold: parseFloat(threshold), operator: "gte", field: "price" };
-      if (alertType.includes("rsi")) condition.field = "rsi";
-      if (alertType.includes("volume")) condition.field = "volume";
-      if (alertType.includes("oversold")) { condition.field = "rsi"; condition.operator = "lte"; condition.threshold = 30; }
-      if (alertType.includes("overbought")) { condition.field = "rsi"; condition.operator = "gte"; condition.threshold = 70; }
-      // SMA cross alerts: the scheduler computes a boolean cross signal
-      // (1.0 if crossed above/below SMA20 today, else 0.0).
-      // NOTE: cross checks must run BEFORE the generic "below" → lte mapping.
-      if (alertType === "cross_above_sma") { condition.field = "sma_cross_above"; condition.operator = "eq"; condition.threshold = 1; }
-      if (alertType === "cross_below_sma") { condition.field = "sma_cross_below"; condition.operator = "eq"; condition.threshold = 1; }
-      // Generic price_below → lte (after cross handling, since "cross_below_sma" also contains "below").
-      if (alertType.includes("below") && !alertType.startsWith("cross_")) condition.operator = "lte";
-      // Anti-spam: don't re-trigger the same alert within 30 minutes.
-      condition.cooldown_minutes = 30;
-
       await apiPost("/alerts/", {
         // instrument_id is a UUID (resolved server-side when available) —
         // never send the ticker symbol there. Leave it empty so the schema
         // default ("") applies and alerts are matched by symbol.
         symbol,
         alert_type: alertType,
-        condition,
+        condition: built.condition,
         channels: ["telegram", "console"],
         description,
       });
       setMessage("هشدار با موفقیت ایجاد شد");
       setShowForm(false);
-      setThreshold("1000");
+      setThreshold("");
       setDescription("");
       fetchAlerts();
     } catch (err) { setError(describeApiError(err, "ایجاد هشدار ناموفق بود — دوباره تلاش کنید.")); }
@@ -202,8 +201,20 @@ export default function AlertsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">آستانه (Threshold)</label>
-                  <input type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2 text-white" />
+                  {/* Audit F4: the evaluated unit is declared next to the input — the
+                      backend compares raw unadjusted TSETMC rials / today's cumulative
+                      share volume, so an unlabelled threshold invited unit mistakes. */}
+                  <label className="block text-sm text-gray-400 mb-1">{thresholdMeta(alertType).label}</label>
+                  {!thresholdMeta(alertType).hide && (
+                    <input
+                      type="number"
+                      value={threshold}
+                      onChange={(e) => setThreshold(e.target.value)}
+                      placeholder={thresholdMeta(alertType).placeholder}
+                      className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2 text-white placeholder-gray-500"
+                    />
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">{thresholdMeta(alertType).hint}</p>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">توضیحات</label>
