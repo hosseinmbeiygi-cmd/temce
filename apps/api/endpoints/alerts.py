@@ -18,7 +18,19 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+# Per-user cap on stored alerts (audit F6, 2026-11-28). Per-IP request rate limiting
+# already exists (120/min via RateLimitMiddleware); this caps the *stored* count so
+# one account cannot build an unbounded notification fan-out. An unreadable count
+# never blocks creation.
+ALERTS_PER_USER_CAP = 200
 
+
+def alert_cap_reached(total: int, cap: int = ALERTS_PER_USER_CAP) -> bool:
+    """True when creation must be refused (total at/above cap). -1 = unreadable → allow."""
+    return total >= 0 and total >= cap
+
+
+@router.get("")
 @router.get("/")
 async def list_alerts(
     page: int = Query(1, ge=1),
@@ -33,6 +45,7 @@ async def list_alerts(
     return ApiResponse(success=True, data=result.value)
 
 
+@router.post("")
 @router.post("/")
 async def create_alert(
     req: AlertCreate,
@@ -40,8 +53,18 @@ async def create_alert(
     current_user: dict = Depends(get_current_user),
 ) -> ApiResponse:
     svc = AlertService(session)
+    user_id = current_user_id(current_user)
+    total = await svc.count_alerts(user_id)
+    if alert_cap_reached(total):
+        return ApiResponse(success=False, error={
+            "message": f"حداکثر {ALERTS_PER_USER_CAP} هشدار می‌توانید داشته باشید؛ ابتدا هشدارهای قدیمی‌تر را حذف کنید.",
+            "code": "alert_cap",
+        })
+    # Best-effort existence check (audit F7): an unknown symbol is still created, but
+    # the response flags it so the UI can warn that it may never evaluate.
+    symbol_resolvable = await svc.symbol_known(req.symbol)
     result = await svc.create_alert(
-        user_id=current_user_id(current_user),
+        user_id=user_id,
         instrument_id=req.instrument_id,
         symbol=req.symbol,
         alert_type=req.alert_type,
@@ -51,10 +74,14 @@ async def create_alert(
         signal_id=req.signal_id,
         market=req.market,
         timeframe=req.timeframe,
+        enabled=req.enabled,
     )
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
-    return ApiResponse(success=True, data=result.value)
+    data = result.value
+    if isinstance(data, dict):
+        data["symbol_resolvable"] = symbol_resolvable
+    return ApiResponse(success=True, data=data)
 
 
 @router.post("/from-signal")

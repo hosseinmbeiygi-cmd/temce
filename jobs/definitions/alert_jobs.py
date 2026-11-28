@@ -36,8 +36,24 @@ class EvaluateAlertsJob(BaseJob):
         from sqlalchemy import select, text
 
         from core.database import async_session_factory
+        from jobs.market_hours import is_tehran_market_open
         from models.alert import AlertModel
         from services.alert_service import AlertService, _normalize_field
+
+        # Gate on Tehran trading hours (audit F5, 2026-11-28): outside the session
+        # the "today" snapshot is the closing state, so price/volume/RSI alerts
+        # would fire hours after close against a market that is no longer trading.
+        # Nothing is lost by waiting — the job runs every 2 minutes and the next
+        # pass after the open evaluates on live data.
+        if not is_tehran_market_open():
+            # Audit F10: the skipped pass is observable, not silently absent.
+            from core.metrics import inc_alert_job_evaluation
+
+            inc_alert_job_evaluation(self._name, "skipped_market_closed")
+            return JobResult.skipped_result(
+                job_name=self._name,
+                reason="market closed — evaluation runs only during Tehran trading hours",
+            )
 
         if async_session_factory is None:
             return JobResult.failure("Database not available", job_name=self._name)
@@ -191,6 +207,7 @@ class EvaluateAlertsJob(BaseJob):
                     "triggered": triggered_total,
                     "skipped": len(skipped),
                     "skipped_symbols": skipped,
+                    "correlation_id": context.correlation_id,
                 },
             )
         except Exception as e:
@@ -260,10 +277,20 @@ class MonitorAlertInstrumentsJob(BaseJob):
                     logger.exception("MonitorAlertInstrumentsJob: monitor %s failed", monitor_id)
 
             async with async_session_factory() as session:
-                stats["telegram"] = await notifier.deliver_pending(session, now=datetime.now(UTC))
+                # 5 = validated maximum: each user's saved notifications.telegram_max_attempts
+                # then decides whether their own rows are retried or left failed
+                stats["telegram"] = await notifier.deliver_pending(session, now=datetime.now(UTC), max_attempts=5)
                 await session.commit()
             stats["duration_seconds"] = round(time.monotonic() - started, 2)
+            stats["correlation_id"] = context.correlation_id
+            # Audit F10: the analysis pass outcome is observable in /metrics.
+            from core.metrics import inc_alert_job_evaluation
+
+            inc_alert_job_evaluation(self._name, "success")
             return JobResult.success_result(job_name=self._name, data=stats)
         except Exception as e:
             logger.exception("MonitorAlertInstrumentsJob failed")
+            from core.metrics import inc_alert_job_evaluation
+
+            inc_alert_job_evaluation(self._name, "failure")
             return JobResult.failure(str(e), job_name=self._name)

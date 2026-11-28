@@ -24,11 +24,15 @@ _exporter: PrometheusExporter | None = None
 
 
 def get_prometheus_exporter() -> PrometheusExporter:
-    """Return the process-wide PrometheusExporter singleton."""
-    global _exporter
-    if _exporter is None:
-        _exporter = PrometheusExporter()
-    return _exporter
+    """Return the process-wide PrometheusExporter singleton.
+
+    Delegates to the shared exporter in ``integrations.observability`` so the
+    HTTP middleware and the alert-pipeline metrics (audit F10) land in the
+    same ``/metrics`` output.
+    """
+    from integrations.observability.prometheus_exporter import get_shared_exporter
+
+    return get_shared_exporter()
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):

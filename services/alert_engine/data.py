@@ -145,12 +145,20 @@ def coverage_item(status: str, source: str, as_of: datetime | date | None = None
             "age_seconds": age, "detail": detail}
 
 
+#: A timestamp this far in the future is a broken source clock, not live data —
+#: negative age must never be accepted as fresh (audit F8, 2026-11-28).
+FUTURE_TOLERANCE_SECONDS = 60.0
+
+
 def freshness(as_of: datetime | None, *, now: datetime, market_open: bool, open_seconds: int,
               closed_hours: int) -> str:
-    """valid (live, in session) | last_session (market closed, latest session's data) | stale | missing."""
+    """valid (live, in session) | last_session (market closed, latest session's data)
+    | stale | missing | invalid (a source clock running meaningfully ahead of us)."""
     if as_of is None:
         return "missing"
     age = (now - as_of).total_seconds()
+    if age < -FUTURE_TOLERANCE_SECONDS:
+        return "invalid"
     if market_open:
         return "valid" if age <= open_seconds else "stale"
     return "last_session" if age <= closed_hours * 3600 else "stale"

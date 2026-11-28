@@ -206,6 +206,22 @@ class PrometheusExporter:
         self._series_labels.clear()
 
 
+_shared: PrometheusExporter | None = None
+
+
+def get_shared_exporter() -> PrometheusExporter:
+    """Return the process-wide shared exporter instance.
+
+    Both the API middleware (via ``apps.api.metrics``) and job-side metrics
+    (audit F10) write into this one instance, so every counter lands in the
+    same scrapeable ``/metrics`` output.
+    """
+    global _shared
+    if _shared is None:
+        _shared = PrometheusExporter()
+    return _shared
+
+
 class _Timer:
     def __init__(self, exporter: PrometheusExporter, name: str, labels: dict[str, str] | None = None):
         self._exporter = exporter
