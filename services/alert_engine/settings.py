@@ -96,6 +96,8 @@ class NotificationPrefs:
     #: severities that play a sound in the platform
     sound_severities: tuple[str, ...] = ("opportunity", "material_change", "risk_warning", "critical")
     telegram_enabled: bool = False
+    # Bale messenger (bale.ai) — independent channel with its own toggle
+    bale_enabled: bool = False
     #: Tehran wall-clock "HH:MM"; both empty ⇒ no quiet hours
     quiet_start: str = ""
     quiet_end: str = ""
@@ -104,6 +106,9 @@ class NotificationPrefs:
     #: balances / position sizes stay out of Telegram unless opted in
     telegram_include_financials: bool = False
     telegram_max_attempts: int = 3
+    # Bale mirror (audit F9, 2026-11-28): the Bale delivery loop used to read
+    # telegram_max_attempts — channels are independent, so is their retry budget.
+    bale_max_attempts: int = 3
 
 
 @dataclass(frozen=True)
@@ -204,6 +209,8 @@ def validate(settings: EngineSettings) -> None:
         raise SettingsError("quiet_start and quiet_end must be set together")
     if not 1 <= n.telegram_max_attempts <= 5:
         raise SettingsError("telegram_max_attempts must be in [1, 5]")
+    if not 1 <= n.bale_max_attempts <= 5:
+        raise SettingsError("bale_max_attempts must be in [1, 5]")
 
 
 def loosens_risk(old: RiskSettings, new: RiskSettings) -> list[str]:

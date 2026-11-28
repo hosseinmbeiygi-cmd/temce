@@ -94,6 +94,11 @@ class AlertNotificationModel(Base):
     created_at: Mapped[datetime] = mapped_column(_TS, server_default=func.now(), index=True)
     valid_until: Mapped[datetime | None] = mapped_column(_TS)
     telegram_state: Mapped[str] = mapped_column(String(20), nullable=False, server_default="not_requested")
+    # Bale messenger (bale.ai) delivery — mirrors the telegram_* columns.
+    bale_state: Mapped[str] = mapped_column(String(20), nullable=False, server_default="not_requested")
+    bale_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    bale_error: Mapped[str | None] = mapped_column(Text)
+    bale_at: Mapped[datetime | None] = mapped_column(_TS)
     telegram_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     telegram_error: Mapped[str | None] = mapped_column(Text)
     telegram_at: Mapped[datetime | None] = mapped_column(_TS)
