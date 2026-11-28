@@ -57,12 +57,50 @@ class SchedulerApp:
         async def wrapper() -> None:
             await self._execute(job_name)
 
-        self.scheduler.add_job(wrapper, trigger, **kwargs)
+        # Stable id/name: APScheduler defaults to a random uuid + the wrapper's
+        # qualname, which made the job impossible to identify in the admin UI or
+        # toggle/remove by name.
+        self.scheduler.add_job(wrapper, trigger, id=job_name, name=job_name, **kwargs)
         logger.info(
             "Scheduled job %s with %s (mode=%s)",
             job_name, trigger,
             "queue" if self._queue_enabled else "in-process",
         )
+
+    async def _publish_scheduler_heartbeat(self) -> None:
+        """Publish the live job catalogue to Redis for the Data Admin UI.
+
+        The API used to list only the in-process BrsApi registry, so every
+        APScheduler job (SyncCodalJob, IndicatorPrecomputeJob, …) was invisible
+        and the Jobs tab under-reported the scheduler. The scheduler process now
+        writes name/trigger/next_run_time every 30s; the API merges it in.
+        """
+        import json
+
+        while True:
+            try:
+                from core.cache import get_cache
+
+                client = get_cache().client
+                if client is not None:
+                    payload = [
+                        {
+                            "name": job.id,
+                            "next_run_time": job.next_run_time.isoformat()
+                            if getattr(job, "next_run_time", None)
+                            else None,
+                            "trigger": str(job.trigger),
+                        }
+                        for job in self.scheduler.get_jobs()
+                    ]
+                    await client.set(
+                        "scheduler:jobs",
+                        json.dumps(payload, ensure_ascii=False),
+                        ex=180,
+                    )
+            except Exception:  # noqa: BLE001 — heartbeat must never kill the scheduler
+                logger.debug("Scheduler heartbeat publish failed", exc_info=True)
+            await asyncio.sleep(30)
 
     def start(self) -> None:
         # ── Register all job classes so dispatcher can find them ──
@@ -83,7 +121,9 @@ class SchedulerApp:
         self.add_job("SyncInstrumentsJob", trigger="interval", hours=24, max_instances=1, replace_existing=True)
         self.add_job("SyncQuotesJob", trigger="interval", minutes=2, max_instances=1, replace_existing=True)
         self.add_job("SyncSnapshotsToQuotesJob", trigger="interval", minutes=2, max_instances=1, replace_existing=True)
-        self.add_job("SyncCodalJob", trigger="interval", hours=6, max_instances=1, replace_existing=True)
+        # Codal publishes throughout the day; the v2 page is 20 rows, so a
+        # 30-minute incremental poll keeps the feed/UI current at trivial cost.
+        self.add_job("SyncCodalJob", trigger="interval", minutes=30, max_instances=1, replace_existing=True)
         self.add_job(
             "CodalAttachmentDownloadJob",
             trigger="interval",
@@ -170,6 +210,12 @@ class SchedulerApp:
         # State lives in the DB (alert_monitors), so a restart resumes without duplicates.
         # The job only reads stored market data; it never calls BrsApi, so it costs no API budget.
         self.add_job("MonitorAlertInstrumentsJob", trigger="interval", minutes=2, max_instances=1, coalesce=True, replace_existing=True)
+
+        # ── Signal TP/SL nightly evaluation (audit F17): evaluate pending due signals
+        # against daily bars and record outcomes for signal-linked alerts. 20:00 Tehran
+        # — after the session close, before PaperTradingJob (21:00). Idempotent: only
+        # signals still in status "pending" are picked up.
+        self.add_job("SignalEvaluationJob", trigger="cron", hour=20, minute=0, max_instances=1, replace_existing=True)
 
         # ── Backfill historical data (daily, off-peak hours) ──
         self.add_job(
@@ -409,6 +455,13 @@ class SchedulerApp:
 
         self.scheduler.start()
         logger.info("Scheduler started with %d BrsApi jobs", len(register_all_brsapi_jobs().enabled))
+        try:
+            self._heartbeat_task = asyncio.get_running_loop().create_task(
+                self._publish_scheduler_heartbeat()
+            )
+        except RuntimeError:
+            # start() called outside an event loop (unit tests) — no heartbeat.
+            self._heartbeat_task = None
 
     async def run_forever(self) -> None:
         # JOB-12: Redis init is intentionally non-blocking (create_task, not
