@@ -351,11 +351,11 @@ class JobQueueConsumer:
                 # JOB-06: apply exponential backoff with jitter before requeueing
                 # so a transient 30s DB/network outage doesn't burn all retries.
                 await self._retry_policy.wait(job_name)
-                self._retry_policy.record_retry(job_name)
+                await self._retry_policy.record_retry(job_name)
                 await self._requeue(payload, attempt + 1)
                 logger.warning("Job %s requeued (attempt %d) — %s", job_name, attempt + 1, error)
             else:
-                self._retry_policy.clear_retries(job_name)
+                await self._retry_policy.clear_retries(job_name)
                 await self._dead_letter(payload, error)
                 logger.error("Job %s dead-lettered after %d attempts: %s", job_name, attempt, error)
             self.failed += 1

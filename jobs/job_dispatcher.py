@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 from core.ids import new_id
@@ -12,6 +13,7 @@ from jobs.job_result import JobResult
 from jobs.locking import JobLocking
 from jobs.registry import job_registry
 from jobs.retry_policy import JobRetryPolicy
+from jobs.run_recorder import job_run_recorder
 
 logger = get_logger(__name__)
 
@@ -45,6 +47,10 @@ class JobDispatcher:
         if context is None:
             context = JobContext(job_id=new_id("job"), job_name=job_name, params=params or {})
         if not caller_supplied_context:
+            # Audit F10: a correlation id on every auto-generated context lets job
+            # logs/results be tied to the job_runs record (which keys on job_id).
+            if not context.correlation_id:
+                context.correlation_id = context.job_id
             dedup_key = f"{job_name}:{context.job_id}"
             if await self._deduplicator.is_duplicate(dedup_key):
                 logger.warning("Dedup: job %s already dispatched", dedup_key)
@@ -55,6 +61,11 @@ class JobDispatcher:
         async with self._locking.hold(lock_key, context.job_id) as acquired:
             if not acquired:
                 return JobResult.failure(f"Lock not acquired for {job_name}", job_name=job_name)
+
+            # Persist the lifecycle so /data-admin/sources can show real status
+            # instead of "unknown". Recording is best-effort (see run_recorder).
+            started_mono = await job_run_recorder.start(job_name, context.params, context.job_id)
+            result: JobResult | None = None
             try:
                 async with self._semaphore:
                     job_class = self._registry.get(job_name)
@@ -63,20 +74,28 @@ class JobDispatcher:
                         # function-based (no BaseJob class). In queue mode the
                         # worker receives their names from Redis.
                         direct = await self._dispatch_brsapi_direct_job(job_name)
-                        if direct is not None:
-                            return direct
-                        return JobResult.failure(f"Job {job_name} not found", job_name=job_name)
-                    job = self._registry.create(job_name)
-                    if job is None:
-                        return JobResult.failure(f"Could not create job {job_name}", job_name=job_name)
-                    context.record_start()
-                    result = await job.run(context)
-                    if result.success:
-                        self._retry_policy.clear_retries(context.job_id)
-                    return result
+                        result = direct if direct is not None else JobResult.failure(
+                            f"Job {job_name} not found", job_name=job_name
+                        )
+                    else:
+                        job = self._registry.create(job_name)
+                        if job is None:
+                            result = JobResult.failure(
+                                f"Could not create job {job_name}", job_name=job_name
+                            )
+                        else:
+                            context.record_start()
+                            result = await job.run(context)
+                            if result.success:
+                                await self._retry_policy.clear_retries(context.job_id)
             except Exception as e:
                 logger.error("Dispatch error for %s: %s", job_name, e)
-                return JobResult.failure(str(e), job_name=job_name)
+                result = JobResult.failure(str(e), job_name=job_name)
+            finally:
+                await job_run_recorder.finish(
+                    context.job_id, job_name, started_mono, result
+                )
+            return result
 
 
     async def _dispatch_brsapi_direct_job(self, job_name: str) -> JobResult | None:

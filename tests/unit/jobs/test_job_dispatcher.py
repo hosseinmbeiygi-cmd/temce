@@ -74,7 +74,8 @@ def _make_dispatcher(
     deduplicator.mark = AsyncMock()
 
     retry_policy = retry_policy or MagicMock()
-    retry_policy.clear_retries = MagicMock()
+    # clear_retries is awaited since F11 (Redis-backed counters are async).
+    retry_policy.clear_retries = AsyncMock()
 
     dispatcher = JobDispatcher(
         registry=registry,
@@ -122,7 +123,7 @@ class TestDispatch:
         mocks["deduplicator"].mark.assert_awaited_once()
         mocks["locking"].acquire.assert_awaited_once()
         mocks["locking"].release.assert_awaited_once()
-        mocks["retry_policy"].clear_retries.assert_called_once()
+        mocks["retry_policy"].clear_retries.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_duplicate_job_short_circuits(self) -> None:
@@ -205,6 +206,28 @@ class TestCallerSuppliedOccurrenceId:
     distributed lock (``job:<name>``) and the queue's single consume, so the
     in-memory dedup adds nothing here but blocks retries.
     """
+
+    @pytest.mark.asyncio
+    async def test_auto_context_gets_correlation_id(self) -> None:
+        """Audit F10: an auto-generated context carries correlation_id = job_id, so
+        job logs/results can be tied back to the job_runs record."""
+        captured: dict[str, str] = {}
+        job_result = JobResult.success_result(job_name="SyncQuotesJob")
+        job_cls = _make_job_cls(job_result)
+
+        async def run_and_capture(ctx) -> JobResult:
+            captured["correlation_id"] = ctx.correlation_id
+            captured["job_id"] = ctx.job_id
+            return job_result
+
+        job_cls.return_value.run = AsyncMock(side_effect=run_and_capture)
+        dispatcher, _mocks = _make_dispatcher(job_cls=job_cls)
+
+        result = await dispatcher.dispatch("SyncQuotesJob", params={"limit": 10})
+
+        assert result.success is True
+        assert captured["correlation_id"] == captured["job_id"]
+        assert captured["correlation_id"].startswith("job")
 
     async def test_retry_with_same_job_id_runs_again(self) -> None:
         from jobs.deduplication import JobDeduplicator
