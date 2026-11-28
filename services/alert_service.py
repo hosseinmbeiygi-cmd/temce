@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -34,12 +35,56 @@ def _normalize_field(field: str) -> str:
     return _FIELD_ALIASES.get(key, key)
 
 
+# Operators the evaluator actually understands (_condition_met); anything else fails
+# closed silently, so it must never be accepted at write time (audit F1, 2026-11-28).
+CONDITION_OPERATORS = frozenset({"gte", "gt", "lte", "lt", "eq", "neq"})
+# Canonical fields evaluate_and_trigger can receive — the values of _FIELD_ALIASES.
+CONDITION_FIELDS = frozenset(_FIELD_ALIASES.values())
+# Server-side anti-spam default. The frontend injects cooldown_minutes=30, but the API
+# contract must not depend on UI behaviour: an alert created without the key used to
+# re-trigger on every 2-minute EvaluateAlertsJob pass (audit F1, 2026-11-28).
+DEFAULT_COOLDOWN_MINUTES = 30.0
+
+
+def validate_condition(condition: Any) -> str | None:
+    """Return an error message for a condition the evaluator could not honour, else None.
+
+    Only the keys the evaluator reads are checked; extra keys (e.g. the entry/TP/SL
+    snapshot of a signal alert) are carried as data. Missing keys keep the evaluator's
+    defaults, so the free-form ``{}`` condition stays valid. A key *present* with a
+    null value is invalid — that is how a NaN threshold reaches the API through
+    ``JSON.stringify`` (audit F1/F4, 2026-11-28): it used to pass validation and then
+    die silently inside the evaluator.
+    """
+    if not isinstance(condition, dict):
+        return "condition must be an object"
+    if "field" in condition:
+        field = condition.get("field")
+        if field is None or _normalize_field(str(field)) not in CONDITION_FIELDS:
+            return f"unknown condition field: {field}"
+    if "operator" in condition:
+        operator = condition.get("operator")
+        if operator is None or operator not in CONDITION_OPERATORS:
+            return f"unknown condition operator: {operator}"
+    if "threshold" in condition:
+        threshold = condition.get("threshold")
+        if threshold is None or isinstance(threshold, bool) or not isinstance(threshold, (int, float)) \
+                or not math.isfinite(float(threshold)):
+            return "condition threshold must be a number"
+    if "cooldown_minutes" in condition:
+        cooldown = condition.get("cooldown_minutes")
+        if cooldown is None or isinstance(cooldown, bool) or not isinstance(cooldown, (int, float)) \
+                or cooldown < 0:
+            return "cooldown_minutes must be a non-negative number"
+    return None
+
+
 def quarantine_reason(alert: Any) -> str | None:
     """Why a stored alert must not fire. The row itself is never changed."""
     if not getattr(alert, "user_id", None):
         return "no_owner"
     symbol = str(getattr(alert, "symbol", "") or "")
-    if symbol and not symbol.strip("?� ‌"):
+    if symbol and not symbol.strip("?؟ ‌"):
         return "unrecoverable_symbol"
     return None
 
@@ -92,8 +137,13 @@ class AlertService:
             logger.error("List alerts failed: %s", e)
             return Result.fail(str(e))
 
-    async def create_alert(self, user_id: str, instrument_id: str, symbol: str, alert_type: str, condition: dict, channels: list[str], description: str, signal_id: str = "", market: str = "", timeframe: str = "") -> Result[dict[str, Any]]:
+    async def create_alert(self, user_id: str, instrument_id: str, symbol: str, alert_type: str, condition: dict,
+                           channels: list[str], description: str, signal_id: str = "", market: str = "",
+                           timeframe: str = "", enabled: bool = True) -> Result[dict[str, Any]]:
         try:
+            error = validate_condition(condition)
+            if error:
+                return Result.fail(error)
             alert = AlertModel(
                 id=new_id("alr"),
                 user_id=user_id or None,
@@ -102,7 +152,7 @@ class AlertService:
                 alert_type=alert_type,
                 condition=json.dumps(condition),
                 channels=json.dumps(channels),
-                enabled=True,
+                enabled=enabled,
                 description=description,
                 signal_id=signal_id or None,
                 market=market or None,
@@ -126,6 +176,9 @@ class AlertService:
             if not alert:
                 return Result.fail("Alert not found")
             if "condition" in kwargs and kwargs["condition"] is not None:
+                error = validate_condition(kwargs["condition"])
+                if error:
+                    return Result.fail(error)
                 alert.condition = json.dumps(kwargs["condition"])
             if "channels" in kwargs and kwargs["channels"] is not None:
                 alert.channels = json.dumps(kwargs["channels"])
@@ -206,17 +259,84 @@ class AlertService:
             logger.error("Get alert history failed: %s", e)
             return Result.fail(str(e))
 
-    async def _deliver_notification(self, message: str, channels: list[str]) -> bool:
+    async def count_alerts(self, user_id: str) -> int:
+        """Number of stored alerts for a user; -1 when unreadable (never blocks creation)."""
+        try:
+            from core.database import func as sa_func
+
+            total = await self.session.scalar(
+                select(sa_func.count(AlertModel.id)).where(AlertModel.user_id == user_id)
+            )
+            return int(total or 0)
+        except Exception as e:  # noqa: BLE001 — a failed count must not break creation
+            logger.warning("Count alerts failed: %s", e)
+            return -1
+
+    async def symbol_known(self, symbol: str) -> bool | None:
+        """Best-effort existence check against the synced TSETMC tables (audit F7).
+
+        True/False from stored data; None when the tables are unreadable. An unknown
+        symbol is a *warning* for the UI, never a hard blocker — manual entry of a
+        brand-new symbol stays possible, and the evaluation job simply skips symbols
+        with no live snapshot.
+        """
+        if not (symbol or "").strip():
+            return False
+        try:
+            from sqlalchemy import text
+
+            from services.alert_engine.data import symbol_variants
+
+            variants = list(dict.fromkeys(symbol_variants(symbol)))[:3]
+            placeholders = ", ".join(f":v{i}" for i in range(len(variants)))
+            params = {f"v{i}": v for i, v in enumerate(variants)}
+            row = (await self.session.execute(text(
+                f"SELECT 1 FROM brsapi_symbol_details WHERE symbol IN ({placeholders}) LIMIT 1"
+            ), params)).first()
+            if row:
+                return True
+            row = (await self.session.execute(text(
+                f"SELECT 1 FROM brsapi_symbol_snapshots WHERE symbol IN ({placeholders}) LIMIT 1"
+            ), params)).first()
+            return bool(row)
+        except Exception as e:  # noqa: BLE001 — unreadable tables must not block creation
+            logger.warning("Symbol existence check failed: %s", e)
+            return None
+
+    async def _owner_chat_id(self, user_id: str) -> str | None:
+        """The Telegram chat linked to the alert's owner — the same resolution the
+        alert-engine notifier uses (``users.telegram_chat_id``)."""
+        try:
+            from sqlalchemy import text
+
+            row = (await self.session.execute(
+                text("SELECT telegram_chat_id FROM users WHERE id = :u"), {"u": user_id})).first()
+            return str(row[0]) if row and row[0] else None
+        except Exception:  # noqa: BLE001 — an unreadable owner must not break evaluation
+            return None
+
+    async def _owner_bale_chat_id(self, user_id: str) -> str | None:
+        """The Bale chat linked to the alert's owner (``users.bale_chat_id``)."""
+        try:
+            from sqlalchemy import text
+
+            row = (await self.session.execute(
+                text("SELECT bale_chat_id FROM users WHERE id = :u"), {"u": user_id})).first()
+            return str(row[0]) if row and row[0] else None
+        except Exception:  # noqa: BLE001 — an unreadable owner must not break evaluation
+            return None
+
+    async def _deliver_notification(self, message: str, channels: list[str], user_id: str | None = None) -> bool:
         """Deliver an alert across its configured channels.
 
         Returns True only when a channel with a confirmed transport reported
         success. Console/sound/email have no confirmed transport here — they are
         logged and reported as ``not_configured``, never as delivered.
         """
-        statuses = await self._deliver_by_channel(message, channels)
+        statuses = await self._deliver_by_channel(message, channels, user_id=user_id)
         return any(status == "delivered" for status in statuses.values())
 
-    async def _deliver_by_channel(self, message: str, channels: list[str]) -> dict[str, str]:
+    async def _deliver_by_channel(self, message: str, channels: list[str], user_id: str | None = None) -> dict[str, str]:
         """Per-channel outcome: delivered | failed | not_configured | skipped."""
         from integrations.notifications.telegram_sender import redact_token
 
@@ -232,18 +352,55 @@ class AlertService:
                 elif channel == "telegram":
                     from integrations.notifications.telegram_sender import TelegramSender
 
-                    res = await TelegramSender().send(message)
+                    chat_id = None
+                    if user_id:
+                        chat_id = await self._owner_chat_id(user_id)
+                        if not chat_id:
+                            # Telegram goes only to the chat linked to the alert's own owner
+                            # (same rule as the alert-engine notifier); falling back to the
+                            # global chat_id would send every user's alert to one shared chat.
+                            statuses[channel] = "not_configured"
+                            logger.info("[ALERT][TELEGRAM] no chat linked to alert owner: %s", message)
+                            continue
+                    res = await TelegramSender(chat_id=chat_id).send(message)
                     if res.success:
                         statuses[channel] = "delivered"
                     else:
                         error = redact_token(str(res.error or ""))
                         statuses[channel] = "not_configured" if "not configured" in error else "failed"
                         logger.info("[ALERT][TELEGRAM] Not sent: %s", error)
+                elif channel == "bale":
+                    from integrations.notifications.bale_sender import BaleSender
+
+                    bale_chat = None
+                    if user_id:
+                        bale_chat = await self._owner_bale_chat_id(user_id)
+                        if not bale_chat:
+                            # Same owner-scoping rule as Telegram: Bale goes only
+                            # to the chat linked to the alert's own owner.
+                            statuses[channel] = "not_configured"
+                            logger.info("[ALERT][BALE] no chat linked to alert owner: %s", message)
+                            continue
+                    res = await BaleSender(chat_id=bale_chat).send(message)
+                    if res.success:
+                        statuses[channel] = "delivered"
+                    else:
+                        error = redact_token(str(res.error or ""))
+                        statuses[channel] = "not_configured" if "not configured" in error else "failed"
+                        logger.info("[ALERT][BALE] Not sent: %s", error)
                 else:
                     statuses[channel] = "skipped"
             except Exception as e:
                 statuses[channel] = "failed"
                 logger.error("Failed to deliver alert via %s: %s", channel, redact_token(str(e)))
+        # Audit F10: per-channel delivery outcomes, visible in /metrics.
+        try:
+            from core.metrics import inc_alert_delivery
+
+            for channel_name, outcome in statuses.items():
+                inc_alert_delivery("threshold", channel_name, outcome)
+        except Exception:  # noqa: BLE001 — metrics never break delivery
+            pass
         return statuses
 
     async def evaluate_and_trigger(self, instrument_id: str, symbol: str, field: str, value: float) -> list[dict[str, Any]]:
@@ -282,6 +439,12 @@ class AlertService:
                 if reason:
                     logger.warning("Alert %s quarantined (%s); not evaluated", getattr(alert, "id", "?"), reason)
                     continue
+                if alert.alert_type == "signal_tp_sl":
+                    # Signal outcome alerts are notified by the nightly signal
+                    # evaluation, not by this sweep: their condition carries an
+                    # entry/TP/SL snapshot without a threshold, and evaluating it
+                    # here would compare the live price against a defaulted 0.
+                    continue
                 try:
                     cond = json.loads(alert.condition) if isinstance(alert.condition, str) else alert.condition or {}
                     threshold = float(cond.get("threshold", 0))
@@ -295,7 +458,12 @@ class AlertService:
                     # Cooldown: skip if triggered recently (anti-spam).
                     # Compare both timestamps as naive datetimes so a
                     # timezone-aware last_triggered from the DB can't raise.
-                    cooldown_minutes = float(cond.get("cooldown_minutes", 0) or 0)
+                    # A condition WITHOUT the key gets the server default — the
+                    # API contract does not depend on the UI injecting it (F1).
+                    raw_cooldown = cond.get("cooldown_minutes")
+                    cooldown_minutes = (
+                        DEFAULT_COOLDOWN_MINUTES if raw_cooldown is None else float(raw_cooldown)
+                    )
                     if cooldown_minutes > 0 and alert.last_triggered:
                         from datetime import timedelta
 
@@ -310,7 +478,8 @@ class AlertService:
 
                     channels = json.loads(alert.channels) if isinstance(alert.channels, str) and alert.channels else []
                     message = f"{symbol} {current_field} reached {value} (threshold: {threshold})"
-                    delivered = await self._deliver_notification(message, channels)
+                    statuses = await self._deliver_by_channel(message, channels, user_id=getattr(alert, "user_id", None))
+                    delivered = any(status == "delivered" for status in statuses.values())
                     history = AlertHistoryModel(
                         id=new_id("alh"),
                         alert_id=alert.id,
@@ -320,13 +489,27 @@ class AlertService:
                     )
                     self.session.add(history)
                     alert.triggered_count = (alert.triggered_count or 0) + 1
-                    alert.last_triggered = now
+                    # Cooldown arms only when nothing reported "failed" (audit F3,
+                    # 2026-11-28): a failed transport must not suppress the next pass —
+                    # the 2-minute job cadence is the only retry this path has.
+                    # not_configured/skipped still arm, so a console-only alert is
+                    # recorded once per window instead of on every pass.
+                    if not any(status == "failed" for status in statuses.values()):
+                        alert.last_triggered = now
+                    # Audit F10: every processed trigger is observable.
+                    try:
+                        from core.metrics import inc_alert_trigger
+
+                        inc_alert_trigger(current_field)
+                    except Exception:  # noqa: BLE001 — metrics never break evaluation
+                        pass
                     triggered.append({
                         "alert_id": alert.id,
                         "symbol": symbol,
                         "value": value,
                         "threshold": threshold,
                         "message": message,
+                        "delivered": delivered,
                     })
                 except Exception as e:
                     logger.warning("Alert %s evaluation skipped: %s", getattr(alert, "id", "?"), e)
@@ -381,7 +564,7 @@ class AlertService:
                     continue
                 message = f"Signal {alert.symbol} [{signal_id[:8]}]: {status} @ {price}"
                 channels = json.loads(alert.channels) if isinstance(alert.channels, str) and alert.channels else []
-                delivered = await self._deliver_notification(message, channels)
+                delivered = await self._deliver_notification(message, channels, user_id=getattr(alert, "user_id", None))
                 self.session.add(AlertHistoryModel(
                     id=new_id("alh"), alert_id=alert.id,
                     trigger_value=price, message=message, delivered=delivered))

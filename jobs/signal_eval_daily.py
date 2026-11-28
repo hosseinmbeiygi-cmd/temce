@@ -51,9 +51,15 @@ def evaluate(signal: dict, bars: list[dict], halted_days: set | None = None) -> 
         "gross_return_pct":round(gross*100,4),"was_correct":correct,"checked_at":datetime.now(UTC)}
 
 def notify_subscribers(session, signal_id: str, symbol: str, status: str, price: float) -> int:
-    """Sync-safe: notify enabled signal-linked alerts (alerts.signal_id).
-    Writes history rows + bumps counters; delivery itself happens through
-    the alert channels worker/console. Returns notified count."""
+    """Sync-safe: record the outcome for enabled signal-linked alerts (alerts.signal_id).
+
+    Writes history rows + bumps counters. This path has NO delivery transport (the
+    Telegram/Bale senders are async and cannot run against a sync session), so
+    ``delivered`` is recorded as False — it must never claim a delivery that did not
+    happen (audit F2, 2026-11-28). Real channel delivery for signal outcomes is not
+    wired yet: neither ``run_daily`` nor ``SignalEvaluationJob`` invokes this path
+    today (audit finding F17) — the history row is the in-platform record only.
+    """
     try:
         from sqlalchemy import text as _text
         rows = session.execute(_text(
@@ -66,7 +72,7 @@ def notify_subscribers(session, signal_id: str, symbol: str, status: str, price:
                 "INSERT INTO alert_history (id, alert_id, trigger_value, message, delivered)"
                 " VALUES (:id,:aid,:px,:msg,:d)"),
                 {"id": "alh" + _uuid.uuid4().hex[:21], "aid": aid, "px": price,
-                 "msg": f"Signal {symbol} [{signal_id[:8]}]: {status} @ {price}", "d": True})
+                 "msg": f"Signal {symbol} [{signal_id[:8]}]: {status} @ {price}", "d": False})
             session.execute(_text(
                 "UPDATE alerts SET triggered_count=COALESCE(triggered_count,0)+1,"
                 " last_triggered=:now WHERE id=:aid"),
